@@ -1,0 +1,35 @@
+<Application
+    x:Class="AssignmentNative.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="GlassCardBrush" Color="#BFF8FAFC"/>
+                    <SolidColorBrush x:Key="GlassStrokeBrush" Color="#55FFFFFF"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="GlassCardBrush" Color="#B01B1D22"/>
+                    <SolidColorBrush x:Key="GlassStrokeBrush" Color="#28FFFFFF"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <Style x:Key="GlassCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource GlassCardBrush}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource GlassStrokeBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="18"/>
+                <Setter Property="Padding" Value="16"/>
+            </Style>
+
+            <Style TargetType="Button">
+                <Setter Property="CornerRadius" Value="9"/>
+            </Style>
+
+            <Style TargetType="TextBox">
+                <Setter Property="CornerRadius" Value="9"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

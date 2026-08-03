@@ -1,0 +1,26 @@
+using Microsoft.UI.Xaml;
+
+namespace AssignmentNative;
+
+public partial class App : Application
+{
+    private Window? _window;
+
+    public App()
+    {
+        InitializeComponent();
+        UnhandledException += (_, args) =>
+        {
+            // Keep diagnostics useful without copying exception messages that
+            // could contain untrusted page data into a log.
+            System.Diagnostics.Debug.WriteLine(
+                $"Unhandled exception type: {args.Exception.GetType().Name}");
+        };
+    }
+
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        _window = new MainWindow();
+        _window.Activate();
+    }
+}

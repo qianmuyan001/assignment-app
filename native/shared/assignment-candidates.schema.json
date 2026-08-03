@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Assignment candidate response",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "course_name": {
+            "type": ["string", "null"],
+            "maxLength": 120
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "due_date": {
+            "type": ["string", "null"],
+            "format": "date"
+          },
+          "due_time": {
+            "type": ["string", "null"],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "maxLength": 4000
+          },
+          "source_name": {
+            "type": ["string", "null"],
+            "maxLength": 255
+          },
+          "source_url": {
+            "type": ["string", "null"],
+            "maxLength": 1000
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        },
+        "required": [
+          "course_name",
+          "title",
+          "due_date",
+          "due_time",
+          "description",
+          "source_name",
+          "source_url",
+          "confidence",
+          "warnings"
+        ]
+      }
+    }
+  },
+  "required": ["assignments"]
+}

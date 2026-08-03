@@ -1,0 +1,323 @@
+<Window
+    x:Class="AssignmentNative.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AssignmentNative"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    Title="Assignments">
+
+    <Window.Resources>
+        <DataTemplate x:Key="CandidateTemplate"
+                      x:DataType="local:AssignmentCandidate">
+            <Border Style="{StaticResource GlassCardStyle}" Margin="0,0,0,8">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="{x:Bind CourseDisplay}"
+                               FontSize="12" Opacity="0.62"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{x:Bind Title}"
+                               FontSize="16" FontWeight="SemiBold"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{x:Bind DueDisplay}"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                    <TextBlock Text="{x:Bind Description}"
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
+                               Opacity="0.62"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <NavigationView
+        x:Name="Navigation"
+        IsBackButtonVisible="Collapsed"
+        IsSettingsVisible="True"
+        IsPaneToggleButtonVisible="True"
+        IsTitleBarAutoPaddingEnabled="True"
+        OpenPaneLength="230"
+        PaneDisplayMode="Left"
+        SelectionChanged="Navigation_SelectionChanged">
+
+        <NavigationView.PaneHeader>
+            <StackPanel Spacing="2" Margin="8,10,0,12">
+                <TextBlock Text="Assignments" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock Text="Native workspace" Opacity="0.58" FontSize="12"/>
+            </StackPanel>
+        </NavigationView.PaneHeader>
+
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="All Assignments" Tag="all" Icon="AllApps"/>
+            <NavigationViewItem Content="Today" Tag="today" Icon="CalendarDay"/>
+            <NavigationViewItem Content="This Week" Tag="week" Icon="CalendarWeek"/>
+            <NavigationViewItem Content="Completed" Tag="completed" Icon="Accept"/>
+            <NavigationViewItem Content="Sources" Tag="sources" Icon="Link"/>
+        </NavigationView.MenuItems>
+
+        <Grid>
+            <Grid x:Name="AssignmentPanel" Padding="28,20,28,24" RowSpacing="18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="PageTitle" Text="All Assignments"
+                                   FontSize="30" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="AssignmentCount" Opacity="0.58"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Connect source"
+                            Click="ConnectSource_Click"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Padding="16,9"/>
+                </Grid>
+
+                <AutoSuggestBox
+                    Grid.Row="1"
+                    x:Name="SearchBox"
+                    PlaceholderText="Search assignments, courses, or sources"
+                    TextChanged="SearchBox_TextChanged"
+                    QueryIcon="Find"/>
+
+                <Grid Grid.Row="2">
+                    <ListView
+                        x:Name="AssignmentList"
+                        ItemsSource="{x:Bind Assignments}"
+                        SelectionMode="None"
+                        IsItemClickEnabled="False">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,0,0,12"/>
+                                <Setter Property="CornerRadius" Value="18"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:AssignmentItem">
+                                <Border Style="{StaticResource GlassCardStyle}">
+                                    <Grid ColumnSpacing="14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="5"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{x:Bind AccentBrush}"
+                                                CornerRadius="3"/>
+                                        <StackPanel Grid.Column="1" Spacing="7">
+                                            <Grid>
+                                                <TextBlock Text="{x:Bind CourseName}"
+                                                           Foreground="{x:Bind AccentBrush}"
+                                                           FontSize="12"
+                                                           FontWeight="Bold"/>
+                                                <Border HorizontalAlignment="Right"
+                                                        Background="{x:Bind AccentBrush}"
+                                                        Opacity="0.78"
+                                                        CornerRadius="12"
+                                                        Padding="9,3">
+                                                    <TextBlock Text="{x:Bind StatusDisplay}"
+                                                               Foreground="White"
+                                                               FontSize="11"
+                                                               FontWeight="SemiBold"/>
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{x:Bind Title}"
+                                                       FontSize="17"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{x:Bind DueDisplay}"
+                                                       Foreground="{x:Bind AccentBrush}"
+                                                       FontSize="13"/>
+                                            <TextBlock Text="{x:Bind Description}"
+                                                       Opacity="0.65"
+                                                       MaxLines="2"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="Wrap"/>
+                                            <Grid Margin="0,4,0,0">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="&#xE71B;" FontSize="12"/>
+                                                    <TextBlock Text="{x:Bind SourceDisplay}"
+                                                               Opacity="0.58"
+                                                               FontSize="12"/>
+                                                </StackPanel>
+                                                <StackPanel HorizontalAlignment="Right"
+                                                            Orientation="Horizontal"
+                                                            Spacing="8">
+                                                    <Button Content="Done"
+                                                            Tag="{x:Bind Id}"
+                                                            Click="Done_Click"/>
+                                                    <Button Tag="{x:Bind Id}"
+                                                            Click="Delete_Click"
+                                                            ToolTipService.ToolTip="Delete">
+                                                        <FontIcon Glyph="&#xE74D;"/>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel x:Name="EmptyState"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                        <FontIcon Glyph="&#xE73E;" FontSize="38" Opacity="0.5"/>
+                        <TextBlock Text="Nothing here" FontSize="20"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Connect a source or choose another view."
+                                   Opacity="0.58"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <Grid x:Name="SourcePanel"
+                  Visibility="Collapsed"
+                  Padding="24,18,24,20"
+                  RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid>
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Secure Source Connector"
+                                   FontSize="28" FontWeight="SemiBold"/>
+                        <TextBlock Text="Sign in first, then let the local model extract assignments."
+                                   Opacity="0.58"/>
+                    </StackPanel>
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xEA18;" Foreground="ForestGreen"/>
+                        <TextBlock Text="Local only" Foreground="ForestGreen"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="210"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SourceNameBox" PlaceholderText="Source name · e.g. Canvas"/>
+                    <TextBox x:Name="CourseHintBox" Grid.Column="1"
+                             PlaceholderText="Course hint · optional"/>
+                    <ComboBox x:Name="LoginModeBox" Grid.Column="2"
+                              SelectedIndex="0"
+                              SelectionChanged="LoginMode_SelectionChanged"
+                              HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Interactive login" Tag="interactive"/>
+                        <ComboBoxItem Content="Credential Locker fill" Tag="saved"/>
+                    </ComboBox>
+                </Grid>
+
+                <Grid Grid.Row="2" ColumnSpacing="8">
+                    <Button Click="BrowserBack_Click">
+                        <FontIcon Glyph="&#xE72B;"/>
+                    </Button>
+                    <Button Margin="42,0,0,0" Click="BrowserForward_Click">
+                        <FontIcon Glyph="&#xE72A;"/>
+                    </Button>
+                    <Button Margin="84,0,0,0" Click="BrowserReload_Click">
+                        <FontIcon Glyph="&#xE72C;"/>
+                    </Button>
+                    <Grid Margin="126,0,210,0">
+                        <TextBox x:Name="AddressBox"
+                                 PlaceholderText="https://your-school.example"
+                                 KeyDown="AddressBox_KeyDown"/>
+                    </Grid>
+                    <Button HorizontalAlignment="Right"
+                            Margin="0,0,126,0"
+                            Content="Open"
+                            Click="OpenAddress_Click"
+                            Style="{StaticResource AccentButtonStyle}"/>
+                    <Button x:Name="CredentialButton"
+                            HorizontalAlignment="Right"
+                            Content="Credential"
+                            Visibility="Collapsed"
+                            Click="CredentialButton_Click"/>
+                </Grid>
+
+                <Border Grid.Row="3" CornerRadius="15"
+                        BorderThickness="1"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <controls:WebView2 x:Name="Browser"
+                                      NavigationStarting="Browser_NavigationStarting"
+                                      NavigationCompleted="Browser_NavigationCompleted"/>
+                </Border>
+
+                <Grid Grid.Row="4">
+                    <StackPanel Spacing="2">
+                        <TextBlock x:Name="BrowserTitle" Text="No page loaded"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="BrowserLocation" Opacity="0.58"
+                                   FontSize="12" MaxLines="1"/>
+                    </StackPanel>
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal" Spacing="10">
+                        <ToggleSwitch x:Name="AutoFillToggle"
+                                      Header="Auto-fill exact origin"
+                                      Visibility="Collapsed"/>
+                        <Button x:Name="ScanButton"
+                                Content="Scan current page"
+                                Click="ScanPage_Click"
+                                IsEnabled="False"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Padding="15,9"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed">
+                <StackPanel Padding="32,24" Spacing="18" MaxWidth="760"
+                            HorizontalAlignment="Left">
+                    <TextBlock Text="Settings" FontSize="30" FontWeight="SemiBold"/>
+                    <Border Style="{StaticResource GlassCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Local AI" FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <TextBox x:Name="AiEndpointBox"
+                                     Header="Loopback endpoint"
+                                     Text="http://127.0.0.1:8080"/>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="Check connection"
+                                        Click="CheckAi_Click"/>
+                                <TextBlock x:Name="AiStatusText"
+                                           Text="Not checked"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.65"/>
+                            </StackPanel>
+                            <TextBlock Text="Only localhost and loopback IP addresses are accepted."
+                                       FontSize="12" Opacity="0.58"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource GlassCardStyle}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Privacy" FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="• Passwords stay in Windows Credential Locker"/>
+                            <TextBlock Text="• Course content stays on this PC"/>
+                            <TextBlock Text="• The local model cannot control the login browser"/>
+                            <TextBlock x:Name="DatabasePathText"
+                                       Margin="0,8,0,0" FontSize="11"
+                                       Opacity="0.58" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </NavigationView>
+</Window>

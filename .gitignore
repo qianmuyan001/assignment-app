@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.idea/
+*.db-journal
+*.db-shm
+*.db-wal
+backend/.venv/
+.assignment_app_backend.pid
+native/macos/.build/
+native/macos/dist/

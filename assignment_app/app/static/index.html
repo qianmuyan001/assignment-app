@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assignment App</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <h1>Assignment App</h1>
+      </header>
+
+      <section class="section">
+        <h2>Add Assignment</h2>
+
+        <form id="assignment-form" class="assignment-form">
+          <label>
+            Course Name
+            <input id="course-name" name="course_name" type="text" required />
+          </label>
+
+          <label>
+            Title
+            <input id="title" name="title" type="text" required />
+          </label>
+
+          <label>
+            Due Date
+            <input id="due-date" name="due_date" type="datetime-local" required />
+          </label>
+
+          <label class="full-width">
+            Description
+            <textarea id="description" name="description" rows="3"></textarea>
+          </label>
+
+          <label>
+            Source URL
+            <input id="source-url" name="source_url" type="url" />
+          </label>
+
+          <label>
+            Source Name
+            <input id="source-name" name="source_name" type="text" />
+          </label>
+
+          <button type="submit">Add Assignment</button>
+        </form>
+      </section>
+
+      <p id="error-message" class="error-message" role="alert"></p>
+
+      <section class="section">
+        <div class="list-header">
+          <h2>Assignments</h2>
+          <button id="refresh-button" type="button" class="secondary-button">Refresh</button>
+        </div>
+
+        <div class="filters">
+          <label>
+            Status
+            <select id="status-filter">
+              <option value="all">all</option>
+              <option value="todo">todo</option>
+              <option value="in_progress">in_progress</option>
+              <option value="done">done</option>
+              <option value="ignored">ignored</option>
+            </select>
+          </label>
+
+          <label>
+            Course
+            <select id="course-filter">
+              <option value="all">all courses</option>
+            </select>
+          </label>
+
+          <label>
+            Search
+            <input id="search-box" type="search" placeholder="Search assignments" />
+          </label>
+
+          <button id="clear-filters-button" type="button" class="secondary-button">Clear Filters</button>
+        </div>
+
+        <div id="assignment-list" class="assignment-list"></div>
+      </section>
+    </main>
+
+    <script src="/static/script.js"></script>
+  </body>
+</html>
