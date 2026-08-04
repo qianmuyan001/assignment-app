@@ -9,10 +9,17 @@ const statusFilter = document.querySelector("#status-filter");
 const courseFilter = document.querySelector("#course-filter");
 const searchBox = document.querySelector("#search-box");
 const clearFiltersButton = document.querySelector("#clear-filters-button");
+const totalCount = document.querySelector("#total-count");
+const openCount = document.querySelector("#open-count");
+const todayCount = document.querySelector("#today-count");
+const weekCount = document.querySelector("#week-count");
 
 let allAssignments = [];
 
-document.addEventListener("DOMContentLoaded", loadAssignments);
+document.addEventListener("DOMContentLoaded", () => {
+  bindButtonFeedback();
+  loadAssignments();
+});
 assignmentForm.addEventListener("submit", handleCreateAssignment);
 refreshButton.addEventListener("click", loadAssignments);
 statusFilter.addEventListener("change", renderFilteredAssignments);
@@ -27,6 +34,7 @@ async function loadAssignments() {
     const assignments = await apiRequest("/assignments");
     allAssignments = assignments;
     updateCourseFilter(allAssignments);
+    updateSummaryCounts(allAssignments);
     renderFilteredAssignments();
   } catch (error) {
     showError(error.message);
@@ -125,8 +133,10 @@ function renderAssignments(assignments, emptyText = "No assignments yet.") {
     return;
   }
 
-  assignments.forEach((assignment) => {
-    assignmentList.appendChild(createAssignmentCard(assignment));
+  assignments.forEach((assignment, index) => {
+    const card = createAssignmentCard(assignment);
+    card.style.setProperty("--index", index);
+    assignmentList.appendChild(card);
   });
 }
 
@@ -226,7 +236,7 @@ function assignmentMatchesSearch(assignment, searchText) {
 
 function createAssignmentCard(assignment) {
   const card = document.createElement("article");
-  card.className = "assignment-card";
+  card.className = getAssignmentCardClassName(assignment);
   card.dataset.assignmentId = assignment.id;
 
   const title = document.createElement("h3");
@@ -269,7 +279,7 @@ function createAssignmentCard(assignment) {
 
 function createAssignmentEditCard(assignment) {
   const card = document.createElement("article");
-  card.className = "assignment-card";
+  card.className = `${getAssignmentCardClassName(assignment)} edit-mode`;
   card.dataset.assignmentId = assignment.id;
 
   const heading = document.createElement("h3");
@@ -414,6 +424,22 @@ function createDeleteButton(assignmentId) {
   return button;
 }
 
+function getAssignmentCardClassName(assignment) {
+  const status = String(assignment.status || "todo");
+  const classes = ["assignment-card", `status-${status}`];
+  const dueDate = new Date(assignment.due_date);
+
+  if (
+    !Number.isNaN(dueDate.getTime()) &&
+    startOfDay(dueDate) < startOfDay(new Date()) &&
+    !["done", "completed"].includes(status)
+  ) {
+    classes.push("is-past-due");
+  }
+
+  return classes.join(" ");
+}
+
 function createEditField(labelText, name, type, value, required) {
   const label = document.createElement("label");
   label.textContent = labelText;
@@ -556,6 +582,71 @@ function getDueDateHelperText(assignment) {
   }
 
   return "";
+}
+
+function updateSummaryCounts(assignments) {
+  const today = startOfDay(new Date());
+  const weekEnd = new Date(today);
+  weekEnd.setDate(today.getDate() + 7);
+
+  const summary = assignments.reduce(
+    (counts, assignment) => {
+      const status = String(assignment.status || "");
+      const isComplete = ["done", "completed"].includes(status);
+      const dueDate = startOfDay(new Date(assignment.due_date));
+
+      counts.total += 1;
+      if (!isComplete) {
+        counts.open += 1;
+      }
+
+      if (!Number.isNaN(dueDate.getTime())) {
+        if (dueDate.getTime() === today.getTime()) {
+          counts.today += 1;
+        }
+
+        if (!isComplete && dueDate >= today && dueDate <= weekEnd) {
+          counts.week += 1;
+        }
+      }
+
+      return counts;
+    },
+    { total: 0, open: 0, today: 0, week: 0 },
+  );
+
+  totalCount.textContent = summary.total;
+  openCount.textContent = summary.open;
+  todayCount.textContent = summary.today;
+  weekCount.textContent = summary.week;
+}
+
+function bindButtonFeedback() {
+  document.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest("button");
+
+    if (!button || button.disabled) {
+      return;
+    }
+
+    const bounds = button.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+
+    button.style.setProperty("--press-x", `${x}%`);
+    button.style.setProperty("--press-y", `${y}%`);
+    button.classList.add("is-pressing");
+  });
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+    document.addEventListener(eventName, (event) => {
+      const button = event.target.closest("button");
+
+      if (button) {
+        button.classList.remove("is-pressing");
+      }
+    });
+  });
 }
 
 function startOfDay(date) {
