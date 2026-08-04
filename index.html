@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assignment App</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="scene" aria-hidden="true">
+      <div class="glass-rail rail-one"></div>
+      <div class="glass-rail rail-two"></div>
+      <div class="beam beam-green"></div>
+      <div class="beam beam-cyan"></div>
+    </div>
+
+    <main class="page">
+      <header class="page-header glass-panel">
+        <div class="brand-area">
+          <span class="brand-mark" aria-hidden="true">A</span>
+          <div>
+            <p class="eyebrow">Local assignment workspace</p>
+            <h1>Assignment App</h1>
+          </div>
+        </div>
+
+        <div class="command-strip" aria-label="Assignment summary">
+          <div class="strip-item">
+            <span class="strip-value" id="total-count">0</span>
+            <span class="strip-label">Total</span>
+          </div>
+          <div class="strip-item">
+            <span class="strip-value" id="open-count">0</span>
+            <span class="strip-label">Open</span>
+          </div>
+          <div class="strip-item accent">
+            <span class="strip-value" id="today-count">0</span>
+            <span class="strip-label">Today</span>
+          </div>
+          <div class="strip-item">
+            <span class="strip-value" id="week-count">0</span>
+            <span class="strip-label">Week</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="control-grid">
+        <section class="section add-panel glass-panel">
+          <div class="section-heading">
+            <p class="eyebrow">Capture</p>
+            <h2>Add Assignment</h2>
+          </div>
+
+          <form id="assignment-form" class="assignment-form">
+            <label>
+              Course Name
+              <input id="course-name" name="course_name" type="text" required />
+            </label>
+
+            <label>
+              Title
+              <input id="title" name="title" type="text" required />
+            </label>
+
+            <label>
+              Due Date
+              <input id="due-date" name="due_date" type="datetime-local" required />
+            </label>
+
+            <label>
+              Source Name
+              <input id="source-name" name="source_name" type="text" />
+            </label>
+
+            <label class="full-width">
+              Description
+              <textarea id="description" name="description" rows="3"></textarea>
+            </label>
+
+            <label class="full-width">
+              Source URL
+              <input id="source-url" name="source_url" type="url" />
+            </label>
+
+            <button type="submit" class="primary-button">
+              <span class="button-icon" aria-hidden="true">+</span>
+              Add Assignment
+            </button>
+          </form>
+        </section>
+
+        <section class="section list-panel glass-panel">
+          <div class="list-header">
+            <div>
+              <p class="eyebrow">Schedule</p>
+              <h2>Assignments</h2>
+            </div>
+            <button id="refresh-button" type="button" class="secondary-button icon-button" aria-label="Refresh assignments" title="Refresh">
+              <span class="refresh-glyph" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="filters">
+            <label>
+              Status
+              <select id="status-filter">
+                <option value="all">all</option>
+                <option value="todo">todo</option>
+                <option value="in_progress">in_progress</option>
+                <option value="done">done</option>
+                <option value="ignored">ignored</option>
+              </select>
+            </label>
+
+            <label>
+              Course
+              <select id="course-filter">
+                <option value="all">all courses</option>
+              </select>
+            </label>
+
+            <label class="search-control">
+              Search
+              <input id="search-box" type="search" placeholder="Search assignments" />
+            </label>
+
+            <button id="clear-filters-button" type="button" class="secondary-button">
+              Clear Filters
+            </button>
+          </div>
+
+          <p id="error-message" class="error-message" role="alert"></p>
+          <div id="assignment-list" class="assignment-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/script.js"></script>
+  </body>
+</html>
