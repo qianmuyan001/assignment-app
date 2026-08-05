@@ -19,7 +19,7 @@ For now, assignments are saved in a local JSON file. There is no database, login
 From this folder:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app/assignment_app
+cd /path/to/assignment-app/assignment_app
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

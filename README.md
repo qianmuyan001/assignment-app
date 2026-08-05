@@ -17,7 +17,7 @@ SQLite assignment schema without replacing or deleting the database.
 macOS:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 ./native/local-ai/start-macos.command
 open native/macos/dist/Assignments.app
 ```
@@ -49,7 +49,7 @@ The easiest way to run the whole app is to use the start scripts in the project 
 For macOS or Linux Terminal:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 ./start.sh
 ```
 
@@ -60,7 +60,7 @@ For macOS Finder double click:
 If macOS blocks the file or says it is not executable, run this once:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 chmod +x start.sh start.command
 ```
 
@@ -82,7 +82,7 @@ The start script will:
 If the backend is left running for any reason, stop it with:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 ./stop.sh
 ```
 
@@ -91,7 +91,7 @@ cd /Users/qianmuyan/Desktop/assignment-app
 From the project root:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -100,7 +100,7 @@ pip install -r requirements.txt
 ## Run The Backend
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 source .venv/bin/activate
 uvicorn backend.app.main:app --reload
 ```
@@ -115,7 +115,7 @@ The API will run at:
 Open a second terminal while the backend is still running:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 source .venv/bin/activate
 python desktop_gui/main_window.py
 ```
