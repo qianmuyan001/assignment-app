@@ -11,7 +11,7 @@ supporting schema-constrained extraction.
 Double-click `start-macos.command` or:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 ./native/local-ai/start-macos.command
 ```
 

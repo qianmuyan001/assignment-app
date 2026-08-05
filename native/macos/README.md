@@ -5,7 +5,7 @@
 Start the local model in one Terminal window:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app
+cd /path/to/assignment-app
 ./native/local-ai/start-macos.command
 ```
 
@@ -22,7 +22,7 @@ open native/macos/dist/Assignments.app
 Requires Xcode with Swift 6.2 or newer:
 
 ```bash
-cd /Users/qianmuyan/Desktop/assignment-app/native/macos
+cd /path/to/assignment-app/native/macos
 swift test
 ./package_app.sh
 codesign --verify --deep --strict dist/Assignments.app
