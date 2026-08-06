@@ -1,6 +1,10 @@
 # Assignment Schedule App
 
+[![Latest release](https://img.shields.io/github/v/release/qianmuyan001/assignment-app?display_name=tag)](https://github.com/qianmuyan001/assignment-app/releases/latest)
+
 This project has a FastAPI backend, a SQLite database, and a desktop GUI for managing school assignments.
+
+Current version: **1.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
 
 The active backend lives in `backend/`. The desktop GUI lives in `desktop_gui/` and talks to the backend through HTTP requests.
 
