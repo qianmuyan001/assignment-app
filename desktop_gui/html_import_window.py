@@ -407,7 +407,7 @@ class PendingImportWindow(ctk.CTkToplevel):
             "title": title,
             "due_date": due_date,
             "description": self._empty_to_none(record["description_box"].get("1.0", "end").strip()),
-            "status": "not_started",
+            "status": "todo",
             "source_name": self._empty_to_none(record["source_name_entry"].get().strip()),
             "source_type": record["source_type"],
             "source_file": self._empty_to_none(record["source_file_entry"].get().strip()),

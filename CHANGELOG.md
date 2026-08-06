@@ -6,6 +6,32 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Added
+
+- Shared Assignment App 2.0 task schema, status/priority definitions, local-time
+  smart-list rules, fixtures, and common platform acceptance cases.
+- Versioned SQLite schema v2 migration with WAL-safe online backups,
+  transactional validation, automatic failure restoration, and migration tests.
+- WinUI 3 task CRUD, overdue navigation, search, status/course/priority filters,
+  due/priority sorting, loading/error/empty states, and delete confirmation.
+- Persistent simple/professional task display modes and system/light/dark
+  appearance settings for Windows.
+- Windows x64 self-contained publish and launch-smoke-test script.
+
+### Changed
+
+- 2.0 UI/API statuses are `todo`, `in_progress`, and `done`, while SQLite keeps
+  the 1.0 physical values for backward compatibility.
+
+### Known limitations
+
+- The Mac Catalyst port is paused because the repository does not contain the
+  required iPadOS Xcode project or workspace. The existing native SwiftPM macOS
+  client remains unchanged as a 1.0 baseline.
+- WinUI source and Core tests are ready, but the self-contained x64 directory
+  must be produced and launch-verified on Windows because the Windows App SDK
+  XAML compiler has native Windows dependencies.
+
 ## [1.0.0] - 2026-08-06
 
 ### Added

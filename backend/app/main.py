@@ -2,11 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models
-from .database import Base, engine, ensure_assignment_schema
+from .database import ensure_assignment_schema
 from .routers import assignments
 
 
-Base.metadata.create_all(bind=engine)
 ensure_assignment_schema()
 
 app = FastAPI(title="Assignment Organizer API")

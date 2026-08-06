@@ -10,3 +10,6 @@ backend/.venv/
 .assignment_app_backend.pid
 native/macos/.build/
 native/macos/dist/
+native/windows/**/bin/
+native/windows/**/obj/
+artifacts/

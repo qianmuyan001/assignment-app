@@ -6,6 +6,37 @@ This project has a FastAPI backend, a SQLite database, and a desktop GUI for man
 
 Current version: **1.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
 
+## Assignment App 2.0 preview
+
+The repository now contains the shared 2.0 task contract, a versioned SQLite v2
+migration, and the WinUI 3 implementation of the first 2.0 task-management
+workflow. The Windows client supports manual add/edit/delete, status changes,
+All/Today/This Week/Overdue/Completed views, search, filters, sorting,
+simple/professional display modes, and persistent appearance settings.
+
+The requested Mac Catalyst port is currently blocked: this repository contains
+no iPadOS `.xcodeproj` or `.xcworkspace`. `native/macos` is the existing pure
+macOS SwiftPM client, not a Catalyst target, and has intentionally not been
+presented as the 2.0 Catalyst build. To resume that work, provide the original
+iPadOS project, app target, Swift sources, resources, and target settings.
+
+Shared rules and disposable migration tests:
+
+```bash
+python3 -m unittest discover -s shared/tests -v
+```
+
+Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
+.NET 8 SDK installed):
+
+```powershell
+.\native\windows\publish-x64.ps1
+```
+
+The resulting self-contained test directory is `artifacts\windows-x64`. See
+`native/windows/README.md` for prerequisites, manual commands, database
+selection, and smoke-test details.
+
 The active backend lives in `backend/`. The desktop GUI lives in `desktop_gui/` and talks to the backend through HTTP requests.
 
 ## Native macOS and Windows versions
@@ -15,8 +46,8 @@ SQLite assignment schema without replacing or deleting the database.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
-| macOS | SwiftUI + WKWebView | macOS Keychain | Built and tested |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Source ready; build on Windows |
+| macOS | SwiftUI + WKWebView | macOS Keychain | Existing 1.0 native baseline; Catalyst source missing |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 preview source; build and smoke-test on Windows |
 
 macOS:
 
@@ -238,5 +269,13 @@ The current SQLite backend supports:
 - `source_file`
 - `source_url`
 - `status`
+- `priority` (`low`, `medium`, or `high`; existing records migrate to `medium`)
+
+The 2.0 API and desktop UI use `todo`, `in_progress`, and `done`. SQLite keeps
+the compatible 1.0 values `not_started`, `in_progress`, and `completed`; the
+Repository layer performs the mapping. A successful upgrade sets
+`PRAGMA user_version=2`. Existing databases are backed up with SQLite's online
+backup API before any migration, including databases with uncheckpointed WAL
+content.
 
 Manual assignments use `source_type` as `manual`. HTML imports use `source_type` as `local_html` and store the selected file name in `source_file`.

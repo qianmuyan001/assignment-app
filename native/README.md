@@ -3,6 +3,18 @@
 This directory contains the platform-native replacements for the original
 CustomTkinter interface.
 
+## 2.0 implementation status
+
+- `windows/` contains the WinUI 3 2.0 preview task workflow and its separate,
+  cross-platform-testable Core project.
+- `macos/` is the existing pure macOS SwiftPM 1.0 baseline. It is not a Mac
+  Catalyst application. The requested Catalyst work is paused until the real
+  iPadOS `.xcodeproj` or `.xcworkspace`, source, resources, and app target are
+  available.
+- `../shared/` is the canonical 2.0 task/schema/rule/fixture directory. The
+  older `native/shared/assignment-candidates.schema.json` remains the secure
+  source-import contract.
+
 ## Architecture
 
 ```text
@@ -18,9 +30,13 @@ CustomTkinter interface.
                          127.0.0.1 only
 ```
 
-Both clients use the existing assignment fields and can migrate the existing
-SQLite database. They do not send credentials or course content to a cloud
-service.
+The Windows 2.0 client and FastAPI backend can safely migrate the existing
+SQLite database. They use SQLite's online backup API before schema changes and
+stop on migration failure. The unchanged macOS 1.0 client does not initiate the
+v2 migration or expose priority, but the additive priority column and retained
+physical status values let it continue reading and writing a database already
+upgraded by Windows or FastAPI. None of the native clients send credentials or
+course content to a cloud service.
 
 ## Authentication modes
 
@@ -71,3 +87,6 @@ The AI never receives:
 - `windows/`: WinUI 3 Windows client source.
 - `local-ai/`: loopback-only llama.cpp start scripts.
 - `shared/`: shared JSON contracts and test fixtures.
+
+The 2.0 shared contracts live at repository-level `shared/`; see
+`shared/README.md`.
