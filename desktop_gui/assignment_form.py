@@ -7,19 +7,13 @@ from typing import Any, Callable
 import customtkinter as ctk
 
 try:
-    from . import api_client, theme
+    from . import api_client, localization, theme
     from .components import STATUS_VALUES, parse_due_datetime
 except ImportError:
     import api_client
+    import localization
     import theme
     from components import STATUS_VALUES, parse_due_datetime
-
-
-STATUS_LABELS = {
-    "not_started": "Not started",
-    "in_progress": "In progress",
-    "completed": "Completed",
-}
 
 
 class AssignmentForm(ctk.CTkToplevel):
@@ -28,12 +22,14 @@ class AssignmentForm(ctk.CTkToplevel):
         master: ctk.CTkBaseClass,
         assignment: dict[str, Any] | None = None,
         on_saved: Callable[[], None] | None = None,
+        language: str = localization.DEFAULT_LANGUAGE,
     ) -> None:
         super().__init__(master)
         self.assignment = assignment
         self.on_saved = on_saved
+        self.language = language
 
-        self.title("Edit Assignment" if assignment else "New Assignment")
+        self.title(self.t("form.window.edit") if assignment else self.t("form.window.new"))
         self.geometry("650x720")
         self.minsize(580, 650)
         self.configure(fg_color=theme.WINDOW)
@@ -46,6 +42,12 @@ class AssignmentForm(ctk.CTkToplevel):
         self._load_assignment()
 
         self.after(120, self.course_entry.focus_set)
+
+    def t(self, key: str, **values: Any) -> str:
+        return localization.translate(self.language, key, **values)
+
+    def _status_labels(self) -> dict[str, str]:
+        return {value: self.t(f"status.{value}") for value in STATUS_VALUES}
 
     def _build_form(self) -> None:
         shell = ctk.CTkFrame(self, fg_color="transparent")
@@ -71,7 +73,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         heading = ctk.CTkLabel(
             header,
-            text="Edit assignment" if self.assignment else "Create an assignment",
+            text=self.t("form.heading.edit") if self.assignment else self.t("form.heading.new"),
             font=theme.font(23, "bold"),
             text_color=theme.TEXT_PRIMARY,
             anchor="w",
@@ -80,7 +82,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         subtitle = ctk.CTkLabel(
             header,
-            text="Keep the important details together and easy to scan.",
+            text=self.t("form.subtitle"),
             font=theme.font(11),
             text_color=theme.TEXT_SECONDARY,
             anchor="w",
@@ -99,18 +101,18 @@ class AssignmentForm(ctk.CTkToplevel):
         form_card.grid(row=1, column=0, sticky="nsew")
         form_card.grid_columnconfigure(0, weight=1)
 
-        self._section_label(form_card, 0, "ASSIGNMENT DETAILS")
+        self._section_label(form_card, 0, self.t("form.section.details"))
         self.course_entry = self._add_entry(
             form_card,
             1,
-            "Course",
-            placeholder="e.g. CSE 122",
+            self.t("form.course"),
+            placeholder=self.t("form.course.placeholder"),
         )
         self.title_entry = self._add_entry(
             form_card,
             2,
-            "Title",
-            placeholder="What needs to be done?",
+            self.t("form.title"),
+            placeholder=self.t("form.title.placeholder"),
         )
 
         date_row = ctk.CTkFrame(form_card, fg_color="transparent")
@@ -121,7 +123,7 @@ class AssignmentForm(ctk.CTkToplevel):
         self.due_date_entry = self._add_entry(
             date_row,
             0,
-            "Due date",
+            self.t("form.due_date"),
             placeholder="YYYY-MM-DD",
             column=0,
             padx=(0, 7),
@@ -129,7 +131,7 @@ class AssignmentForm(ctk.CTkToplevel):
         self.due_time_entry = self._add_entry(
             date_row,
             0,
-            "Time",
+            self.t("form.time"),
             placeholder="23:59",
             column=1,
             padx=(7, 0),
@@ -138,21 +140,21 @@ class AssignmentForm(ctk.CTkToplevel):
         self.description_box = self._add_textbox(
             form_card,
             4,
-            "Description",
-            "Add notes, requirements, or a helpful next step…",
+            self.t("form.description"),
+            self.t("form.description.placeholder"),
         )
 
-        self._section_label(form_card, 6, "SOURCE & PROGRESS")
+        self._section_label(form_card, 6, self.t("form.section.source"))
         self.source_name_entry = self._add_entry(
             form_card,
             7,
-            "Source",
-            placeholder="Canvas, course site, or manual",
+            self.t("form.source"),
+            placeholder=self.t("form.source.placeholder"),
         )
         self.source_url_entry = self._add_entry(
             form_card,
             8,
-            "Source URL",
+            self.t("form.source_url"),
             placeholder="https://",
         )
 
@@ -162,7 +164,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             status_frame,
-            text="Status",
+            text=self.t("form.status"),
             anchor="w",
             font=theme.font(11, "bold"),
             text_color=theme.TEXT_SECONDARY,
@@ -170,7 +172,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         self.status_menu = ctk.CTkOptionMenu(
             status_frame,
-            values=[STATUS_LABELS[value] for value in STATUS_VALUES],
+            values=[self._status_labels()[value] for value in STATUS_VALUES],
             height=42,
             corner_radius=13,
             fg_color=theme.INPUT,
@@ -189,7 +191,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         cancel_button = ctk.CTkButton(
             button_row,
-            text="Cancel",
+            text=self.t("form.cancel"),
             width=94,
             height=40,
             corner_radius=13,
@@ -205,7 +207,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         save_button = ctk.CTkButton(
             button_row,
-            text="Save Assignment",
+            text=self.t("form.save"),
             width=142,
             height=40,
             corner_radius=13,
@@ -305,7 +307,7 @@ class AssignmentForm(ctk.CTkToplevel):
         return textbox
 
     def _load_assignment(self) -> None:
-        self.status_menu.set(STATUS_LABELS["not_started"])
+        self.status_menu.set(self._status_labels()["not_started"])
         self.due_time_entry.insert(0, "23:59")
 
         if not self.assignment:
@@ -332,7 +334,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
         status = str(self.assignment.get("status") or "not_started")
         if status in STATUS_VALUES:
-            self.status_menu.set(STATUS_LABELS[status])
+            self.status_menu.set(self._status_labels()[status])
 
         due_at = parse_due_datetime(self.assignment.get("due_date"))
         if due_at is not None:
@@ -344,7 +346,7 @@ class AssignmentForm(ctk.CTkToplevel):
         try:
             payload = self._payload_from_form()
         except ValueError as error:
-            messagebox.showerror("Cannot save assignment", str(error), parent=self)
+            messagebox.showerror(self.t("form.save_error"), str(error), parent=self)
             return
 
         try:
@@ -353,7 +355,7 @@ class AssignmentForm(ctk.CTkToplevel):
             else:
                 api_client.create_assignment(payload)
         except (api_client.ApiError, KeyError, ValueError) as error:
-            messagebox.showerror("Cannot save assignment", str(error), parent=self)
+            messagebox.showerror(self.t("form.save_error"), str(error), parent=self)
             return
 
         if self.on_saved:
@@ -367,9 +369,9 @@ class AssignmentForm(ctk.CTkToplevel):
         due_time = self.due_time_entry.get().strip() or "23:59"
 
         if not course_name:
-            raise ValueError("Course name is required.")
+            raise ValueError(self.t("form.error.course"))
         if not title:
-            raise ValueError("Assignment title is required.")
+            raise ValueError(self.t("form.error.title"))
         due_at = None
         if due_date:
             due_at = self._parse_due_date_and_time(due_date, due_time)
@@ -400,7 +402,7 @@ class AssignmentForm(ctk.CTkToplevel):
 
     def _status_value(self) -> str:
         selected = self.status_menu.get()
-        for value, label in STATUS_LABELS.items():
+        for value, label in self._status_labels().items():
             if selected == label:
                 return value
         return "not_started"
@@ -413,7 +415,7 @@ class AssignmentForm(ctk.CTkToplevel):
             )
         except ValueError as error:
             raise ValueError(
-                "Due date must be YYYY-MM-DD and due time must be HH:MM."
+                self.t("form.error.date")
             ) from error
 
     def _empty_to_none(self, value: str) -> str | None:

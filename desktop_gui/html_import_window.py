@@ -6,10 +6,11 @@ from typing import Any, Callable
 import customtkinter as ctk
 
 try:
-    from . import api_client, theme
+    from . import api_client, localization, theme
     from .components import clean_text, parse_due_datetime
 except ImportError:
     import api_client
+    import localization
     import theme
     from components import clean_text, parse_due_datetime
 
@@ -23,6 +24,7 @@ class PendingImportWindow(ctk.CTkToplevel):
         parser_used: str | None = None,
         fallback_used: bool = False,
         parse_message: str | None = None,
+        language: str = localization.DEFAULT_LANGUAGE,
     ) -> None:
         super().__init__(master)
         self.assignments = assignments
@@ -30,9 +32,10 @@ class PendingImportWindow(ctk.CTkToplevel):
         self.parser_used = parser_used
         self.fallback_used = fallback_used
         self.parse_message = parse_message
+        self.language = language
         self.records: list[dict[str, Any]] = []
 
-        self.title("Review Imported Assignments")
+        self.title(self.t("import.window"))
         self.geometry("980x700")
         self.minsize(860, 600)
         self.configure(fg_color=theme.WINDOW)
@@ -45,6 +48,9 @@ class PendingImportWindow(ctk.CTkToplevel):
         self._build_header()
         self._build_body()
         self._build_footer()
+
+    def t(self, key: str, **values: Any) -> str:
+        return localization.translate(self.language, key, **values)
 
     def _build_header(self) -> None:
         header = ctk.CTkFrame(self, fg_color="transparent")
@@ -65,7 +71,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         title = ctk.CTkLabel(
             header,
-            text="Review imported assignments",
+            text=self.t("import.heading"),
             font=theme.font(24, "bold"),
             text_color=theme.TEXT_PRIMARY,
             anchor="w",
@@ -74,18 +80,18 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         self.status_label = ctk.CTkLabel(
             header,
-            text=f"{len(self.assignments)} possible assignments are ready for review.",
+            text=self.t("import.ready", count=len(self.assignments)),
             text_color=theme.TEXT_SECONDARY,
             font=theme.font(11),
             anchor="w",
         )
         self.status_label.grid(row=1, column=1, sticky="ew", pady=(3, 0))
 
-        parser_text = f"Parser used: {self.parser_used or 'unknown'}"
+        parser_text = self.t("import.parser", parser=self.parser_used or self.t("import.unknown"))
         if self.parse_message:
             parser_text = f"{parser_text}. {self.parse_message}"
         elif self.fallback_used:
-            parser_text = f"{parser_text}. AI parser was not available. Rule-based parser was used instead."
+            parser_text = f"{parser_text}. {self.t('import.fallback')}"
 
         self.parser_label = ctk.CTkLabel(
             header,
@@ -101,7 +107,7 @@ class PendingImportWindow(ctk.CTkToplevel):
         if not self.assignments:
             empty_label = ctk.CTkLabel(
                 self,
-                text="No assignments found. You can try another HTML file or paste text manually later.",
+                text=self.t("dialog.no_assignments.body"),
                 text_color=theme.TEXT_SECONDARY,
                 wraplength=620,
                 font=theme.font(16),
@@ -129,7 +135,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         cancel_button = ctk.CTkButton(
             footer,
-            text="Cancel",
+            text=self.t("import.cancel"),
             width=96,
             height=40,
             corner_radius=13,
@@ -145,7 +151,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         import_all_button = ctk.CTkButton(
             footer,
-            text="Import All",
+            text=self.t("import.all"),
             width=118,
             height=40,
             corner_radius=13,
@@ -170,17 +176,20 @@ class PendingImportWindow(ctk.CTkToplevel):
         card.grid_columnconfigure(0, weight=1)
         card.grid_columnconfigure(1, weight=1)
 
-        course_entry = self._entry(card, 0, 0, "Course name", assignment.get("course_name"))
-        title_entry = self._entry(card, 0, 1, "Title", assignment.get("title"))
-        due_date_entry = self._entry(card, 1, 0, "Due date (YYYY-MM-DD)", assignment.get("due_date"))
-        due_time_entry = self._entry(card, 1, 1, "Due time (HH:MM)", assignment.get("due_time"))
-        source_name_entry = self._entry(card, 2, 0, "Source name", assignment.get("source_name"))
-        source_file_entry = self._entry(card, 2, 1, "Source file", assignment.get("source_file"))
+        course_entry = self._entry(card, 0, 0, self.t("import.course"), assignment.get("course_name"))
+        title_entry = self._entry(card, 0, 1, self.t("import.title"), assignment.get("title"))
+        due_date_entry = self._entry(card, 1, 0, self.t("import.due_date"), assignment.get("due_date"), is_due_date=True)
+        due_time_entry = self._entry(card, 1, 1, self.t("import.due_time"), assignment.get("due_time"))
+        source_name_entry = self._entry(card, 2, 0, self.t("import.source_name"), assignment.get("source_name"))
+        source_file_entry = self._entry(card, 2, 1, self.t("import.source_file"), assignment.get("source_file"))
 
-        info_text = f"Confidence: {clean_text(assignment.get('confidence')) or 'medium'}"
+        info_text = self.t(
+            "import.confidence",
+            confidence=clean_text(assignment.get("confidence")) or self.t("import.medium"),
+        )
         warnings = assignment.get("warnings") or []
         if warnings:
-            info_text = f"{info_text} | Warnings: {'; '.join(str(item) for item in warnings)}"
+            info_text = f"{info_text} | {self.t('import.warnings', warnings='; '.join(str(item) for item in warnings))}"
 
         info_label = ctk.CTkLabel(
             card,
@@ -194,7 +203,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             card,
-            text="Description",
+            text=self.t("import.description"),
             anchor="w",
             text_color=theme.TEXT_SECONDARY,
             font=theme.font(11, "bold"),
@@ -239,7 +248,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         import_button = ctk.CTkButton(
             button_row,
-            text="Import",
+            text=self.t("import.one"),
             width=90,
             height=34,
             corner_radius=11,
@@ -253,7 +262,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         ignore_button = ctk.CTkButton(
             button_row,
-            text="Ignore",
+            text=self.t("import.ignore"),
             width=90,
             height=34,
             corner_radius=11,
@@ -275,6 +284,7 @@ class PendingImportWindow(ctk.CTkToplevel):
         label: str,
         value: Any,
         columnspan: int = 1,
+        is_due_date: bool = False,
     ) -> ctk.CTkEntry:
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.grid(
@@ -302,7 +312,7 @@ class PendingImportWindow(ctk.CTkToplevel):
             border_color=theme.BORDER,
             fg_color=theme.INPUT,
             text_color=theme.TEXT_PRIMARY,
-            placeholder_text="No due date" if "Due date" in label else "",
+            placeholder_text=self.t("due.none") if is_due_date else "",
             placeholder_text_color=theme.TEXT_TERTIARY,
             font=theme.font(11),
         )
@@ -316,7 +326,7 @@ class PendingImportWindow(ctk.CTkToplevel):
             payload = self._payload_from_record(record)
             api_client.create_assignment(payload)
         except (ValueError, api_client.ApiError) as error:
-            messagebox.showerror("Cannot import assignment", str(error), parent=self)
+            messagebox.showerror(self.t("import.error"), str(error), parent=self)
             return False
 
         record["status"] = "imported"
@@ -343,7 +353,7 @@ class PendingImportWindow(ctk.CTkToplevel):
                 payload = self._payload_from_record(record)
                 api_client.create_assignment(payload)
             except (ValueError, api_client.ApiError) as error:
-                title = record["title_entry"].get().strip() or "Untitled assignment"
+                title = record["title_entry"].get().strip() or self.t("card.untitled")
                 errors.append(f"{title}: {error}")
                 continue
 
@@ -358,13 +368,17 @@ class PendingImportWindow(ctk.CTkToplevel):
 
         if errors:
             messagebox.showerror(
-                "Some assignments were not imported",
+                self.t("import.some_error"),
                 "\n".join(errors[:6]),
                 parent=self,
             )
             return
 
-        messagebox.showinfo("Import complete", f"Imported {imported_count} assignments.", parent=self)
+        messagebox.showinfo(
+            self.t("import.complete"),
+            self.t("import.completed_count", count=imported_count),
+            parent=self,
+        )
         self.destroy()
 
     def _payload_from_record(self, record: dict[str, Any]) -> dict[str, Any]:
@@ -374,19 +388,19 @@ class PendingImportWindow(ctk.CTkToplevel):
         due_time_text = record["due_time_entry"].get().strip()
 
         if not course_name:
-            raise ValueError("Course name is required before importing.")
+            raise ValueError(self.t("import.error.course"))
         if not title:
-            raise ValueError("Title is required before importing.")
+            raise ValueError(self.t("import.error.title"))
 
         due_date = None
         if due_date_text:
             due_text = f"{due_date_text} {due_time_text}".strip()
             due_at = parse_due_datetime(due_text)
             if due_at is None:
-                raise ValueError("Due date must be blank or use YYYY-MM-DD and optional HH:MM.")
+                raise ValueError(self.t("import.error.date"))
             due_date = due_at.strftime("%Y-%m-%d %H:%M")
         elif due_time_text:
-            raise ValueError("Due time cannot be imported without a due date.")
+            raise ValueError(self.t("import.error.time"))
 
         return {
             "course_name": course_name,
@@ -402,7 +416,7 @@ class PendingImportWindow(ctk.CTkToplevel):
 
     def _after_record_done(self) -> None:
         pending_count = sum(1 for record in self.records if record["status"] == "pending")
-        self.status_label.configure(text=f"{pending_count} assignments left to review.")
+        self.status_label.configure(text=self.t("import.remaining", count=pending_count))
 
     def _empty_to_none(self, value: str) -> str | None:
         return value or None

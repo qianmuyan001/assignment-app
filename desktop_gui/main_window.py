@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from . import api_client, theme
+    from . import api_client, localization, theme
     from .assignment_form import AssignmentForm
     from .components import (
         assignment_matches_search,
@@ -27,6 +27,7 @@ try:
     from .ui_components import AssignmentCard, MetricCard
 except ImportError:
     import api_client
+    import localization
     import theme
     from assignment_form import AssignmentForm
     from components import (
@@ -41,36 +42,21 @@ except ImportError:
 
 
 STATUS_FILTERS = ["all", "not_started", "in_progress", "completed"]
-STATUS_FILTER_LABELS = {
-    "all": "All statuses",
-    "not_started": "Not started",
-    "in_progress": "In progress",
-    "completed": "Completed",
-}
-
 NAVIGATION = [
-    ("all", "▦", "All Assignments"),
-    ("today", "◷", "Today"),
-    ("week", "◇", "This Week"),
-    ("completed", "✓", "Completed"),
-    ("sources", "↗", "Sources"),
-    ("settings", "⚙", "Settings"),
+    ("all", "▦"),
+    ("today", "◷"),
+    ("week", "◇"),
+    ("completed", "✓"),
+    ("sources", "↗"),
+    ("settings", "⚙"),
 ]
-
-VIEW_COPY = {
-    "all": ("Assignments", "Everything on your schedule, beautifully organized."),
-    "today": ("Today", "A focused view of what needs your attention today."),
-    "week": ("This Week", "Plan the next seven days with room to breathe."),
-    "completed": ("Completed", "A calm record of everything you have finished."),
-    "sources": ("Sources", "Assignments collected from your connected and imported sources."),
-    "settings": ("Settings", "Make the workspace feel right for you."),
-}
 
 
 class AssignmentApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Assignments")
+        self.language = localization.load_language()
+        self.title(self.t("app.title"))
         self.geometry("1280x800")
         self.minsize(960, 640)
         self.configure(fg_color=theme.WINDOW)
@@ -81,6 +67,7 @@ class AssignmentApp(ctk.CTk):
         self._compact_sidebar = False
         self._render_after_ids: list[str] = []
         self.all_assignments: list[dict[str, Any]] = []
+        self.service_online: bool | None = None
         self.metric_cards: dict[str, MetricCard] = {}
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.settings_panel: ctk.CTkFrame | None = None
@@ -100,10 +87,16 @@ class AssignmentApp(ctk.CTk):
         self.load_assignments()
         self.after(30, self._fade_window)
 
+    def t(self, key: str, **values: Any) -> str:
+        return localization.translate(self.language, key, **values)
+
+    def _status_labels(self) -> dict[str, str]:
+        return {value: self.t(f"filter.{value}") for value in STATUS_FILTERS}
+
     def _build_sidebar(self) -> None:
         self.sidebar = ctk.CTkFrame(
             self,
-            width=224,
+            width=190 if self._compact_sidebar else 224,
             corner_radius=0,
             fg_color=theme.SIDEBAR,
             border_width=0,
@@ -131,7 +124,7 @@ class AssignmentApp(ctk.CTk):
 
         self.brand_title = ctk.CTkLabel(
             brand,
-            text="Assignments",
+            text=self.t("app.title"),
             font=theme.font(16, "bold"),
             text_color=theme.TEXT_PRIMARY,
             anchor="w",
@@ -140,7 +133,7 @@ class AssignmentApp(ctk.CTk):
 
         self.brand_subtitle = ctk.CTkLabel(
             brand,
-            text="Student workspace",
+            text="" if self._compact_sidebar else self.t("brand.subtitle"),
             font=theme.font(10),
             text_color=theme.TEXT_TERTIARY,
             anchor="w",
@@ -149,17 +142,17 @@ class AssignmentApp(ctk.CTk):
 
         section_label = ctk.CTkLabel(
             self.sidebar,
-            text="WORKSPACE",
+            text=self.t("nav.section"),
             font=theme.font(10, "bold"),
             text_color=theme.TEXT_TERTIARY,
             anchor="w",
         )
         section_label.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 8))
 
-        for row, (key, icon, label) in enumerate(NAVIGATION, start=2):
+        for row, (key, icon) in enumerate(NAVIGATION, start=2):
             button = ctk.CTkButton(
                 self.sidebar,
-                text=f"{icon}   {label}",
+                text=f"{icon}   {self.t(f'nav.{key}')}",
                 height=43,
                 corner_radius=13,
                 fg_color="transparent",
@@ -194,7 +187,7 @@ class AssignmentApp(ctk.CTk):
 
         self.connection_label = ctk.CTkLabel(
             footer,
-            text="Connecting…",
+            text=self.t("connection.connecting"),
             text_color=theme.TEXT_SECONDARY,
             font=theme.font(10),
             anchor="w",
@@ -224,7 +217,7 @@ class AssignmentApp(ctk.CTk):
 
         self.view_title_label = ctk.CTkLabel(
             copy,
-            text=VIEW_COPY["all"][0],
+            text=self.t("view.all.title"),
             font=theme.font(30, "bold"),
             text_color=theme.TEXT_PRIMARY,
             anchor="w",
@@ -245,7 +238,7 @@ class AssignmentApp(ctk.CTk):
 
         import_button = ctk.CTkButton(
             actions,
-            text="↗  Import HTML",
+            text=self.t("action.import_html"),
             width=128,
             height=40,
             corner_radius=13,
@@ -261,7 +254,7 @@ class AssignmentApp(ctk.CTk):
 
         add_button = ctk.CTkButton(
             actions,
-            text="+  New Assignment",
+            text=self.t("action.new_assignment"),
             width=146,
             height=40,
             corner_radius=13,
@@ -279,10 +272,10 @@ class AssignmentApp(ctk.CTk):
         self.summary_frame.grid(row=1, column=0, sticky="ew", padx=30, pady=(0, 15))
 
         items = [
-            ("incomplete", "Open", theme.PURPLE),
-            ("due_today", "Due today", theme.WARNING),
-            ("due_this_week", "This week", theme.ACCENT),
-            ("completed", "Completed", theme.SUCCESS),
+            ("incomplete", self.t("metric.open"), theme.PURPLE),
+            ("due_today", self.t("metric.due_today"), theme.WARNING),
+            ("due_this_week", self.t("metric.this_week"), theme.ACCENT),
+            ("completed", self.t("metric.completed"), theme.SUCCESS),
         ]
 
         for index, (key, label, accent) in enumerate(items):
@@ -315,7 +308,7 @@ class AssignmentApp(ctk.CTk):
             border_color=theme.BORDER,
             fg_color=theme.INPUT,
             text_color=theme.TEXT_PRIMARY,
-            placeholder_text="Search assignments, courses, or sources",
+            placeholder_text=self.t("search.placeholder"),
             placeholder_text_color=theme.TEXT_TERTIARY,
             font=theme.font(12),
         )
@@ -325,7 +318,7 @@ class AssignmentApp(ctk.CTk):
 
         self.status_filter = ctk.CTkOptionMenu(
             self.toolbar,
-            values=[STATUS_FILTER_LABELS[value] for value in STATUS_FILTERS],
+            values=[self._status_labels()[value] for value in STATUS_FILTERS],
             width=132,
             height=41,
             corner_radius=13,
@@ -340,11 +333,11 @@ class AssignmentApp(ctk.CTk):
             command=lambda _value: self.render_assignments(),
         )
         self.status_filter.grid(row=0, column=1, padx=7, pady=11)
-        self.status_filter.set(STATUS_FILTER_LABELS["all"])
+        self.status_filter.set(self._status_labels()["all"])
 
         self.course_filter = ctk.CTkOptionMenu(
             self.toolbar,
-            values=["All courses"],
+            values=[self.t("filter.all_courses")],
             width=132,
             height=41,
             corner_radius=13,
@@ -359,11 +352,11 @@ class AssignmentApp(ctk.CTk):
             command=lambda _value: self.render_assignments(),
         )
         self.course_filter.grid(row=0, column=2, padx=7, pady=11)
-        self.course_filter.set("All courses")
+        self.course_filter.set(self.t("filter.all_courses"))
 
         self.parser_mode_menu = ctk.CTkOptionMenu(
             self.toolbar,
-            values=["Auto", "AI", "Rule-based"],
+            values=[self.t("parser.auto"), self.t("parser.ai"), self.t("parser.rule")],
             width=104,
             height=41,
             corner_radius=13,
@@ -377,7 +370,7 @@ class AssignmentApp(ctk.CTk):
             dropdown_font=theme.font(11),
         )
         self.parser_mode_menu.grid(row=0, column=3, padx=7, pady=11)
-        self.parser_mode_menu.set("Auto")
+        self.parser_mode_menu.set(self.t("parser.auto"))
 
         refresh_button = ctk.CTkButton(
             self.toolbar,
@@ -406,7 +399,7 @@ class AssignmentApp(ctk.CTk):
 
         self.list_count_label = ctk.CTkLabel(
             list_header,
-            text="0 assignments",
+            text=self.t("list.count.other", count=0),
             font=theme.font(13, "bold"),
             text_color=theme.TEXT_PRIMARY,
             anchor="w",
@@ -415,7 +408,7 @@ class AssignmentApp(ctk.CTk):
 
         sort_label = ctk.CTkLabel(
             list_header,
-            text="Soonest due first",
+            text=self.t("list.sort"),
             font=theme.font(11),
             text_color=theme.TEXT_TERTIARY,
             anchor="e",
@@ -448,7 +441,7 @@ class AssignmentApp(ctk.CTk):
 
         privacy_label = ctk.CTkLabel(
             footer,
-            text="Local-first · Your data stays on this device",
+            text=self.t("privacy"),
             anchor="e",
             text_color=theme.TEXT_TERTIARY,
             font=theme.font(10),
@@ -456,11 +449,11 @@ class AssignmentApp(ctk.CTk):
         privacy_label.grid(row=0, column=1, sticky="e")
 
     def select_view(self, view: str) -> None:
-        if view not in VIEW_COPY:
+        if view not in {key for key, _icon in NAVIGATION}:
             return
 
         self.active_view = view
-        self.status_filter.set(STATUS_FILTER_LABELS["all"])
+        self.status_filter.set(self._status_labels()["all"])
         self._update_nav_styles()
         self._update_header_copy()
 
@@ -490,16 +483,16 @@ class AssignmentApp(ctk.CTk):
         )
         self.settings_panel.grid_columnconfigure(0, weight=1)
 
-        appearance_card = self._settings_card(
+        language_card = self._settings_card(
             self.settings_panel,
-            "Appearance",
-            "Follow your system or choose a dedicated light or dark workspace.",
+            self.t("settings.language.title"),
+            self.t("settings.language.description"),
         )
-        appearance_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        language_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
 
-        appearance_selector = ctk.CTkSegmentedButton(
-            appearance_card,
-            values=["System", "Light", "Dark"],
+        language_selector = ctk.CTkSegmentedButton(
+            language_card,
+            values=[localization.LANGUAGE_NAMES["en"], localization.LANGUAGE_NAMES["zh"]],
             height=38,
             corner_radius=12,
             border_width=0,
@@ -510,21 +503,54 @@ class AssignmentApp(ctk.CTk):
             unselected_hover_color=theme.SURFACE_HOVER,
             text_color=theme.TEXT_PRIMARY,
             font=theme.font(11, "bold"),
-            command=self._change_appearance,
+            command=self._change_language,
+        )
+        language_selector.grid(row=2, column=0, sticky="w", padx=20, pady=(4, 20))
+        language_selector.set(localization.LANGUAGE_NAMES[self.language])
+
+        appearance_card = self._settings_card(
+            self.settings_panel,
+            self.t("settings.appearance.title"),
+            self.t("settings.appearance.description"),
+        )
+        appearance_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+
+        appearance_labels = {
+            "System": self.t("settings.appearance.system"),
+            "Light": self.t("settings.appearance.light"),
+            "Dark": self.t("settings.appearance.dark"),
+        }
+
+        appearance_selector = ctk.CTkSegmentedButton(
+            appearance_card,
+            values=list(appearance_labels.values()),
+            height=38,
+            corner_radius=12,
+            border_width=0,
+            fg_color=theme.INPUT,
+            selected_color=theme.ACCENT,
+            selected_hover_color=theme.ACCENT_HOVER,
+            unselected_color=theme.INPUT,
+            unselected_hover_color=theme.SURFACE_HOVER,
+            text_color=theme.TEXT_PRIMARY,
+            font=theme.font(11, "bold"),
+            command=lambda value: self._change_appearance(
+                next(key for key, label in appearance_labels.items() if label == value)
+            ),
         )
         appearance_selector.grid(row=2, column=0, sticky="w", padx=20, pady=(4, 20))
-        appearance_selector.set(self.appearance_preference)
+        appearance_selector.set(appearance_labels[self.appearance_preference])
 
         motion_card = self._settings_card(
             self.settings_panel,
-            "Motion",
-            "Use gentle transitions when cards appear, respond, and leave the list.",
+            self.t("settings.motion.title"),
+            self.t("settings.motion.description"),
         )
-        motion_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        motion_card.grid(row=2, column=0, sticky="ew", pady=(0, 12))
 
         self.motion_switch = ctk.CTkSwitch(
             motion_card,
-            text="Smooth interface animations",
+            text=self.t("settings.motion.toggle"),
             progress_color=theme.ACCENT,
             button_color="#FFFFFF",
             button_hover_color="#FFFFFF",
@@ -538,14 +564,14 @@ class AssignmentApp(ctk.CTk):
 
         data_card = self._settings_card(
             self.settings_panel,
-            "Data & connection",
-            "Assignment records remain in the existing local SQLite database.",
+            self.t("settings.data.title"),
+            self.t("settings.data.description"),
         )
-        data_card.grid(row=2, column=0, sticky="ew")
+        data_card.grid(row=3, column=0, sticky="ew")
 
         endpoint = ctk.CTkLabel(
             data_card,
-            text=f"Local API   {api_client.BASE_URL}",
+            text=self.t("settings.data.endpoint", url=api_client.BASE_URL),
             height=36,
             corner_radius=11,
             fg_color=theme.INPUT,
@@ -599,7 +625,7 @@ class AssignmentApp(ctk.CTk):
         self.list_panel.grid()
 
     def load_assignments(self) -> None:
-        self.status_label.configure(text="Syncing your schedule…")
+        self.status_label.configure(text=self.t("status.syncing"))
 
         try:
             self.all_assignments = api_client.get_assignments()
@@ -610,10 +636,11 @@ class AssignmentApp(ctk.CTk):
             self._update_nav_badges()
             if self.active_view != "settings":
                 self.render_assignments()
-            self.status_label.configure(text="Local service is unavailable.")
+            self.status_label.configure(text=self.t("status.unavailable"))
+            self.service_online = False
             self.connection_dot.configure(text_color=theme.DANGER)
-            self.connection_label.configure(text="Service offline")
-            messagebox.showerror("Cannot load assignments", str(error), parent=self)
+            self.connection_label.configure(text=self.t("connection.offline"))
+            messagebox.showerror(self.t("dialog.load_error"), str(error), parent=self)
             return
 
         self._update_course_filter()
@@ -622,9 +649,10 @@ class AssignmentApp(ctk.CTk):
         if self.active_view != "settings":
             self.render_assignments()
         self.connection_dot.configure(text_color=theme.SUCCESS)
-        self.connection_label.configure(text="Local service online")
+        self.service_online = True
+        self.connection_label.configure(text=self.t("connection.online"))
         self.status_label.configure(
-            text=f"Updated just now · {len(self.all_assignments)} assignments in your library"
+            text=self.t("status.updated", count=len(self.all_assignments))
         )
 
     def render_assignments(self) -> None:
@@ -634,9 +662,8 @@ class AssignmentApp(ctk.CTk):
 
         assignments = self._filtered_assignments()
         count = len(assignments)
-        self.list_count_label.configure(
-            text=f"{count} assignment{'s' if count != 1 else ''}"
-        )
+        count_key = "list.count.one" if count == 1 else "list.count.other"
+        self.list_count_label.configure(text=self.t(count_key, count=count))
 
         if not assignments:
             self._build_empty_state()
@@ -650,6 +677,7 @@ class AssignmentApp(ctk.CTk):
                 on_delete=self.delete_assignment,
                 on_complete=self.mark_complete,
                 animations_enabled=self.motion_enabled,
+                language=self.language,
             )
             delay = min(row, 12) * 28 if self.motion_enabled else 0
             after_id = self.after(
@@ -708,11 +736,11 @@ class AssignmentApp(ctk.CTk):
         icon.grid(row=0, column=0, pady=(34, 13))
 
         if not self.all_assignments:
-            title = "A clear slate"
-            body = "Create your first assignment and give every deadline a calm place to live."
+            title = self.t("empty.first.title")
+            body = self.t("empty.first.body")
         else:
-            title = "Nothing here right now"
-            body = "Try another view or clear the filters to see more of your schedule."
+            title = self.t("empty.filtered.title")
+            body = self.t("empty.filtered.body")
 
         title_label = ctk.CTkLabel(
             panel,
@@ -734,7 +762,7 @@ class AssignmentApp(ctk.CTk):
 
         action = ctk.CTkButton(
             panel,
-            text="+  New Assignment" if not self.all_assignments else "Clear filters",
+            text=self.t("action.new_assignment") if not self.all_assignments else self.t("action.clear_filters"),
             height=38,
             corner_radius=12,
             fg_color=theme.ACCENT,
@@ -757,7 +785,7 @@ class AssignmentApp(ctk.CTk):
 
             view_matches = self._assignment_matches_view(assignment)
             status_matches = status_filter == "all" or status == status_filter
-            course_matches = course_filter == "All courses" or course == course_filter
+            course_matches = course_filter == self.t("filter.all_courses") or course == course_filter
             search_matches = assignment_matches_search(assignment, search_text)
 
             if view_matches and status_matches and course_matches and search_matches:
@@ -794,26 +822,31 @@ class AssignmentApp(ctk.CTk):
         return True
 
     def open_add_form(self) -> None:
-        AssignmentForm(self, on_saved=self.load_assignments)
+        AssignmentForm(self, on_saved=self.load_assignments, language=self.language)
 
     def open_edit_form(self, assignment: dict[str, Any]) -> None:
-        AssignmentForm(self, assignment=assignment, on_saved=self.load_assignments)
+        AssignmentForm(
+            self,
+            assignment=assignment,
+            on_saved=self.load_assignments,
+            language=self.language,
+        )
 
     def import_from_html(self) -> None:
         file_path = filedialog.askopenfilename(
             parent=self,
-            title="Select assignment HTML file",
+            title=self.t("dialog.select_html"),
             filetypes=[
-                ("HTML files", "*.html *.htm"),
-                ("All files", "*.*"),
+                (self.t("dialog.html_files"), "*.html *.htm"),
+                (self.t("dialog.all_files"), "*.*"),
             ],
         )
         if not file_path:
             return
 
         course_dialog = ctk.CTkInputDialog(
-            text="Default course name for imported assignments:",
-            title="HTML Import",
+            text=self.t("dialog.default_course"),
+            title=self.t("dialog.html_import"),
         )
         default_course_name = course_dialog.get_input()
         if default_course_name is None:
@@ -843,24 +876,24 @@ class AssignmentApp(ctk.CTk):
             )
         except ImportError as error:
             messagebox.showerror(
-                "Cannot import HTML",
-                f"HTML import needs beautifulsoup4. Install requirements and try again.\n\n{error}",
+                self.t("dialog.import_error"),
+                self.t("dialog.import_dependency", error=error),
                 parent=self,
             )
             return
         except (OSError, ValueError) as error:
-            messagebox.showerror("Cannot import HTML", str(error), parent=self)
+            messagebox.showerror(self.t("dialog.import_error"), str(error), parent=self)
             return
 
         if parse_result.error:
-            messagebox.showerror("Cannot parse HTML", parse_result.error, parent=self)
+            messagebox.showerror(self.t("dialog.parse_error"), parse_result.error, parent=self)
             return
 
         if not parse_result.candidates:
-            message = "No assignments found. You can try another HTML file or paste text manually later."
+            message = self.t("dialog.no_assignments.body")
             if parse_result.message:
                 message = f"{parse_result.message}\n\n{message}"
-            messagebox.showinfo("No assignments found", message, parent=self)
+            messagebox.showinfo(self.t("dialog.no_assignments"), message, parent=self)
             return
 
         PendingImportWindow(
@@ -870,6 +903,7 @@ class AssignmentApp(ctk.CTk):
             parser_used=parse_result.parser_used,
             fallback_used=parse_result.fallback_used,
             parse_message=parse_result.message,
+            language=self.language,
         )
 
     def delete_assignment(
@@ -877,10 +911,10 @@ class AssignmentApp(ctk.CTk):
         assignment: dict[str, Any],
         card: AssignmentCard,
     ) -> None:
-        title = clean_text(assignment.get("title")) or "this assignment"
+        title = clean_text(assignment.get("title")) or self.t("fallback.assignment")
         confirmed = messagebox.askyesno(
-            "Delete assignment",
-            f'Delete "{title}"?',
+            self.t("dialog.delete"),
+            self.t("dialog.delete_confirm", title=title),
             parent=self,
         )
         if not confirmed:
@@ -889,24 +923,24 @@ class AssignmentApp(ctk.CTk):
         try:
             api_client.delete_assignment(int(assignment["id"]))
         except (api_client.ApiError, KeyError, ValueError) as error:
-            messagebox.showerror("Cannot delete assignment", str(error), parent=self)
+            messagebox.showerror(self.t("dialog.delete_error"), str(error), parent=self)
             return
 
-        self.status_label.configure(text=f'Removed "{title}"')
+        self.status_label.configure(text=self.t("status.removed", title=title))
         card.play_exit(self.load_assignments)
 
     def mark_complete(self, assignment: dict[str, Any]) -> None:
         try:
             api_client.mark_assignment_complete(int(assignment["id"]))
         except (api_client.ApiError, KeyError, ValueError) as error:
-            messagebox.showerror("Cannot update assignment", str(error), parent=self)
+            messagebox.showerror(self.t("dialog.update_error"), str(error), parent=self)
             return
         self.load_assignments()
 
     def clear_filters(self) -> None:
         self.search_entry.delete(0, "end")
-        self.status_filter.set(STATUS_FILTER_LABELS["all"])
-        self.course_filter.set("All courses")
+        self.status_filter.set(self._status_labels()["all"])
+        self.course_filter.set(self.t("filter.all_courses"))
         self.render_assignments()
 
     def _update_summary(self) -> None:
@@ -916,7 +950,7 @@ class AssignmentApp(ctk.CTk):
 
     def _update_course_filter(self) -> None:
         previous_value = (
-            self.course_filter.get() if hasattr(self, "course_filter") else "All courses"
+            self.course_filter.get() if hasattr(self, "course_filter") else self.t("filter.all_courses")
         )
         courses = sorted(
             {
@@ -925,10 +959,10 @@ class AssignmentApp(ctk.CTk):
                 if clean_text(assignment.get("course_name"))
             }
         )
-        values = ["All courses", *courses]
+        values = [self.t("filter.all_courses"), *courses]
         self.course_filter.configure(values=values)
         self.course_filter.set(
-            previous_value if previous_value in values else "All courses"
+            previous_value if previous_value in values else self.t("filter.all_courses")
         )
 
     def _update_nav_badges(self) -> None:
@@ -949,7 +983,8 @@ class AssignmentApp(ctk.CTk):
             "sources": source_count,
         }
 
-        for key, icon, label in NAVIGATION:
+        for key, icon in NAVIGATION:
+            label = self.t(f"nav.{key}")
             if key == "settings" or self._compact_sidebar:
                 text = f"{icon}   {label}"
             else:
@@ -967,44 +1002,110 @@ class AssignmentApp(ctk.CTk):
             )
 
     def _update_header_copy(self) -> None:
-        title, _subtitle = VIEW_COPY[self.active_view]
-        self.view_title_label.configure(text=title)
+        self.view_title_label.configure(text=self.t(f"view.{self.active_view}.title"))
         self.view_subtitle_label.configure(
             text=self._header_subtitle(self.active_view)
         )
 
     def _header_subtitle(self, view: str) -> str:
-        description = VIEW_COPY[view][1]
+        description = self.t(f"view.{view}.description")
         if view != "all":
             return description
         current = datetime.now()
         if current.hour < 12:
-            greeting = "Good morning"
+            greeting = self.t("greeting.morning")
         elif current.hour < 18:
-            greeting = "Good afternoon"
+            greeting = self.t("greeting.afternoon")
         else:
-            greeting = "Good evening"
-        date_text = current.strftime("%A, %B %d").replace(" 0", " ")
+            greeting = self.t("greeting.evening")
+        if self.language == "zh":
+            date_text = f"{current.month}月{current.day}日"
+        else:
+            date_text = current.strftime("%A, %B %d").replace(" 0", " ")
         return f"{greeting} · {date_text} · {description}"
 
     def _selected_status_filter(self) -> str:
         selected_label = self.status_filter.get()
-        for value, label in STATUS_FILTER_LABELS.items():
+        for value, label in self._status_labels().items():
             if label == selected_label:
                 return value
         return "all"
 
     def _selected_parser_mode(self) -> str:
-        selected = self.parser_mode_menu.get().strip().lower()
-        if selected == "rule-based":
+        selected = self.parser_mode_menu.get().strip()
+        if selected == self.t("parser.rule"):
             return "rule"
-        if selected in {"auto", "ai", "rule"}:
-            return selected
+        if selected == self.t("parser.ai"):
+            return "ai"
         return "auto"
 
     def _change_appearance(self, value: str) -> None:
         self.appearance_preference = value
         ctk.set_appearance_mode(value)
+
+    def _change_language(self, value: str) -> None:
+        language = next(
+            (key for key, label in localization.LANGUAGE_NAMES.items() if label == value),
+            self.language,
+        )
+        if language == self.language:
+            return
+        interface_state = {
+            "search": self.search_entry.get(),
+            "status": self._selected_status_filter(),
+            "course": self.course_filter.get(),
+            "parser": self._selected_parser_mode(),
+        }
+        self.language = language
+        localization.save_language(language)
+        self.title(self.t("app.title"))
+        self._rebuild_interface(interface_state)
+
+    def _rebuild_interface(self, interface_state: dict[str, str] | None = None) -> None:
+        state = interface_state or {
+            "search": "",
+            "status": "all",
+            "course": "",
+            "parser": "auto",
+        }
+        self._cancel_pending_renders()
+        for child in self.winfo_children():
+            child.destroy()
+        self.metric_cards = {}
+        self.nav_buttons = {}
+        self.settings_panel = None
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
+        self._build_sidebar()
+        self._build_workspace()
+        self.search_entry.insert(0, state["search"])
+        self.status_filter.set(self._status_labels()[state["status"]])
+        self._update_course_filter()
+        if state["course"] in self.course_filter.cget("values"):
+            self.course_filter.set(state["course"])
+        parser_labels = {
+            "auto": self.t("parser.auto"),
+            "ai": self.t("parser.ai"),
+            "rule": self.t("parser.rule"),
+        }
+        self.parser_mode_menu.set(parser_labels[state["parser"]])
+        self._update_summary()
+        self._update_nav_badges()
+        self._update_header_copy()
+        if self.active_view == "settings":
+            self._show_settings()
+        else:
+            self.render_assignments()
+        if self.service_online is False:
+            self.connection_dot.configure(text_color=theme.DANGER)
+            self.connection_label.configure(text=self.t("connection.offline"))
+            self.status_label.configure(text=self.t("status.unavailable"))
+        elif self.service_online is True:
+            self.connection_dot.configure(text_color=theme.SUCCESS)
+            self.connection_label.configure(text=self.t("connection.online"))
+            self.status_label.configure(
+                text=self.t("status.updated", count=len(self.all_assignments))
+            )
 
     def _change_motion(self) -> None:
         self.motion_enabled = bool(self.motion_switch.get())
@@ -1036,7 +1137,7 @@ class AssignmentApp(ctk.CTk):
         width = 190 if compact else 224
         self.sidebar.configure(width=width)
         self.grid_columnconfigure(0, minsize=width)
-        self.brand_subtitle.configure(text="" if compact else "Student workspace")
+        self.brand_subtitle.configure(text="" if compact else self.t("brand.subtitle"))
         self._update_nav_badges()
 
 
