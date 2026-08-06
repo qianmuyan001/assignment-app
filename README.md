@@ -211,6 +211,7 @@ Future AI agent page downloading can reuse `parse_import_content()` in `backend/
 
 ## Desktop GUI Features
 
+- Use English by default or switch the interface to Chinese in **Settings → Language**. The choice is remembered for future launches.
 - View all assignments.
 - Search by course, title, description, source name, link, or source URL.
 - Filter by status and course.

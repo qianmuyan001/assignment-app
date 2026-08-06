@@ -9,20 +9,17 @@ import customtkinter as ctk
 try:
     from .components import (
         clean_text,
-        display_status,
-        due_date_text,
         parse_due_datetime,
         source_text,
     )
-    from . import theme
+    from . import localization, theme
 except ImportError:
     from components import (
         clean_text,
-        display_status,
-        due_date_text,
         parse_due_datetime,
         source_text,
     )
+    import localization
     import theme
 
 
@@ -79,6 +76,7 @@ class AssignmentCard(ctk.CTkFrame):
         on_delete: Callable[[dict[str, Any], "AssignmentCard"], None],
         on_complete: Callable[[dict[str, Any]], None],
         animations_enabled: bool = True,
+        language: str = localization.DEFAULT_LANGUAGE,
     ) -> None:
         super().__init__(
             master,
@@ -88,6 +86,7 @@ class AssignmentCard(ctk.CTkFrame):
             border_color=theme.BORDER,
         )
         self.assignment = assignment
+        self.language = language
         self.animations_enabled = animations_enabled
         self._hover_after_id: str | None = None
         self._animation_after_id: str | None = None
@@ -96,6 +95,9 @@ class AssignmentCard(ctk.CTkFrame):
         self.grid_columnconfigure(1, weight=1)
         self._build(on_edit, on_delete, on_complete)
         self.after(10, self._bind_hover_tree)
+
+    def t(self, key: str, **values: Any) -> str:
+        return localization.translate(self.language, key, **values)
 
     def _build(
         self,
@@ -116,7 +118,7 @@ class AssignmentCard(ctk.CTkFrame):
         body.grid(row=0, column=1, sticky="nsew", padx=(15, 18), pady=15)
         body.grid_columnconfigure(0, weight=1)
 
-        course = clean_text(self.assignment.get("course_name")) or "NO COURSE"
+        course = clean_text(self.assignment.get("course_name")) or self.t("card.no_course")
         course_label = ctk.CTkLabel(
             body,
             text=course.upper(),
@@ -129,7 +131,7 @@ class AssignmentCard(ctk.CTkFrame):
         status_fill, status_text = self._status_colors(status)
         status_badge = ctk.CTkLabel(
             body,
-            text=display_status(status),
+            text=self.t(f"status.{status}"),
             height=25,
             corner_radius=12,
             fg_color=status_fill,
@@ -139,7 +141,7 @@ class AssignmentCard(ctk.CTkFrame):
         )
         status_badge.grid(row=0, column=1, sticky="e")
 
-        title = clean_text(self.assignment.get("title")) or "Untitled assignment"
+        title = clean_text(self.assignment.get("title")) or self.t("card.untitled")
         title_label = ctk.CTkLabel(
             body,
             text=title,
@@ -186,6 +188,8 @@ class AssignmentCard(ctk.CTkFrame):
         footer.grid_columnconfigure(0, weight=1)
 
         source = source_text(self.assignment)
+        if source == "None":
+            source = self.t("card.no_source")
         source_badge = ctk.CTkLabel(
             footer,
             text=f"  ↗  {source}  ",
@@ -203,7 +207,7 @@ class AssignmentCard(ctk.CTkFrame):
 
         edit_button = self._secondary_button(
             actions,
-            "Edit",
+            self.t("action.edit"),
             64,
             lambda: on_edit(self.assignment),
         )
@@ -211,7 +215,7 @@ class AssignmentCard(ctk.CTkFrame):
 
         complete_button = ctk.CTkButton(
             actions,
-            text="✓  Done",
+            text=self.t("action.done"),
             width=78,
             height=32,
             corner_radius=11,
@@ -417,12 +421,27 @@ class AssignmentCard(ctk.CTkFrame):
 
     def _due_display(self, status: str, due_at: Any) -> str:
         if due_at is None:
-            return "No due date"
-        date_part = due_at.strftime("%a, %b %d").replace(" 0", " ")
-        time_part = due_at.strftime("%I:%M %p").lstrip("0")
+            return self.t("due.none")
+        if self.language == "zh":
+            date_part = f"{due_at.month}月{due_at.day}日"
+            time_part = due_at.strftime("%H:%M")
+        else:
+            date_part = due_at.strftime("%a, %b %d").replace(" 0", " ")
+            time_part = due_at.strftime("%I:%M %p").lstrip("0")
         if status in {"completed", "done"}:
-            return f"Completed  ·  {date_part} at {time_part}"
-        return f"{due_date_text(due_at)}  ·  {date_part} at {time_part}"
+            return self.t("due.completed", date=date_part, time=time_part)
+        days = (due_at.date() - date.today()).days
+        if days == 0:
+            relative = self.t("due.today")
+        elif days == 1:
+            relative = self.t("due.tomorrow")
+        elif days > 1:
+            relative = self.t("due.in_days", days=days)
+        elif days == -1:
+            relative = self.t("due.overdue_one")
+        else:
+            relative = self.t("due.overdue_days", days=abs(days))
+        return self.t("due.detail", relative=relative, date=date_part, time=time_part)
 
     def _preview(self, description: str) -> str:
         normalized = " ".join(description.split())
