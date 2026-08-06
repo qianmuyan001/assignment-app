@@ -12,6 +12,7 @@
       <div class="glass-rail rail-two"></div>
       <div class="beam beam-green"></div>
       <div class="beam beam-cyan"></div>
+      <div class="scanline"></div>
     </div>
 
     <main class="page">
@@ -24,75 +25,38 @@
           </div>
         </div>
 
-        <div class="command-strip" aria-label="Assignment summary">
-          <div class="strip-item">
-            <span class="strip-value" id="total-count">0</span>
-            <span class="strip-label">Total</span>
-          </div>
-          <div class="strip-item">
-            <span class="strip-value" id="open-count">0</span>
-            <span class="strip-label">Open</span>
-          </div>
-          <div class="strip-item accent">
-            <span class="strip-value" id="today-count">0</span>
-            <span class="strip-label">Today</span>
-          </div>
-          <div class="strip-item">
-            <span class="strip-value" id="week-count">0</span>
-            <span class="strip-label">Week</span>
+        <div class="header-actions">
+          <button id="open-add-button" type="button" class="primary-button header-add-button">
+            <span class="button-icon" aria-hidden="true">+</span>
+            Add Assignment
+          </button>
+
+          <div class="command-strip" aria-label="Assignment summary">
+            <div class="strip-item">
+              <span class="strip-value" id="total-count">0</span>
+              <span class="strip-label">Total</span>
+            </div>
+            <div class="strip-item">
+              <span class="strip-value" id="open-count">0</span>
+              <span class="strip-label">Open</span>
+            </div>
+            <div class="strip-item accent">
+              <span class="strip-value" id="today-count">0</span>
+              <span class="strip-label">Today</span>
+            </div>
+            <div class="strip-item">
+              <span class="strip-value" id="week-count">0</span>
+              <span class="strip-label">Week</span>
+            </div>
           </div>
         </div>
       </header>
 
-      <section class="control-grid">
-        <section class="section add-panel glass-panel">
-          <div class="section-heading">
-            <p class="eyebrow">Capture</p>
-            <h2>Add Assignment</h2>
-          </div>
-
-          <form id="assignment-form" class="assignment-form">
-            <label>
-              Course Name
-              <input id="course-name" name="course_name" type="text" required />
-            </label>
-
-            <label>
-              Title
-              <input id="title" name="title" type="text" required />
-            </label>
-
-            <label>
-              Due Date
-              <input id="due-date" name="due_date" type="datetime-local" required />
-            </label>
-
-            <label>
-              Source Name
-              <input id="source-name" name="source_name" type="text" />
-            </label>
-
-            <label class="full-width">
-              Description
-              <textarea id="description" name="description" rows="3"></textarea>
-            </label>
-
-            <label class="full-width">
-              Source URL
-              <input id="source-url" name="source_url" type="url" />
-            </label>
-
-            <button type="submit" class="primary-button">
-              <span class="button-icon" aria-hidden="true">+</span>
-              Add Assignment
-            </button>
-          </form>
-        </section>
-
-        <section class="section list-panel glass-panel">
+      <section class="app-workspace">
+        <section class="section flow-panel glass-panel">
           <div class="list-header">
             <div>
-              <p class="eyebrow">Schedule</p>
+              <p class="eyebrow">Cover Flow</p>
               <h2>Assignments</h2>
             </div>
             <button id="refresh-button" type="button" class="secondary-button icon-button" aria-label="Refresh assignments" title="Refresh">
@@ -130,10 +94,81 @@
           </div>
 
           <p id="error-message" class="error-message" role="alert"></p>
-          <div id="assignment-list" class="assignment-list"></div>
+
+          <div class="flow-toolbar" aria-label="Assignment carousel controls">
+            <button id="previous-card-button" type="button" class="secondary-button icon-button" aria-label="Previous assignment" title="Previous">
+              <span aria-hidden="true">&lt;</span>
+            </button>
+            <div id="flow-position" class="flow-position">0 / 0</div>
+            <button id="next-card-button" type="button" class="secondary-button icon-button" aria-label="Next assignment" title="Next">
+              <span aria-hidden="true">&gt;</span>
+            </button>
+          </div>
+
+          <div class="flow-stage" aria-label="3D assignment shelf">
+            <div class="orbit-line" aria-hidden="true"></div>
+            <div id="cover-flow" class="cover-flow" tabindex="0" aria-live="polite"></div>
+          </div>
         </section>
+
+        <aside class="section detail-panel glass-panel" id="detail-panel">
+          <div class="section-heading">
+            <p class="eyebrow">Extracted Card</p>
+            <h2>Task Details</h2>
+          </div>
+          <div id="selected-detail" class="selected-detail"></div>
+        </aside>
       </section>
     </main>
+
+    <dialog id="assignment-dialog" class="add-dialog glass-panel" aria-labelledby="add-dialog-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Capture</p>
+          <h2 id="add-dialog-title">Add Assignment</h2>
+        </div>
+        <button id="close-add-button" type="button" class="secondary-button icon-button" aria-label="Close add assignment" title="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <form id="assignment-form" class="assignment-form">
+        <label>
+          Course Name
+          <input id="course-name" name="course_name" type="text" required />
+        </label>
+
+        <label>
+          Title
+          <input id="title" name="title" type="text" required />
+        </label>
+
+        <label>
+          Due Date
+          <input id="due-date" name="due_date" type="datetime-local" required />
+        </label>
+
+        <label>
+          Source Name
+          <input id="source-name" name="source_name" type="text" />
+        </label>
+
+        <label class="full-width">
+          Description
+          <textarea id="description" name="description" rows="3"></textarea>
+        </label>
+
+        <label class="full-width">
+          Source URL
+          <input id="source-url" name="source_url" type="url" />
+        </label>
+
+        <button type="submit" class="primary-button">
+          <span class="button-icon" aria-hidden="true">+</span>
+          Add Assignment
+        </button>
+      </form>
+    </dialog>
 
     <script src="/static/script.js"></script>
   </body>
