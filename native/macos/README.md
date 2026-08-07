@@ -1,11 +1,9 @@
 # macOS native app
 
-> **2.0 Catalyst status:** paused. This directory is a pure macOS SwiftPM app,
-> not an iPadOS or Mac Catalyst project. The repository currently has no
-> `.xcodeproj`/`.xcworkspace`, iPadOS app target, or UIKit lifecycle to migrate.
-> Provide the original iPadOS project and resources to resume the requested
-> Catalyst port. The commands below build the unchanged 1.0 native baseline;
-> they do not produce the 2.0 Catalyst acceptance package.
+> **2.0 location:** the approved iPadOS and Mac Catalyst alternative now lives
+> in `../apple/AssignmentApp2.xcodeproj`. This directory remains the retained
+> pure macOS SwiftPM 1.0 baseline. The commands below build that legacy client;
+> they do not produce the Apple 2.0 acceptance package.
 
 ## Run the packaged build
 

@@ -7,10 +7,10 @@ CustomTkinter interface.
 
 - `windows/` contains the WinUI 3 2.0 preview task workflow and its separate,
   cross-platform-testable Core project.
-- `macos/` is the existing pure macOS SwiftPM 1.0 baseline. It is not a Mac
-  Catalyst application. The requested Catalyst work is paused until the real
-  iPadOS `.xcodeproj` or `.xcworkspace`, source, resources, and app target are
-  available.
+- `apple/` contains the approved SwiftUI iPadOS 2.0 alternative. The same real
+  Xcode application target builds for iPadOS and Apple Silicon Mac Catalyst.
+- `macos/` remains the existing pure macOS SwiftPM 1.0 baseline; it is not the
+  2.0 Catalyst deliverable and was not removed or rewritten.
 - `../shared/` is the canonical 2.0 task/schema/rule/fixture directory. The
   older `native/shared/assignment-candidates.schema.json` remains the secure
   source-import contract.
@@ -19,24 +19,25 @@ CustomTkinter interface.
 
 ```text
 ┌──────────────────────────┐      ┌──────────────────────────┐
-│ macOS                    │      │ Windows                  │
-│ SwiftUI + WKWebView      │      │ WinUI 3 + WebView2      │
-│ Keychain Services        │      │ Credential Locker       │
+│ Apple 2.0                │      │ Windows 2.0              │
+│ SwiftUI iPad + Catalyst  │      │ WinUI 3                  │
+│ SQLite repository        │      │ SQLite service           │
 └────────────┬─────────────┘      └────────────┬─────────────┘
              │                                 │
              ├──────── assignment schema ──────┤
-             │                                 │
-             └──── local llama.cpp endpoint ───┘
-                         127.0.0.1 only
 ```
 
-The Windows 2.0 client and FastAPI backend can safely migrate the existing
-SQLite database. They use SQLite's online backup API before schema changes and
-stop on migration failure. The unchanged macOS 1.0 client does not initiate the
-v2 migration or expose priority, but the additive priority column and retained
-physical status values let it continue reading and writing a database already
-upgraded by Windows or FastAPI. None of the native clients send credentials or
-course content to a cloud service.
+The retained macOS 1.0 and Windows source-connector foundations can use the
+loopback `llama.cpp` endpoint described below. Local AI and source login are not
+part of the Apple 2.0 task-management preview.
+
+The Apple and Windows 2.0 clients and FastAPI backend can safely migrate the
+existing SQLite database. They create a recoverable SQLite online backup before
+schema changes, validate the result, and stop writes if migration fails. The
+unchanged macOS 1.0 client does not initiate v2 migration or expose priority,
+but the additive priority column and retained physical status values let it
+continue reading and writing a database already upgraded by a 2.0 client. None
+of the native clients send task data to a cloud service.
 
 ## Authentication modes
 
@@ -83,7 +84,8 @@ The AI never receives:
 
 ## Project layout
 
-- `macos/`: buildable SwiftUI macOS client.
+- `apple/`: SwiftUI iPadOS and Mac Catalyst 2.0 Xcode project.
+- `macos/`: retained SwiftUI macOS 1.0 client.
 - `windows/`: WinUI 3 Windows client source.
 - `local-ai/`: loopback-only llama.cpp start scripts.
 - `shared/`: shared JSON contracts and test fixtures.

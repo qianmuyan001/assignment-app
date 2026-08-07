@@ -9,7 +9,11 @@ __pycache__/
 backend/.venv/
 .assignment_app_backend.pid
 native/macos/.build/
+native/macos/.swiftpm/
 native/macos/dist/
 native/windows/**/bin/
 native/windows/**/obj/
 artifacts/
+**/xcuserdata/
+*.xcuserstate
+*.profraw
