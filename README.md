@@ -4,7 +4,7 @@
 
 This project has a FastAPI backend, a SQLite database, and a desktop GUI for managing school assignments.
 
-Current version: **1.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
+Current version: **2.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
 
 ## Assignment App 2.0 preview
 
