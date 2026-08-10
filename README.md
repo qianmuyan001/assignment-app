@@ -56,6 +56,56 @@ The resulting self-contained test directory is `artifacts\windows-x64`. See
 `native/windows/README.md` for prerequisites, manual commands, database
 selection, and smoke-test details.
 
+## Assignment App 2.0 preview
+
+The repository now contains the shared 2.0 task contract, a versioned SQLite v2
+migration, and independent Apple and Windows implementations of the first 2.0
+task-management workflow. Both clients use the same task fields, status and
+priority mappings, date-list rules, fixtures, and acceptance cases.
+
+Because the original iPadOS project was not present, the approved Apple
+alternative is a real SwiftUI iPadOS project at
+`native/apple/AssignmentApp2.xcodeproj`. Its single application target also
+supports Mac Catalyst, while the existing `native/macos` SwiftPM 1.0 client is
+preserved unchanged. The Apple client provides task CRUD, completion/restoring,
+All/Today/This Week/Overdue/Completed views, search, filters, sorting,
+simple/professional modes, and persistent appearance settings. See
+`native/apple/README.md` for the database safety model and verification details.
+
+Shared rules and disposable migration tests:
+
+```bash
+python3 -m unittest discover -s shared/tests -v
+```
+
+Apple iPad Simulator and Mac Catalyst builds require the installed full Xcode
+beta and an available iPad simulator UUID:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
+  xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
+  -scheme AssignmentApp2 -configuration Debug \
+  -destination 'platform=iOS Simulator,id=55D6D2F6-FB7A-429C-ADFA-8BF9F8F2286F' \
+  -derivedDataPath /private/tmp/assignment-app-xcode-derived-data \
+  CODE_SIGNING_ALLOWED=NO build
+
+./native/apple/package-catalyst.sh
+```
+
+The packaging script writes an ad-hoc-signed Debug app, ZIP, logs, and build
+metadata to a new timestamped directory under `artifacts/apple/`.
+
+Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
+.NET 8 SDK installed):
+
+```powershell
+.\native\windows\publish-x64.ps1
+```
+
+The resulting self-contained test directory is `artifacts\windows-x64`. See
+`native/windows/README.md` for prerequisites, manual commands, database
+selection, and smoke-test details.
+
 The active backend lives in `backend/`. The desktop GUI lives in `desktop_gui/` and talks to the backend through HTTP requests.
 
 ## Native macOS and Windows versions
@@ -167,10 +217,22 @@ source .venv/bin/activate
 uvicorn backend.app.main:app --reload
 ```
 
-The API will run at:
+The backend will run at:
 
-- `http://127.0.0.1:8000`
-- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000` — the web client
+- `http://127.0.0.1:8000/docs` — the interactive API documentation
+- `http://127.0.0.1:8000/health` — a readiness check that returns JSON
+
+## Web Client
+
+Opening `http://127.0.0.1:8000` in a browser serves the Cover Flow web client
+from `backend/app/static/`. It reads and writes the same SQLite database as the
+desktop GUI, so the two stay in sync.
+
+The client was previously a second, parallel FastAPI application under
+`assignment_app/` that stored assignments in a JSON file and was not started by
+any script. Its interface now runs against the real backend, and the duplicate
+application has been removed.
 
 ## Run The Desktop GUI
 

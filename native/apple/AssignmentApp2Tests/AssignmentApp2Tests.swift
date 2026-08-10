@@ -512,6 +512,87 @@ struct SharedTaskRuleTests {
 }
 
 
+@Suite("Apple navigation chrome state")
+struct AppleNavigationChromeTests {
+    @Test("Expanded and compact sidebar styles round-trip through persisted raw values")
+    func sidebarStylePersistence() {
+        let suiteName = "AssignmentApp2Tests.SidebarStyle.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Unable to create isolated UserDefaults suite.")
+            return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(
+            SidebarDisplayStyle.compact.rawValue,
+            forKey: AssignmentPreferenceKeys.sidebarDisplayStyle
+        )
+
+        let restored = SidebarDisplayStyle(
+            rawValue: defaults.string(
+                forKey: AssignmentPreferenceKeys.sidebarDisplayStyle
+            ) ?? ""
+        )
+        #expect(restored == .compact)
+
+        var toggled = restored ?? .expanded
+        toggled.toggle()
+        defaults.set(
+            toggled.rawValue,
+            forKey: AssignmentPreferenceKeys.sidebarDisplayStyle
+        )
+        #expect(
+            SidebarDisplayStyle(
+                rawValue: defaults.string(
+                    forKey: AssignmentPreferenceKeys.sidebarDisplayStyle
+                ) ?? ""
+            ) == .expanded
+        )
+    }
+
+    @Test("Every compact sidebar item keeps its complete accessibility name")
+    func compactSidebarAccessibilityNames() {
+        let expected = [
+            "All Tasks",
+            "Today",
+            "This Week",
+            "Overdue",
+            "Completed",
+            "Settings",
+        ]
+
+        #expect(AssignmentView.allCases.map(\.title) == expected)
+        #expect(AssignmentView.allCases.allSatisfy { !$0.title.isEmpty })
+    }
+
+    @Test("Search clear closes presentation and clears the query")
+    func searchClearAndClose() {
+        var state = SearchPresentationState.closed
+        var query = "physics"
+
+        state.present()
+        #expect(state.isExpanded)
+
+        state.dismiss(query: &query, clearingQuery: true)
+        #expect(state == .closed)
+        #expect(query.isEmpty)
+    }
+
+    @Test("Outside click and Escape close search while preserving its query")
+    func searchDismissPreservesQuery() {
+        for _ in 0..<2 {
+            var state = SearchPresentationState.expanded
+            var query = "实验 results"
+
+            state.dismiss(query: &query, clearingQuery: false)
+
+            #expect(state == .closed)
+            #expect(query == "实验 results")
+        }
+    }
+}
+
+
 @Suite("SQLite repository and migration")
 struct SQLiteRepositoryTests {
     @Test("Adding a task persists every editable field with legacy status storage")

@@ -29,8 +29,37 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 - Shared Apple scheme with repeatable iPad Simulator and Catalyst test actions,
   plus App Sandbox entitlements and clean non-instrumented package verification.
 
+### Fixed
+
+- The web client's `script.js` and `style.css` had their contents swapped, so
+  the browser parsed the stylesheet as JavaScript and the script as CSS. The
+  page loaded with no styling and threw a syntax error on every visit.
+
 ### Changed
 
+- The web client is served by the real backend from `backend/app/static/` and
+  reads the same SQLite database as the desktop GUI. The parallel FastAPI
+  application under `assignment_app/`, which stored assignments in a JSON file
+  and was not started by any script, has been removed.
+- `PATCH /assignments/{id}` is accepted alongside `PUT`, matching the verb the
+  desktop client already falls back to.
+- The web client's status vocabulary follows the shared v2 contract. Its
+  `ignored` status is gone, and it now reads and writes the backend's
+  `priority` field instead of deriving a priority of its own.
+- The Cover Flow carousel is driven by a velocity-carrying spring integrated
+  against elapsed time. It previously advanced by a fixed fraction of the
+  remaining distance per frame, which settled twice as fast on a 120Hz display,
+  and it discarded gesture velocity on release so flicking did nothing.
+- Card positions are written as a single transform per card per frame. The
+  previous code ran a DOM query and eleven custom-property writes per card per
+  frame, and animated `filter` and `backdrop-filter` while cards were moving.
+- Filtering and searching patch the existing cards instead of clearing and
+  rebuilding the shelf, search input is debounced, list loads are sequenced so
+  a slow response cannot overwrite newer state, and `source_url` renders as a
+  link only for `http`/`https`.
+- Motion durations follow a shared token scale and stay under 300ms outside the
+  dialog; reduced motion now drops movement while keeping the transitions that
+  explain a change, and hover transforms are gated to fine pointers.
 - 2.0 UI/API statuses are `todo`, `in_progress`, and `done`, while SQLite keeps
   the 1.0 physical values for backward compatibility.
 - Apple `completedAt` is derived from `updated_at` while a task is done because

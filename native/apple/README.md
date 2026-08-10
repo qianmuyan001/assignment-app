@@ -17,6 +17,46 @@ has Mac Catalyst enabled; there is no separate AppKit target and the existing
   loading, and error states.
 - Catalyst keyboard commands: Command-N, Command-F, and Command-R.
 
+## Apple navigation and search refresh
+
+The shared iPadOS/Catalyst UI has a desktop-friendly sidebar with two persisted
+styles. **Expanded** shows the `Tasks` heading, SF Symbols, and full labels at
+roughly 190–300 points. **Compact** is a 64–76 point icon rail; every 48-point
+navigation target retains its full VoiceOver label, keyboard focus, selected
+trait, and Help tooltip. The style is stored with `@AppStorage` under
+`assignmentApp.sidebarDisplayStyle` and never changes the underlying task data.
+
+On iPadOS 26 / Mac Catalyst 26 or newer, the selected item uses the formal
+SwiftUI Liquid Glass APIs: `GlassEffectContainer`, an interactive
+`glassEffect`, `glassEffectID`, and the matched-geometry glass transition. Only
+the single selected capsule moves. On iPadOS 17–25 the same selection falls
+back to a `regularMaterial` capsule with a subtle system-color edge. The
+selection remains visually explicit when Reduce Motion is enabled, while the
+220 ms transition is disabled.
+
+Navigation no longer writes `.detailOnly` after choosing All, Today, This Week,
+Overdue, Completed, or Settings. Command-F also leaves the split-view
+visibility untouched; only the system sidebar command or unavoidable system
+layout constraints can fully hide it.
+
+Search is a controlled toolbar component rather than `.searchable(isPresented:)`.
+`SearchPresentationState` owns open/closed presentation and `FocusState` owns
+keyboard focus. The search button opens and focuses the field. Its close button
+clears the query and closes. An outside click or Escape closes while preserving
+an existing query, and the page title is restored immediately. Catalyst Escape
+is also registered as a menu-level cancel command because the UIKit text field
+can consume the key before a SwiftUI ancestor receives it.
+
+### App icon status
+
+No user-provided Team Spirit source asset was found at
+`native/apple/BrandAssets/team-spirit-logo.svg` or `.png`. The unrelated
+`Team_Falcons_Logo.svg.webp` was not used. `AppIcon.appiconset` therefore remains
+unchanged; no logo was downloaded, traced, or fabricated. To complete Default,
+Dark, and Tinted icons, provide a licensed SVG or a transparent PNG of at least
+1024×1024. Confirm Team Spirit brand/trademark permission before any public
+release.
+
 The UI is deliberately a stable native baseline. Source-site login, local AI,
 account sync, projects, subtasks, alternative board/table/gallery views, and
 other later features are not exposed as non-functional controls.
@@ -147,7 +187,7 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Run the same 25-test suite on that iPad Simulator:
+Run the same 29-test suite on that iPad Simulator:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
@@ -176,13 +216,31 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   CODE_SIGNING_ALLOWED=NO test
 ```
 
-The shared `AssignmentApp2` scheme intentionally makes the 25 stable domain,
+The shared `AssignmentApp2` scheme intentionally makes the 29 stable domain,
 repository, and migration tests its default Test action, so both commands above
-return `TEST SUCCEEDED`. The generated UI-test target remains available for
-future work but is opt-in because its Catalyst runner can hang before connecting
-under Xcode 27 beta. Packaged-app startup is additionally verified against a
-disposable sandbox-contained database; this checks that the process remains
-alive and creates schema v2 with `PRAGMA quick_check=ok`.
+return `TEST SUCCEEDED`. `AssignmentApp2UISmoke` is a separate shared scheme for
+the opt-in UI flow:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
+  -project native/apple/AssignmentApp2.xcodeproj \
+  -scheme AssignmentApp2UISmoke \
+  -destination 'platform=iOS Simulator,id=F0BB9838-B33F-417E-852C-26BE36AD75CF' \
+  -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
+  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO \
+  -only-testing:AssignmentApp2UITests/AssignmentApp2UITests/testSidebarAndSearchStateSmoke \
+  test
+```
+
+That flow verifies navigation does not hide the sidebar, toggles Compact mode,
+checks the full accessibility name, opens search, types a query, closes with the
+clear button, restores the title, and checks portrait/landscape layout. The
+Catalyst UI runner can still exit before connecting under Xcode 27 beta; the
+same Command-F, Escape, close-button, compact/expanded, and narrow/wide-window
+paths were also verified in a real Catalyst window. Packaged-app startup is
+additionally verified against a disposable sandbox-contained database; this
+checks that the process remains alive and creates schema v2 with
+`PRAGMA quick_check=ok`.
 
 The unsigned Catalyst build is produced at:
 
@@ -223,6 +281,15 @@ signature, archive, and launch-smoke logs. Because Finder/File Provider can add
 metadata to the visible `.app` directory after packaging, the ZIP is the
 canonical transferable payload.
 
-Both iPad Simulator and Mac Catalyst independently passed all 25 Apple unit and
+Both iPad Simulator and Mac Catalyst independently passed all 29 Apple unit and
 migration tests. The shared cross-platform contract suite additionally passed
 20 tests.
+
+The before/after UI evidence and logs for the navigation/search refresh are in:
+
+```text
+artifacts/apple/ui-refresh-20260807/before/
+artifacts/apple/ui-refresh-20260807/after/
+artifacts/apple/ui-refresh-20260807/logs/
+artifacts/apple/ui-refresh-20260807/ipad-ui-glass-final.xcresult
+```

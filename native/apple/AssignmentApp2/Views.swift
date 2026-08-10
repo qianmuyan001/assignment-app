@@ -108,49 +108,6 @@ extension AppTheme {
 }
 
 
-struct AssignmentSidebar: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    @Binding var selection: AssignmentView
-    @Binding var columnVisibility: NavigationSplitViewVisibility
-
-    var body: some View {
-        List {
-            Section("Tasks") {
-                ForEach(AssignmentView.allCases.filter { $0 != .settings }) { view in
-                    sidebarRow(for: view)
-                }
-            }
-
-            Section {
-                sidebarRow(for: .settings)
-            }
-        }
-        .navigationTitle("Assignments")
-        .listStyle(.sidebar)
-    }
-
-    private func sidebarRow(for view: AssignmentView) -> some View {
-        Button {
-            selection = view
-            if horizontalSizeClass == .compact {
-                columnVisibility = .detailOnly
-            }
-        } label: {
-            Label(view.title, systemImage: view.systemImage)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(selection == view ? Color.accentColor : Color.primary)
-        .listRowBackground(
-            selection == view ? Color.accentColor.opacity(0.12) : Color.clear
-        )
-        .accessibilityAddTraits(selection == view ? .isSelected : [])
-    }
-}
-
-
 struct AssignmentFilterBar: View {
     @Binding var status: AssignmentStatus?
     @Binding var course: String?

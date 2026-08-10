@@ -59,6 +59,14 @@ private struct AssignmentCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: .command)
 
+            Button("Close Search") {
+                NotificationCenter.default.post(
+                    name: .assignmentEscapeRequested,
+                    object: nil
+                )
+            }
+            .keyboardShortcut(.cancelAction)
+
             Divider()
 
             Button("Reload Tasks") {

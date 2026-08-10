@@ -1,1 +1,0 @@
-"""Assignment app backend package."""

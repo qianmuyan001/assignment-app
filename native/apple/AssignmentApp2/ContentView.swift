@@ -5,6 +5,7 @@ import SwiftUI
 enum AssignmentPreferenceKeys {
     static let displayMode = "assignmentApp.displayMode"
     static let theme = "assignmentApp.theme"
+    static let sidebarDisplayStyle = "assignmentApp.sidebarDisplayStyle"
 }
 
 
@@ -18,6 +19,9 @@ extension Notification.Name {
     static let assignmentReloadRequested = Notification.Name(
         "assignmentApp.command.reload"
     )
+    static let assignmentEscapeRequested = Notification.Name(
+        "assignmentApp.command.escape"
+    )
 }
 
 
@@ -28,19 +32,25 @@ struct ContentView: View {
     private var displayModeValue = DisplayMode.simple.rawValue
     @AppStorage(AssignmentPreferenceKeys.theme)
     private var themeValue = AppTheme.system.rawValue
+    @AppStorage(AssignmentPreferenceKeys.sidebarDisplayStyle)
+    private var sidebarDisplayStyleValue = SidebarDisplayStyle.expanded.rawValue
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var editorPresentation: TaskEditorPresentation?
     @State private var activeAlert: ContentAlert?
-    @State private var isSearchPresented = false
+    @State private var searchPresentation: SearchPresentationState = .closed
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             AssignmentSidebar(
                 selection: $viewModel.selection,
-                columnVisibility: $columnVisibility
+                displayStyle: sidebarDisplayStyleBinding
             )
-            .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 300)
+            .navigationSplitViewColumnWidth(
+                min: sidebarDisplayStyle == .expanded ? 190 : 64,
+                ideal: sidebarDisplayStyle.columnWidth,
+                max: sidebarDisplayStyle == .expanded ? 300 : 76
+            )
         } detail: {
             NavigationStack {
                 if viewModel.selection == .settings {
@@ -62,6 +72,9 @@ struct ContentView: View {
             guard editorPresentation == nil, let message else { return }
             activeAlert = .error(message)
         }
+        .onChange(of: viewModel.selection) { _, _ in
+            dismissSearchPreservingQuery()
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: .assignmentNewTaskRequested)
         ) { _ in
@@ -70,14 +83,17 @@ struct ContentView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .assignmentFindRequested)
         ) { _ in
-            viewModel.selection = .all
-            columnVisibility = .detailOnly
-            isSearchPresented = true
+            searchPresentation.present()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .assignmentReloadRequested)
         ) { _ in
             viewModel.reload()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .assignmentEscapeRequested)
+        ) { _ in
+            dismissSearchPreservingQuery()
         }
     }
 
@@ -96,12 +112,13 @@ struct ContentView: View {
 
             assignmentResults
         }
-        .navigationTitle(viewModel.selection.title)
-        .searchable(
-            text: $viewModel.searchText,
-            isPresented: $isSearchPresented,
-            placement: .toolbar,
-            prompt: "Search title, course, or description"
+        .navigationTitle(
+            searchPresentation.isExpanded ? "" : viewModel.selection.title
+        )
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                dismissSearchPreservingQuery()
+            }
         )
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -123,6 +140,11 @@ struct ContentView: View {
                 }
                 .disabled(!viewModel.isWriteEnabled)
                 .help(displayMode == .simple ? "Quick add a task" : "Add a task")
+
+                SearchToolbar(
+                    query: $viewModel.searchText,
+                    presentation: $searchPresentation
+                )
             }
         }
     }
@@ -234,7 +256,7 @@ struct ContentView: View {
             if viewModel.hasActiveFilters {
                 Button("Clear Search and Filters") {
                     viewModel.clearFilters()
-                    isSearchPresented = false
+                    searchPresentation = .closed
                 }
                 .buttonStyle(.borderedProminent)
             } else if viewModel.selection != .completed, viewModel.isWriteEnabled {
@@ -259,6 +281,17 @@ struct ContentView: View {
 
     private var displayMode: DisplayMode {
         DisplayMode(rawValue: displayModeValue) ?? .simple
+    }
+
+    private var sidebarDisplayStyle: SidebarDisplayStyle {
+        SidebarDisplayStyle(rawValue: sidebarDisplayStyleValue) ?? .expanded
+    }
+
+    private var sidebarDisplayStyleBinding: Binding<SidebarDisplayStyle> {
+        Binding(
+            get: { sidebarDisplayStyle },
+            set: { sidebarDisplayStyleValue = $0.rawValue }
+        )
     }
 
     private var displayModeBinding: Binding<DisplayMode> {
@@ -313,6 +346,13 @@ struct ContentView: View {
     private func presentDeferredError() {
         guard let message = viewModel.errorMessage else { return }
         activeAlert = .error(message)
+    }
+
+    private func dismissSearchPreservingQuery() {
+        guard searchPresentation.isExpanded else { return }
+        var query = viewModel.searchText
+        searchPresentation.dismiss(query: &query, clearingQuery: false)
+        viewModel.searchText = query
     }
 
     private func alert(for alert: ContentAlert) -> Alert {

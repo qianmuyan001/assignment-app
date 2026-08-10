@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		74590B293024896C00A11C66 /* AssignmentApp2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AssignmentApp2.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		74590B293024896C00A11C66 /* Assignment App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Assignment App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		74590B363024897300A11C66 /* AssignmentApp2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AssignmentApp2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		74590B403024897300A11C66 /* AssignmentApp2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AssignmentApp2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -79,7 +79,7 @@
 		74590B2A3024896C00A11C66 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				74590B293024896C00A11C66 /* AssignmentApp2.app */,
+				74590B293024896C00A11C66 /* Assignment App.app */,
 				74590B363024897300A11C66 /* AssignmentApp2Tests.xctest */,
 				74590B403024897300A11C66 /* AssignmentApp2UITests.xctest */,
 			);
@@ -104,7 +104,7 @@
 			);
 			name = AssignmentApp2;
 			productName = AssignmentApp2;
-			productReference = 74590B293024896C00A11C66 /* AssignmentApp2.app */;
+			productReference = 74590B293024896C00A11C66 /* Assignment App.app */;
 			productType = "com.apple.product-type.application";
 		};
 		74590B353024897300A11C66 /* AssignmentApp2Tests */ = {
@@ -368,6 +368,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = AssignmentApp2/AssignmentApp2.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
@@ -411,6 +412,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = AssignmentApp2/AssignmentApp2.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
@@ -461,11 +463,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.qianmuyan.assignmentapp.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MACCATALYST = YES;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Assignment App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Assignment App";
 			};
@@ -484,11 +486,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.qianmuyan.assignmentapp.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MACCATALYST = YES;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Assignment App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Assignment App";
 			};
@@ -505,11 +507,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.qianmuyan.assignmentapp.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MACCATALYST = YES;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_TARGET_NAME = AssignmentApp2;
 			};
@@ -526,11 +528,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.qianmuyan.assignmentapp.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MACCATALYST = YES;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_TARGET_NAME = AssignmentApp2;
 			};
