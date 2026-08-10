@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-09
+
 ### Added
 
 - Shared Assignment App 2.0 task schema, status/priority definitions, local-time
@@ -65,5 +67,6 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 - OS credential-store integration for opt-in website credential filling.
 - Personal filesystem paths removed from public documentation.
 
-[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/qianmuyan001/assignment-app/releases/tag/v1.0.0
