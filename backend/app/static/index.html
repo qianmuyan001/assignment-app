@@ -72,7 +72,6 @@
                 <option value="todo">todo</option>
                 <option value="in_progress">in_progress</option>
                 <option value="done">done</option>
-                <option value="ignored">ignored</option>
               </select>
             </label>
 
@@ -108,6 +107,7 @@
           <div class="flow-stage" aria-label="3D assignment shelf">
             <div class="orbit-line" aria-hidden="true"></div>
             <div id="cover-flow" class="cover-flow" tabindex="0" aria-live="polite"></div>
+            <p id="flow-empty" class="empty-message flow-empty" hidden>No assignments yet.</p>
           </div>
         </section>
 
@@ -146,6 +146,15 @@
         <label>
           Due Date
           <input id="due-date" name="due_date" type="datetime-local" required />
+        </label>
+
+        <label>
+          Priority
+          <select id="priority" name="priority">
+            <option value="low">low</option>
+            <option value="medium" selected>medium</option>
+            <option value="high">high</option>
+          </select>
         </label>
 
         <label>

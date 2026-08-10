@@ -79,6 +79,7 @@ def get_assignment(
 
 
 @router.put("/{assignment_id}", response_model=schemas.AssignmentRead)
+@router.patch("/{assignment_id}", response_model=schemas.AssignmentRead)
 def update_assignment(
     assignment_id: int,
     assignment_in: schemas.AssignmentUpdate,

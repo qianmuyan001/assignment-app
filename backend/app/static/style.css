@@ -2,25 +2,30 @@
   color-scheme: dark;
   --background: #060807;
   --surface: rgba(18, 23, 21, 0.58);
-  --surface-strong: rgba(27, 34, 31, 0.76);
   --surface-soft: rgba(255, 255, 255, 0.07);
-  --surface-hover: rgba(255, 255, 255, 0.12);
   --border: rgba(255, 255, 255, 0.16);
-  --border-strong: rgba(255, 255, 255, 0.26);
   --text: #f5fbf7;
   --muted: rgba(229, 239, 234, 0.66);
   --faint: rgba(229, 239, 234, 0.42);
   --primary: #36e286;
-  --primary-dark: #16a765;
-  --primary-soft: rgba(54, 226, 134, 0.12);
   --cyan: #62d7f7;
   --warning: #ffbe55;
   --danger: #ff5f6d;
   --danger-bg: rgba(255, 95, 109, 0.12);
   --shadow: 0 30px 90px rgba(0, 0, 0, 0.48);
-  --spring: cubic-bezier(0.18, 0.89, 0.32, 1.28);
-  --apple-out: cubic-bezier(0.2, 0, 0, 1);
-  --apple-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Easing scale. Entrances/exits and anything default use --ease-out;
+     on-screen movement uses --ease-in-out; the drawer curve is for the dialog. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Duration scale. UI motion stays under 300ms; only the modal reaches higher. */
+  --dur-press: 120ms;
+  --dur-fast: 160ms;
+  --dur-pop: 200ms;
+  --dur-menu: 240ms;
+  --dur-modal: 320ms;
 }
 
 * {
@@ -53,56 +58,33 @@ select {
   font: inherit;
 }
 
+/* Press feedback is asymmetric on purpose: the press reads instantly,
+   the release settles. Symmetric timing here feels rubbery. */
 button {
-  position: relative;
-  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: 44px;
   padding: 11px 16px;
-  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 14px;
   color: #ffffff;
   font-weight: 760;
   cursor: pointer;
-  transform: translate3d(0, 0, 0);
   transition:
-    transform 460ms var(--spring),
-    border-color 320ms var(--apple-out),
-    background 320ms var(--apple-out),
-    box-shadow 320ms var(--apple-out),
-    color 320ms var(--apple-out),
-    opacity 240ms var(--apple-out);
+    transform var(--dur-pop) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
   user-select: none;
 }
 
-button::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(circle at var(--press-x, 50%) var(--press-y, 50%), rgba(255, 255, 255, 0.32), transparent 32%);
-  opacity: 0;
-  transform: scale(0.74);
-  transition: opacity 360ms var(--apple-out), transform 520ms var(--spring);
-}
-
-button:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.015);
-}
-
-button:active:not(:disabled),
-button.is-pressing:not(:disabled) {
-  transform: translateY(1px) scale(0.965);
-  transition-duration: 120ms;
-}
-
-button.is-pressing::after {
-  opacity: 1;
-  transform: scale(1.14);
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--dur-press);
 }
 
 button:disabled {
@@ -131,14 +113,12 @@ h1 {
   margin-bottom: 0;
   font-size: clamp(2.15rem, 4vw, 4.5rem);
   line-height: 0.95;
-  letter-spacing: 0;
 }
 
 h2 {
   margin-bottom: 0;
   font-size: clamp(1.22rem, 2vw, 1.68rem);
   line-height: 1.1;
-  letter-spacing: 0;
 }
 
 a {
@@ -178,7 +158,6 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(50, 215, 130, 0.12), rgba(255, 255, 255, 0.03));
-  filter: blur(0.2px);
   transform: rotate(-6deg);
 }
 
@@ -284,8 +263,6 @@ a {
     linear-gradient(145deg, rgba(113, 255, 176, 0.28), rgba(21, 165, 92, 0.11)),
     rgba(3, 8, 6, 0.34);
   box-shadow: 0 18px 48px rgba(28, 200, 112, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
   color: #f9fff9;
   font-size: 1.9rem;
   font-weight: 850;
@@ -303,7 +280,6 @@ a {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 760;
-  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -316,8 +292,6 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
   background: rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(20px) saturate(1.25);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
 }
 
 .strip-item {
@@ -344,6 +318,16 @@ a {
   font-size: 1.45rem;
   font-weight: 850;
   line-height: 1;
+}
+
+/* The count swaps text content; a short fade keeps the digit change from
+   reading as a glitch without drawing attention to itself. */
+.strip-value {
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.strip-value.is-changing {
+  opacity: 0.35;
 }
 
 .strip-label {
@@ -419,10 +403,9 @@ select {
   color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition:
-    background 240ms var(--apple-out),
-    border-color 240ms var(--apple-out),
-    box-shadow 240ms var(--apple-out),
-    transform 360ms var(--spring);
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 textarea {
@@ -442,20 +425,12 @@ select {
   padding-right: 34px;
 }
 
-input:hover,
-textarea:hover,
-select:hover {
-  background-color: rgba(255, 255, 255, 0.105);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
 input:focus,
 textarea:focus,
 select:focus {
   background-color: rgba(255, 255, 255, 0.13);
   border-color: rgba(98, 215, 247, 0.6);
   box-shadow: 0 0 0 5px rgba(98, 215, 247, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
 }
 
 input::placeholder {
@@ -471,22 +446,7 @@ input::placeholder {
   box-shadow:
     0 18px 42px rgba(23, 190, 102, 0.18),
     0 0 32px rgba(54, 226, 134, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -16px 38px rgba(54, 226, 134, 0.08);
-  backdrop-filter: blur(20px) saturate(1.35);
-  -webkit-backdrop-filter: blur(20px) saturate(1.35);
-}
-
-.primary-button:hover {
-  border-color: rgba(136, 255, 194, 0.52);
-  background:
-    linear-gradient(145deg, rgba(126, 255, 190, 0.3), rgba(22, 167, 101, 0.14)),
-    rgba(0, 0, 0, 0.34);
-  box-shadow:
-    0 20px 48px rgba(23, 190, 102, 0.22),
-    0 0 48px rgba(54, 226, 134, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 -16px 42px rgba(54, 226, 134, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .header-add-button {
@@ -502,20 +462,10 @@ input::placeholder {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.secondary-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
 .delete-button {
   background: var(--danger-bg);
   border-color: rgba(255, 95, 109, 0.2);
   color: #ffd4d8;
-}
-
-.delete-button:hover:not(:disabled) {
-  background: rgba(255, 95, 109, 0.22);
-  border-color: rgba(255, 95, 109, 0.36);
 }
 
 .icon-button {
@@ -526,6 +476,42 @@ input::placeholder {
   border-radius: 16px;
 }
 
+/* Hover motion is gated: a tap on a touch screen fires a hover that then
+   sticks, so pointer-coarse devices get colour feedback only. */
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover {
+    border-color: rgba(136, 255, 194, 0.52);
+    background:
+      linear-gradient(145deg, rgba(126, 255, 190, 0.3), rgba(22, 167, 101, 0.14)),
+      rgba(0, 0, 0, 0.34);
+    box-shadow:
+      0 20px 48px rgba(23, 190, 102, 0.22),
+      0 0 48px rgba(54, 226, 134, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+
+  .secondary-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .delete-button:hover:not(:disabled) {
+    background: rgba(255, 95, 109, 0.22);
+    border-color: rgba(255, 95, 109, 0.36);
+  }
+
+  input:hover,
+  textarea:hover,
+  select:hover {
+    background-color: rgba(255, 255, 255, 0.105);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .flow-card:not(.is-selected):hover {
+    border-color: rgba(255, 255, 255, 0.38);
+  }
+}
+
 .refresh-glyph {
   position: relative;
   width: 18px;
@@ -533,7 +519,6 @@ input::placeholder {
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
-  transition: transform 560ms var(--spring);
 }
 
 .refresh-glyph::after {
@@ -548,8 +533,17 @@ input::placeholder {
   transform: rotate(26deg);
 }
 
-.icon-button:hover .refresh-glyph {
-  transform: rotate(132deg);
+/* The glyph spins only while a refresh is actually in flight — it reports
+   state. It used to spin on hover, which was decoration on a control that
+   gets pointed at dozens of times a day. */
+.is-refreshing .refresh-glyph {
+  animation: refresh-spin 700ms linear infinite;
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .button-icon {
@@ -563,6 +557,8 @@ input::placeholder {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 18px rgba(54, 226, 134, 0.16);
 }
 
+/* The dialog uses transitions plus @starting-style rather than keyframes so
+   an open that is cancelled mid-flight retargets from where it actually is. */
 .add-dialog {
   position: fixed;
   width: min(560px, calc(100vw - 28px));
@@ -572,20 +568,46 @@ input::placeholder {
   overflow: auto;
   border-radius: 28px;
   color: var(--text);
-  transform: translateY(10px) scale(0.97);
   opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  transition:
+    opacity var(--dur-modal) var(--ease-out),
+    transform var(--dur-modal) var(--ease-drawer),
+    overlay var(--dur-modal) allow-discrete,
+    display var(--dur-modal) allow-discrete;
 }
 
 .add-dialog[open] {
-  animation: dialog-in 420ms var(--spring) forwards;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .add-dialog[open] {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
 }
 
 .add-dialog::backdrop {
   background:
     radial-gradient(circle at 50% 40%, rgba(54, 226, 134, 0.12), transparent 28rem),
     rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  transition:
+    opacity var(--dur-modal) var(--ease-out),
+    overlay var(--dur-modal) allow-discrete,
+    display var(--dur-modal) allow-discrete;
+}
+
+.add-dialog[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .add-dialog[open]::backdrop {
+    opacity: 0;
+  }
 }
 
 .dialog-header {
@@ -611,11 +633,27 @@ input::placeholder {
   background: var(--danger-bg);
   color: #ffdce0;
   font-weight: 760;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity var(--dur-pop) var(--ease-out),
+    transform var(--dur-pop) var(--ease-out),
+    display var(--dur-pop) allow-discrete;
 }
 
+@starting-style {
+  .error-message.visible {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* Transition rather than a keyframe: a second error arriving while the first
+   is still animating retargets instead of restarting from zero. */
 .error-message.visible {
   display: block;
-  animation: notice-in 380ms var(--spring) both;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .list-header {
@@ -647,6 +685,7 @@ input::placeholder {
 }
 
 .flow-stage {
+  position: relative;
   min-height: 474px;
   overflow: hidden;
   border-radius: 24px;
@@ -672,39 +711,31 @@ input::placeholder {
 }
 
 .cover-flow {
-  --drag-x: 0px;
   position: relative;
   width: 100%;
   min-height: 474px;
   cursor: grab;
   touch-action: pan-y;
   transform-style: preserve-3d;
-  transform: translateX(var(--drag-x));
-  transition: transform 320ms var(--apple-out);
 }
 
 .cover-flow.is-dragging {
   cursor: grabbing;
-  transition-duration: 80ms;
 }
 
-.cover-flow.is-gliding .flow-card,
-.cover-flow.is-dragging .flow-card {
-  transition:
-    transform 120ms var(--apple-out),
-    opacity 120ms var(--apple-out),
-    filter 120ms var(--apple-out),
-    border-color 220ms var(--apple-out),
-    background 220ms var(--apple-out),
-    box-shadow 220ms var(--apple-out);
+.flow-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(80%, 420px);
+  margin: 0;
+  transform: translate(-50%, -50%);
 }
 
-.cover-flow.is-empty {
-  display: grid;
-  place-items: center;
-  cursor: default;
-}
-
+/* No transform/opacity transition here on purpose. The carousel position is
+   integrated by a spring in script.js and written every frame; a CSS
+   transition on top of that would smooth an already-smoothed value and add a
+   fixed lag to every gesture. Only the discrete selection styling animates. */
 .flow-card {
   --card-accent: rgba(245, 251, 247, 0.82);
   position: absolute;
@@ -713,8 +744,9 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  width: 212px;
-  height: 330px;
+  width: 232px;
+  height: 344px;
+  margin: -172px 0 0 -116px;
   padding: 22px 18px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -723,38 +755,41 @@ input::placeholder {
     linear-gradient(112deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0.18) 68%, rgba(255, 255, 255, 0.05)),
     rgba(234, 242, 238, 0.14);
   box-shadow:
-    calc(var(--offset) * -9px) 32px 62px rgba(0, 0, 0, 0.48),
-    inset 0 1px 0 rgba(255, 255, 255, 0.46),
-    inset 0 -18px 48px rgba(255, 255, 255, 0.08);
+    0 32px 62px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
   color: #f9fffb;
-  opacity: var(--opacity);
-  filter: blur(var(--blur)) saturate(var(--saturate));
-  transform:
-    translate(-50%, -50%)
-    translateX(var(--x))
-    translateZ(var(--z))
-    rotateY(var(--rotate))
-    rotateZ(calc(var(--offset) * -0.55deg))
-    scale(var(--scale));
   transform-style: preserve-3d;
   transition:
-    transform 720ms var(--spring),
-    opacity 420ms var(--apple-out),
-    filter 520ms var(--apple-out),
-    border-color 360ms var(--apple-out),
-    background 360ms var(--apple-out),
-    box-shadow 520ms var(--apple-out);
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    filter var(--dur-press) linear;
   user-select: none;
+  will-change: transform, opacity;
 }
 
-.flow-card::before,
-.flow-card::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
+/* Quantised depth-of-field. script.js writes data-depth when a card crosses a
+   bucket, so the blur radius changes a few times per gesture rather than on
+   every frame. Radii stay small — heavy blur is expensive to composite. */
+.flow-card[data-depth="0"] {
+  filter: none;
+}
+
+.flow-card[data-depth="1"] {
+  filter: blur(1.1px);
+}
+
+.flow-card[data-depth="2"] {
+  filter: blur(2.2px);
+}
+
+.flow-card[data-depth="3"] {
+  filter: blur(3.2px);
 }
 
 .flow-card::before {
+  content: "";
+  position: absolute;
   inset: 9px;
   border: 1px solid rgba(255, 255, 255, 0.26);
   border-radius: 21px;
@@ -762,32 +797,22 @@ input::placeholder {
     linear-gradient(90deg, rgba(255, 255, 255, 0.2), transparent 14%, transparent 86%, rgba(255, 255, 255, 0.16)),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06) 1px, transparent 1px, transparent 14px);
   opacity: 0.58;
+  pointer-events: none;
 }
 
-.flow-card::after {
-  inset: -30% -55%;
-  background: linear-gradient(105deg, transparent 24%, rgba(255, 255, 255, 0.36) 38%, transparent 52%);
-  opacity: 0.46;
-  transform: translateX(calc(var(--offset) * -16px)) rotate(3deg);
+/* Entrance and exit are integrated by the same loop that positions the cards
+   (see layoutCards in script.js) rather than declared as keyframes here. A CSS
+   animation on transform would override the inline transform for its duration
+   and the card would jump when it ended. */
+.flow-card.is-leaving {
+  pointer-events: none;
 }
 
-.flow-card:hover:not(.is-selected) {
-  border-color: rgba(255, 255, 255, 0.38);
-  opacity: min(1, calc(var(--opacity) + 0.18));
-  filter: blur(var(--hover-blur)) saturate(1.22);
-  transform:
-    translate(-50%, -50%)
-    translateX(var(--x))
-    translateZ(calc(var(--z) + 58px))
-    rotateY(calc(var(--rotate) * 0.86))
-    rotateZ(calc(var(--offset) * -0.35deg))
-    scale(calc(var(--scale) + 0.035));
-}
-
+/* The selected card keeps the same box as every other card; the emphasis is
+   carried by the spring-driven scale. Changing width/height here made the card
+   snap to a new size while its transform was still travelling. */
 .flow-card.is-selected {
   --card-accent: var(--primary);
-  width: 252px;
-  height: 360px;
   border-color: rgba(119, 255, 181, 0.5);
   background:
     radial-gradient(circle at 50% 26%, rgba(255, 255, 255, 0.18), transparent 27%),
@@ -796,21 +821,11 @@ input::placeholder {
   box-shadow:
     0 42px 92px rgba(0, 0, 0, 0.55),
     0 0 56px rgba(54, 226, 134, 0.28),
-    0 0 120px rgba(54, 226, 134, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -24px 70px rgba(5, 255, 132, 0.08);
-  backdrop-filter: blur(20px) saturate(1.36);
-  -webkit-backdrop-filter: blur(20px) saturate(1.36);
-  opacity: 1;
-  filter: blur(0) saturate(1.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .flow-card.is-selected::before {
   border-color: rgba(195, 255, 220, 0.54);
-  background:
-    radial-gradient(circle at 50% 27%, rgba(255, 255, 255, 0.32), transparent 18%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 16%, transparent 84%, rgba(255, 255, 255, 0.2)),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1) 1px, transparent 1px, transparent 13px);
 }
 
 .flow-card.is-far {
@@ -821,12 +836,17 @@ input::placeholder {
   --card-accent: var(--cyan);
 }
 
-.flow-card.status-ignored {
-  --card-accent: rgba(229, 239, 234, 0.48);
-}
-
 .flow-card.is-past-due {
   --card-accent: var(--danger);
+}
+
+.flow-card.priority-high {
+  --card-accent: var(--warning);
+}
+
+.flow-card.is-selected.priority-high,
+.flow-card.is-selected.is-past-due {
+  --card-accent: var(--primary);
 }
 
 .disc-core {
@@ -840,14 +860,14 @@ input::placeholder {
   background:
     radial-gradient(circle, rgba(0, 0, 0, 0.48) 0 13%, rgba(255, 255, 255, 0.24) 14% 15%, transparent 16%),
     conic-gradient(from 80deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.34), rgba(54, 226, 134, 0.12), rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
-  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.16), 0 0 26px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.16);
   opacity: 0.7;
   transform: translateX(-50%);
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 .flow-card.is-selected .disc-core {
   border-color: rgba(162, 255, 202, 0.55);
-  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.24), 0 0 38px rgba(54, 226, 134, 0.24);
   opacity: 0.94;
 }
 
@@ -880,9 +900,8 @@ input::placeholder {
 .selected-hero h3 {
   margin-bottom: 8px;
   color: #ffffff;
-  font-size: 1.1rem;
+  font-size: 1.12rem;
   line-height: 1.14;
-  letter-spacing: 0;
 }
 
 .flow-card h3 {
@@ -890,10 +909,6 @@ input::placeholder {
   overflow: hidden;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-}
-
-.flow-card.is-selected h3 {
-  font-size: 1.26rem;
 }
 
 .flow-due,
@@ -935,14 +950,17 @@ input::placeholder {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24);
 }
 
+/* scaleX rather than width: width is a layout property and animating it
+   reflows the card on every frame of the fill. */
 .progress-meter span {
   display: block;
-  width: var(--progress);
+  width: 100%;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--card-accent), rgba(255, 255, 255, 0.78));
-  box-shadow: 0 0 18px var(--card-accent);
-  transition: width 620ms var(--spring);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-menu) var(--ease-out);
 }
 
 .selected-detail {
@@ -961,17 +979,7 @@ input::placeholder {
     radial-gradient(circle at 70% 0%, rgba(98, 215, 247, 0.12), transparent 34%),
     linear-gradient(145deg, rgba(54, 226, 134, 0.12), rgba(255, 255, 255, 0.055)),
     rgba(0, 0, 0, 0.26);
-  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.34), 0 0 34px rgba(54, 226, 134, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(18px) saturate(1.22);
-  -webkit-backdrop-filter: blur(18px) saturate(1.22);
-}
-
-.selected-hero::before {
-  content: "";
-  position: absolute;
-  inset: -20% -40%;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.22), transparent 56%);
-  opacity: 0.46;
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .detail-actions {
@@ -988,6 +996,27 @@ input::placeholder {
   width: 100%;
 }
 
+/* Expand/collapse runs on grid-template-rows so the panel can be reversed
+   mid-flight; a keyframe would restart from zero on a fast double toggle. */
+.detail-extra-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-menu) var(--ease-in-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+
+.detail-extra-wrap.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.detail-extra-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .detail-extra {
   display: grid;
   gap: 10px;
@@ -995,7 +1024,6 @@ input::placeholder {
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.055);
-  animation: detail-in 420ms var(--spring) both;
 }
 
 .detail-extra p {
@@ -1027,51 +1055,28 @@ input::placeholder {
   text-align: center;
 }
 
-@keyframes detail-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes notice-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes dialog-in {
-  0% {
-    opacity: 0;
-    transform: translateY(12px) scale(0.965);
-  }
-  70% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.006);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
+/* Reduced motion keeps the transitions that explain a change (opacity,
+   colour) and drops the ones that move things through space. It is not a
+   blanket kill switch — script.js also snaps the carousel instead of
+   springing it when this query matches. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 1ms !important;
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
+  .add-dialog,
+  .error-message {
+    transform: none !important;
+  }
+
+  .detail-extra-wrap {
+    transition: opacity var(--dur-fast) var(--ease-out);
+    grid-template-rows: 1fr;
+  }
+
+  .is-refreshing .refresh-glyph {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  button:active:not(:disabled) {
+    transform: none;
   }
 }
 
@@ -1091,7 +1096,7 @@ input::placeholder {
   }
 
   .selected-detail .full-detail-button,
-  .selected-detail .detail-extra,
+  .selected-detail .detail-extra-wrap,
   .selected-detail .section-heading,
   .selected-detail .detail-edit-form {
     grid-column: 1 / -1;
@@ -1166,20 +1171,10 @@ input::placeholder {
   }
 
   .flow-card {
-    width: 178px;
-    height: 292px;
+    width: 196px;
+    height: 300px;
+    margin: -150px 0 0 -98px;
     padding: 18px 14px;
-    transform:
-      translate(-50%, -50%)
-      translateX(calc(var(--offset) * 78px))
-      translateZ(var(--z))
-      rotateY(calc(var(--rotate) * 0.64))
-      scale(var(--scale));
-  }
-
-  .flow-card.is-selected {
-    width: 214px;
-    height: 322px;
   }
 
   .disc-core {

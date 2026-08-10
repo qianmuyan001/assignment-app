@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "assignment-web",
+      "runtimeExecutable": "/Users/qianmuyan/Desktop/assignment-app/.venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8111"],
+      "port": 8111
+    }
+  ]
+}

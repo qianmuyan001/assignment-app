@@ -167,10 +167,22 @@ source .venv/bin/activate
 uvicorn backend.app.main:app --reload
 ```
 
-The API will run at:
+The backend will run at:
 
-- `http://127.0.0.1:8000`
-- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000` — the web client
+- `http://127.0.0.1:8000/docs` — the interactive API documentation
+- `http://127.0.0.1:8000/health` — a readiness check that returns JSON
+
+## Web Client
+
+Opening `http://127.0.0.1:8000` in a browser serves the Cover Flow web client
+from `backend/app/static/`. It reads and writes the same SQLite database as the
+desktop GUI, so the two stay in sync.
+
+The client was previously a second, parallel FastAPI application under
+`assignment_app/` that stored assignments in a JSON file and was not started by
+any script. Its interface now runs against the real backend, and the duplicate
+application has been removed.
 
 ## Run The Desktop GUI
 
