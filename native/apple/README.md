@@ -15,7 +15,8 @@ has Mac Catalyst enabled; there is no separate AppKit target and the existing
 - Persistent simple/professional display mode and system/light/dark theme.
 - Native split navigation, lists, forms, sheets, alerts, date pickers, empty,
   loading, and error states.
-- Catalyst keyboard commands: Command-N, Command-F, and Command-R.
+- iPad hardware-keyboard and Catalyst commands: Command-N, Command-F,
+  Command-R, and context-sensitive Escape.
 
 ## Apple navigation and search refresh
 
@@ -25,14 +26,21 @@ roughly 190–300 points. **Compact** is a 64–76 point icon rail; every 48-poi
 navigation target retains its full VoiceOver label, keyboard focus, selected
 trait, and Help tooltip. The style is stored with `@AppStorage` under
 `assignmentApp.sidebarDisplayStyle` and never changes the underlying task data.
+Dynamic Type grows labels and symbols, while Compact symbols are capped to the
+available rail width. Accessibility text sizes use a wrapping, scrollable empty
+state instead of allowing the system placeholder to overlap itself.
 
 On iPadOS 26 / Mac Catalyst 26 or newer, the selected item uses the formal
 SwiftUI Liquid Glass APIs: `GlassEffectContainer`, an interactive
-`glassEffect`, `glassEffectID`, and the matched-geometry glass transition. Only
-the single selected capsule moves. On iPadOS 17–25 the same selection falls
-back to a `regularMaterial` capsule with a subtle system-color edge. The
-selection remains visually explicit when Reduce Motion is enabled, while the
-220 ms transition is disabled.
+`glassEffect`, `glassEffectID`, and the matched-geometry glass transition. The
+glass is applied directly to the selected content so its symbol and label remain
+above the system compositing layer. Direct touch or pointer selection moves only
+the capsule with a 220 ms custom timing curve. Keyboard, Switch Control, and
+VoiceOver activation switch immediately, and Reduce Motion disables positional
+motion. On iPadOS 17–25 the same selection falls back to a `regularMaterial`
+capsule. Reduce Transparency or Increase Contrast uses a near-solid system
+surface with an explicit accent edge. The native split view supplies the
+sidebar material; the app does not stack another full-sidebar blur behind it.
 
 Navigation no longer writes `.detailOnly` after choosing All, Today, This Week,
 Overdue, Completed, or Settings. Command-F also leaves the split-view
@@ -40,12 +48,19 @@ visibility untouched; only the system sidebar command or unavoidable system
 layout constraints can fully hide it.
 
 Search is a controlled toolbar component rather than `.searchable(isPresented:)`.
-`SearchPresentationState` owns open/closed presentation and `FocusState` owns
-keyboard focus. The search button opens and focuses the field. Its close button
-clears the query and closes. An outside click or Escape closes while preserving
-an existing query, and the page title is restored immediately. Catalyst Escape
-is also registered as a menu-level cancel command because the UIKit text field
-can consume the key before a SwiftUI ancestor receives it.
+`SearchPresentationState` reduces explicit present, clear-and-close, and
+dismiss-preserving-query events. A focus-request token and `FocusState` make
+repeated Command-F deterministic without lifecycle delays. The search button
+opens and focuses the field. Its close button clears the query and closes. An
+outside click or Escape closes while preserving an existing query, and the page
+title is restored immediately. Search layout changes are intentionally
+unanimated because they are high-frequency keyboard actions.
+
+Commands use `FocusedSceneValue`, so only the focused window receives New,
+Find, Reload, or Escape. Find is unavailable on Settings, and background
+commands are disabled while an editor or alert is presented. Escape is only
+claimed while search is open, leaving normal sheet and alert cancellation to
+the system.
 
 ### App icon status
 
@@ -187,7 +202,7 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Run the same 29-test suite on that iPad Simulator:
+Run the same 32-test suite on that iPad Simulator:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
@@ -216,10 +231,10 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   CODE_SIGNING_ALLOWED=NO test
 ```
 
-The shared `AssignmentApp2` scheme intentionally makes the 29 stable domain,
-repository, and migration tests its default Test action, so both commands above
-return `TEST SUCCEEDED`. `AssignmentApp2UISmoke` is a separate shared scheme for
-the opt-in UI flow:
+The shared `AssignmentApp2` scheme intentionally makes the 32 stable domain,
+repository, migration, and navigation-state tests its default Test action, so
+both commands above return `TEST SUCCEEDED`. `AssignmentApp2UISmoke` is a
+separate shared scheme for the opt-in UI flow:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
@@ -229,15 +244,20 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO \
   -only-testing:AssignmentApp2UITests/AssignmentApp2UITests/testSidebarAndSearchStateSmoke \
+  -only-testing:AssignmentApp2UITests/AssignmentApp2UITests/testCompactSidebarAccessibilityAtLargestTextAndRapidRetarget \
   test
 ```
 
 That flow verifies navigation does not hide the sidebar, toggles Compact mode,
-checks the full accessibility name, opens search, types a query, closes with the
-clear button, restores the title, and checks portrait/landscape layout. The
-Catalyst UI runner can still exit before connecting under Xcode 27 beta; the
-same Command-F, Escape, close-button, compact/expanded, and narrow/wide-window
-paths were also verified in a real Catalyst window. Packaged-app startup is
+checks all six full accessibility names and 44-point targets, rapidly retargets
+selection, opens search with focus, types a query, closes with the clear button,
+restores the title, and checks portrait/landscape layout. The second test uses a
+Debug-only launch override to force SwiftUI Accessibility 5 while the Simulator
+itself remains at its normal text size; production builds do not include that
+branch. The Catalyst UI runner can still hang waiting for workers to materialize
+under Xcode 27 beta. The 2026-08-10 attempt was interrupted after 139.6 seconds
+without reaching a test assertion; Catalyst build and all 32 unit tests passed.
+Packaged-app startup is
 additionally verified against a disposable sandbox-contained database; this
 checks that the process remains alive and creates schema v2 with
 `PRAGMA quick_check=ok`.
@@ -281,9 +301,9 @@ signature, archive, and launch-smoke logs. Because Finder/File Provider can add
 metadata to the visible `.app` directory after packaging, the ZIP is the
 canonical transferable payload.
 
-Both iPad Simulator and Mac Catalyst independently passed all 29 Apple unit and
-migration tests. The shared cross-platform contract suite additionally passed
-20 tests.
+The packaged 2026-08-07 snapshot independently passed 29 Apple unit and
+migration tests on both iPad Simulator and Mac Catalyst. The shared
+cross-platform contract suite additionally passed 20 tests.
 
 The before/after UI evidence and logs for the navigation/search refresh are in:
 
@@ -293,3 +313,15 @@ artifacts/apple/ui-refresh-20260807/after/
 artifacts/apple/ui-refresh-20260807/logs/
 artifacts/apple/ui-refresh-20260807/ipad-ui-glass-final.xcresult
 ```
+
+The skills-based accessibility, motion, command-routing, and Dynamic Type
+polish completed on 2026-08-10 is verified in:
+
+```text
+artifacts/apple/skill-polish-20260810/
+```
+
+That directory contains the final Catalyst and iPad 32/32 result bundles, the
+iOS 18.5 fallback build result, the 2/2 iPad UI result bundle, and screenshots
+for Expanded, Compact, search expanded/restored, landscape, and self-contained
+Accessibility 5 layouts.

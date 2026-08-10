@@ -1,4 +1,4 @@
-import Combine
+import Foundation
 import SwiftUI
 
 
@@ -9,24 +9,9 @@ enum AssignmentPreferenceKeys {
 }
 
 
-extension Notification.Name {
-    static let assignmentNewTaskRequested = Notification.Name(
-        "assignmentApp.command.newTask"
-    )
-    static let assignmentFindRequested = Notification.Name(
-        "assignmentApp.command.find"
-    )
-    static let assignmentReloadRequested = Notification.Name(
-        "assignmentApp.command.reload"
-    )
-    static let assignmentEscapeRequested = Notification.Name(
-        "assignmentApp.command.escape"
-    )
-}
-
-
 struct ContentView: View {
     @EnvironmentObject private var viewModel: AssignmentViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @AppStorage(AssignmentPreferenceKeys.displayMode)
     private var displayModeValue = DisplayMode.simple.rawValue
@@ -39,6 +24,7 @@ struct ContentView: View {
     @State private var editorPresentation: TaskEditorPresentation?
     @State private var activeAlert: ContentAlert?
     @State private var searchPresentation: SearchPresentationState = .closed
+    @State private var didApplyUITestOverrides = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -61,11 +47,13 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .focusedSceneValue(\.assignmentCommandActions, commandActions)
         .sheet(item: $editorPresentation, onDismiss: presentDeferredError) { presentation in
             editor(for: presentation)
         }
         .alert(item: $activeAlert, content: alert)
         .onAppear {
+            applyUITestOverridesIfNeeded()
             presentDeferredError()
         }
         .onChange(of: viewModel.errorMessage) { _, message in
@@ -73,26 +61,6 @@ struct ContentView: View {
             activeAlert = .error(message)
         }
         .onChange(of: viewModel.selection) { _, _ in
-            dismissSearchPreservingQuery()
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .assignmentNewTaskRequested)
-        ) { _ in
-            showNewTaskEditor()
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .assignmentFindRequested)
-        ) { _ in
-            searchPresentation.present()
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .assignmentReloadRequested)
-        ) { _ in
-            viewModel.reload()
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .assignmentEscapeRequested)
-        ) { _ in
             dismissSearchPreservingQuery()
         }
     }
@@ -238,33 +206,69 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(
-                viewModel.hasActiveFilters ? "No Matching Tasks" : viewModel.selection.emptyTitle,
-                systemImage: viewModel.hasActiveFilters
-                    ? "magnifyingglass"
-                    : viewModel.selection.systemImage
-            )
-        } description: {
-            Text(
-                viewModel.hasActiveFilters
-                    ? "Change the search or filters to see more tasks."
-                    : viewModel.selection.emptyDescription
-            )
-        } actions: {
-            if viewModel.hasActiveFilters {
-                Button("Clear Search and Filters") {
-                    viewModel.clearFilters()
-                    searchPresentation = .closed
+        if dynamicTypeSize.isAccessibilitySize {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Image(systemName: emptyStateSystemImage)
+                        .font(.title)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+
+                    Text(emptyStateTitle)
+                        .font(.title2.bold())
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(emptyStateDescription)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    emptyStateAction
                 }
-                .buttonStyle(.borderedProminent)
-            } else if viewModel.selection != .completed, viewModel.isWriteEnabled {
-                Button(displayMode == .simple ? "Quick Add" : "Add Task") {
-                    showNewTaskEditor()
-                }
-                .buttonStyle(.borderedProminent)
+                .frame(maxWidth: 560, alignment: .leading)
+                .padding(24)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ContentUnavailableView {
+                Label(emptyStateTitle, systemImage: emptyStateSystemImage)
+            } description: {
+                Text(emptyStateDescription)
+            } actions: {
+                emptyStateAction
+            }
+        }
+    }
+
+    private var emptyStateTitle: String {
+        viewModel.hasActiveFilters ? "No Matching Tasks" : viewModel.selection.emptyTitle
+    }
+
+    private var emptyStateSystemImage: String {
+        viewModel.hasActiveFilters ? "magnifyingglass" : viewModel.selection.systemImage
+    }
+
+    private var emptyStateDescription: String {
+        viewModel.hasActiveFilters
+            ? "Change the search or filters to see more tasks."
+            : viewModel.selection.emptyDescription
+    }
+
+    @ViewBuilder
+    private var emptyStateAction: some View {
+        if viewModel.hasActiveFilters {
+            Button("Clear Search and Filters") {
+                viewModel.clearFilters()
+                searchPresentation = .closed
+            }
+            .buttonStyle(.borderedProminent)
+        } else if viewModel.selection != .completed, viewModel.isWriteEnabled {
+            Button(displayMode == .simple ? "Quick Add" : "Add Task") {
+                showNewTaskEditor()
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -308,6 +312,21 @@ struct ContentView: View {
         )
     }
 
+    private var commandActions: AssignmentCommandActions {
+        AssignmentCommandActions(
+            availability: AssignmentCommandAvailability(
+                isWriteEnabled: viewModel.isWriteEnabled,
+                isTaskDestination: viewModel.selection != .settings,
+                isSearchExpanded: searchPresentation.isExpanded,
+                isModalPresented: editorPresentation != nil || activeAlert != nil
+            ),
+            newTask: showNewTaskEditor,
+            find: presentSearch,
+            closeSearch: dismissSearchPreservingQuery,
+            reload: viewModel.reload
+        )
+    }
+
     private func showNewTaskEditor() {
         guard viewModel.isWriteEnabled else {
             activeAlert = .error(
@@ -315,10 +334,12 @@ struct ContentView: View {
             )
             return
         }
+        dismissSearchPreservingQuery()
         editorPresentation = TaskEditorPresentation(assignment: nil)
     }
 
     private func showEditor(for assignment: Assignment) {
+        dismissSearchPreservingQuery()
         editorPresentation = TaskEditorPresentation(assignment: assignment)
     }
 
@@ -348,10 +369,35 @@ struct ContentView: View {
         activeAlert = .error(message)
     }
 
+    private func applyUITestOverridesIfNeeded() {
+        guard !didApplyUITestOverrides else { return }
+        didApplyUITestOverrides = true
+
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-assignmentApp.uiTestSidebarCompact") {
+            sidebarDisplayStyleValue = SidebarDisplayStyle.compact.rawValue
+        } else if arguments.contains("-assignmentApp.uiTestSidebarExpanded") {
+            sidebarDisplayStyleValue = SidebarDisplayStyle.expanded.rawValue
+        }
+        #endif
+    }
+
     private func dismissSearchPreservingQuery() {
         guard searchPresentation.isExpanded else { return }
         var query = viewModel.searchText
-        searchPresentation.dismiss(query: &query, clearingQuery: false)
+        searchPresentation.handle(.dismissPreservingQuery, query: &query)
+        viewModel.searchText = query
+    }
+
+    private func presentSearch() {
+        guard viewModel.selection != .settings,
+              editorPresentation == nil,
+              activeAlert == nil else {
+            return
+        }
+        var query = viewModel.searchText
+        searchPresentation.handle(.present, query: &query)
         viewModel.searchText = query
     }
 

@@ -45,10 +45,7 @@ final class AssignmentApp2UITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directoryURL) }
 
         let app = XCUIApplication()
-        app.launchArguments += [
-            "-assignmentApp.sidebarDisplayStyle",
-            "expanded",
-        ]
+        app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
         app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
             .appendingPathComponent("assignments.db")
             .path
@@ -65,6 +62,16 @@ final class AssignmentApp2UITests: XCTestCase {
             "Selecting a task category must not hide the sidebar."
         )
         styleToggle.tap()
+
+        let compactStyleToggle = app.buttons["sidebar-style-toggle"]
+        let compactStyleApplied = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label == %@",
+                "Show Sidebar Labels"
+            ),
+            object: compactStyleToggle
+        )
+        wait(for: [compactStyleApplied], timeout: 5)
 
         let compactAll = app.buttons["sidebar-all"]
         XCTAssertTrue(compactAll.waitForExistence(timeout: 5))
@@ -109,6 +116,59 @@ final class AssignmentApp2UITests: XCTestCase {
         capture("ipad-landscape-compact", app: app)
         XCUIDevice.shared.orientation = .portrait
         #endif
+    }
+
+    @MainActor
+    func testCompactSidebarAccessibilityAtLargestTextAndRapidRetarget() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "AssignmentApp2UITests-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-assignmentApp.uiTestSidebarCompact",
+            "-assignmentApp.uiTestDynamicTypeAccessibility5",
+        ]
+        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
+            .appendingPathComponent("assignments.db")
+            .path
+        app.launch()
+
+        let destinations = [
+            ("sidebar-all", "All Tasks"),
+            ("sidebar-today", "Today"),
+            ("sidebar-week", "This Week"),
+            ("sidebar-overdue", "Overdue"),
+            ("sidebar-completed", "Completed"),
+            ("sidebar-settings", "Settings"),
+        ]
+
+        for (identifier, label) in destinations {
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.waitForExistence(timeout: 10), identifier)
+            XCTAssertEqual(button.label, label)
+            XCTAssertTrue(button.isHittable, identifier)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, identifier)
+        }
+
+        app.buttons["sidebar-today"].tap()
+        app.buttons["sidebar-week"].tap()
+        app.buttons["sidebar-overdue"].tap()
+
+        XCTAssertTrue(app.buttons["sidebar-overdue"].isSelected)
+        XCTAssertTrue(app.buttons["sidebar-style-toggle"].isHittable)
+        XCTAssertEqual(
+            app.buttons["sidebar-style-toggle"].label,
+            "Show Sidebar Labels"
+        )
+        capture("ipad-compact-accessibility-xxxl", app: app)
     }
 
     @MainActor

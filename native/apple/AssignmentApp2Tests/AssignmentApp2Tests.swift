@@ -570,10 +570,10 @@ struct AppleNavigationChromeTests {
         var state = SearchPresentationState.closed
         var query = "physics"
 
-        state.present()
+        state.handle(.present, query: &query)
         #expect(state.isExpanded)
 
-        state.dismiss(query: &query, clearingQuery: true)
+        state.handle(.clearAndClose, query: &query)
         #expect(state == .closed)
         #expect(query.isEmpty)
     }
@@ -581,14 +581,107 @@ struct AppleNavigationChromeTests {
     @Test("Outside click and Escape close search while preserving its query")
     func searchDismissPreservesQuery() {
         for _ in 0..<2 {
-            var state = SearchPresentationState.expanded
+            var state = SearchPresentationState.closed
             var query = "实验 results"
+            state.handle(.present, query: &query)
 
-            state.dismiss(query: &query, clearingQuery: false)
+            state.handle(.dismissPreservingQuery, query: &query)
 
             #expect(state == .closed)
             #expect(query == "实验 results")
         }
+    }
+
+    @Test("Repeated find commands issue fresh focus requests without changing presentation")
+    func repeatedFindRequestsRefocusSearch() {
+        var state = SearchPresentationState.closed
+        var query = "history"
+
+        state.handle(.present, query: &query)
+        let firstToken = state.focusRequestToken
+        state.handle(.present, query: &query)
+
+        #expect(state.isExpanded)
+        #expect(firstToken != nil)
+        #expect(state.focusRequestToken != firstToken)
+    }
+
+    @Test("Navigation chrome accessibility settings select motion and material fallbacks")
+    func navigationChromeAccessibilityPolicy() {
+        let standard = NavigationChromeAccessibilityPolicy(
+            reduceMotion: false,
+            reduceTransparency: false,
+            increasedContrast: false
+        )
+        #expect(standard.animatesSelection)
+        #expect(standard.usesTranslucentMaterial)
+        #expect(!standard.emphasizesEdges)
+        #expect(standard.selectionStrokeWidth == 0.5)
+
+        let reducedMotion = NavigationChromeAccessibilityPolicy(
+            reduceMotion: true,
+            reduceTransparency: false,
+            increasedContrast: false
+        )
+        #expect(!reducedMotion.animatesSelection)
+        #expect(reducedMotion.usesTranslucentMaterial)
+        #expect(!reducedMotion.emphasizesEdges)
+
+        let reducedTransparency = NavigationChromeAccessibilityPolicy(
+            reduceMotion: false,
+            reduceTransparency: true,
+            increasedContrast: false
+        )
+        #expect(reducedTransparency.animatesSelection)
+        #expect(!reducedTransparency.usesTranslucentMaterial)
+        #expect(reducedTransparency.emphasizesEdges)
+        #expect(reducedTransparency.selectionStrokeWidth == 1.5)
+
+        let increasedContrast = NavigationChromeAccessibilityPolicy(
+            reduceMotion: false,
+            reduceTransparency: false,
+            increasedContrast: true
+        )
+        #expect(increasedContrast.animatesSelection)
+        #expect(!increasedContrast.usesTranslucentMaterial)
+        #expect(increasedContrast.emphasizesEdges)
+        #expect(increasedContrast.selectionStrokeWidth == 1.5)
+    }
+
+    @Test("Focused commands respect task destinations and modal presentation")
+    func focusedCommandAvailability() {
+        let taskList = AssignmentCommandAvailability(
+            isWriteEnabled: true,
+            isTaskDestination: true,
+            isSearchExpanded: true,
+            isModalPresented: false
+        )
+        #expect(taskList.canCreateTask)
+        #expect(taskList.canFindTasks)
+        #expect(taskList.canCloseSearch)
+        #expect(taskList.canReload)
+
+        let settings = AssignmentCommandAvailability(
+            isWriteEnabled: true,
+            isTaskDestination: false,
+            isSearchExpanded: false,
+            isModalPresented: false
+        )
+        #expect(settings.canCreateTask)
+        #expect(!settings.canFindTasks)
+        #expect(!settings.canCloseSearch)
+        #expect(settings.canReload)
+
+        let modal = AssignmentCommandAvailability(
+            isWriteEnabled: true,
+            isTaskDestination: true,
+            isSearchExpanded: true,
+            isModalPresented: true
+        )
+        #expect(!modal.canCreateTask)
+        #expect(!modal.canFindTasks)
+        #expect(!modal.canCloseSearch)
+        #expect(!modal.canReload)
     }
 }
 

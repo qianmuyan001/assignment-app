@@ -1,4 +1,47 @@
+import Foundation
 import SwiftUI
+
+
+struct AssignmentCommandActions {
+    let availability: AssignmentCommandAvailability
+    let newTask: () -> Void
+    let find: () -> Void
+    let closeSearch: () -> Void
+    let reload: () -> Void
+}
+
+
+struct AssignmentCommandAvailability: Equatable {
+    let canCreateTask: Bool
+    let canFindTasks: Bool
+    let canCloseSearch: Bool
+    let canReload: Bool
+
+    init(
+        isWriteEnabled: Bool,
+        isTaskDestination: Bool,
+        isSearchExpanded: Bool,
+        isModalPresented: Bool
+    ) {
+        canCreateTask = isWriteEnabled && !isModalPresented
+        canFindTasks = isTaskDestination && !isModalPresented
+        canCloseSearch = isTaskDestination && isSearchExpanded && !isModalPresented
+        canReload = !isModalPresented
+    }
+}
+
+
+private struct AssignmentCommandActionsKey: FocusedValueKey {
+    typealias Value = AssignmentCommandActions
+}
+
+
+extension FocusedValues {
+    var assignmentCommandActions: AssignmentCommandActions? {
+        get { self[AssignmentCommandActionsKey.self] }
+        set { self[AssignmentCommandActionsKey.self] = newValue }
+    }
+}
 
 
 @main
@@ -8,7 +51,6 @@ struct AssignmentApp2App: App {
     @AppStorage(AssignmentPreferenceKeys.theme)
     private var themeValue = AppTheme.system.rawValue
 
-    #if targetEnvironment(macCatalyst)
     var body: some Scene {
         WindowGroup("Assignments") {
             rootView
@@ -17,18 +59,12 @@ struct AssignmentApp2App: App {
             AssignmentCommands()
         }
     }
-    #else
-    var body: some Scene {
-        WindowGroup("Assignments") {
-            rootView
-        }
-    }
-    #endif
 
     private var rootView: some View {
         ContentView()
             .environmentObject(viewModel)
             .preferredColorScheme(theme.preferredColorScheme)
+            .modifier(UITestDynamicTypeModifier())
     }
 
     private var theme: AppTheme {
@@ -37,46 +73,57 @@ struct AssignmentApp2App: App {
 }
 
 
-#if targetEnvironment(macCatalyst)
+private struct UITestDynamicTypeModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(
+            "-assignmentApp.uiTestDynamicTypeAccessibility5"
+        ) {
+            content.dynamicTypeSize(.accessibility5)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+
 private struct AssignmentCommands: Commands {
+    @FocusedValue(\.assignmentCommandActions)
+    private var actions
+
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Task") {
-                NotificationCenter.default.post(
-                    name: .assignmentNewTaskRequested,
-                    object: nil
-                )
+                actions?.newTask()
             }
             .keyboardShortcut("n", modifiers: .command)
+            .disabled(actions?.availability.canCreateTask != true)
         }
 
         CommandMenu("Assignments") {
             Button("Find Tasks") {
-                NotificationCenter.default.post(
-                    name: .assignmentFindRequested,
-                    object: nil
-                )
+                actions?.find()
             }
             .keyboardShortcut("f", modifiers: .command)
+            .disabled(actions?.availability.canFindTasks != true)
 
             Button("Close Search") {
-                NotificationCenter.default.post(
-                    name: .assignmentEscapeRequested,
-                    object: nil
-                )
+                actions?.closeSearch()
             }
             .keyboardShortcut(.cancelAction)
+            .disabled(actions?.availability.canCloseSearch != true)
 
             Divider()
 
             Button("Reload Tasks") {
-                NotificationCenter.default.post(
-                    name: .assignmentReloadRequested,
-                    object: nil
-                )
+                actions?.reload()
             }
             .keyboardShortcut("r", modifiers: .command)
+            .disabled(actions?.availability.canReload != true)
         }
     }
 }
-#endif

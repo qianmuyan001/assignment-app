@@ -212,14 +212,20 @@ struct AssignmentRow: View {
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        HStack(spacing: 8) {
-                            Label(projection.courseName, systemImage: "book.closed")
-                                .lineLimit(2)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                courseLabel
 
-                            Spacer(minLength: 6)
+                                Spacer(minLength: 6)
 
-                            Label(projection.status.title, systemImage: projection.status.systemImage)
-                                .foregroundStyle(projection.status.tint)
+                                statusLabel
+                            }
+                            .fixedSize(horizontal: true, vertical: false)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                courseLabel
+                                statusLabel
+                            }
                         }
                         .font(.subheadline)
 
@@ -244,7 +250,10 @@ struct AssignmentRow: View {
                         Label("Open source link", systemImage: "arrow.up.right.square")
                             .font(.subheadline)
                     }
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
             }
 
@@ -255,10 +264,23 @@ struct AssignmentRow: View {
                     .font(.title3)
             }
             .buttonStyle(.borderless)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .help(assignment.status == .done ? "Restore task" : "Mark task done")
             .accessibilityLabel(assignment.status == .done ? "Restore task" : "Mark task done")
         }
         .padding(.vertical, 5)
+    }
+
+    private var courseLabel: some View {
+        Label(projection.courseName, systemImage: "book.closed")
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var statusLabel: some View {
+        Label(projection.status.title, systemImage: projection.status.systemImage)
+            .foregroundStyle(projection.status.tint)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
