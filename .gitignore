@@ -8,6 +8,10 @@ __pycache__/
 *.db-wal
 backend/.venv/
 .assignment_app_backend.pid
+legacy/macos/.build/
+legacy/macos/.swiftpm/
+legacy/macos/dist/
+# Ignore stale local build products left at the pre-archive path.
 native/macos/.build/
 native/macos/.swiftpm/
 native/macos/dist/

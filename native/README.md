@@ -9,8 +9,8 @@ CustomTkinter interface.
   cross-platform-testable Core project.
 - `apple/` contains the approved SwiftUI iPadOS 2.0 alternative. The same real
   Xcode application target builds for iPadOS and Apple Silicon Mac Catalyst.
-- `macos/` remains the existing pure macOS SwiftPM 1.0 baseline; it is not the
-  2.0 Catalyst deliverable and was not removed or rewritten.
+- `../legacy/macos/` contains the retired pure macOS SwiftPM 1.0 baseline for
+  historical reference; it is not an active 2.0 deliverable.
 - `../shared/` is the canonical 2.0 task/schema/rule/fixture directory. The
   older `native/shared/assignment-candidates.schema.json` remains the secure
   source-import contract.
@@ -27,14 +27,14 @@ CustomTkinter interface.
              ├──────── assignment schema ──────┤
 ```
 
-The retained macOS 1.0 and Windows source-connector foundations can use the
+The archived macOS 1.0 and active Windows source-connector foundations can use the
 loopback `llama.cpp` endpoint described below. Local AI and source login are not
 part of the Apple 2.0 task-management preview.
 
 The Apple and Windows 2.0 clients and FastAPI backend can safely migrate the
 existing SQLite database. They create a recoverable SQLite online backup before
 schema changes, validate the result, and stop writes if migration fails. The
-unchanged macOS 1.0 client does not initiate v2 migration or expose priority,
+archived macOS 1.0 client does not initiate v2 migration or expose priority,
 but the additive priority column and retained physical status values let it
 continue reading and writing a database already upgraded by a 2.0 client. None
 of the native clients send task data to a cloud service.
@@ -85,7 +85,7 @@ The AI never receives:
 ## Project layout
 
 - `apple/`: SwiftUI iPadOS and Mac Catalyst 2.0 Xcode project.
-- `macos/`: retained SwiftUI macOS 1.0 client.
+- `../legacy/macos/`: retired SwiftUI macOS 1.0 client.
 - `windows/`: WinUI 3 Windows client source.
 - `local-ai/`: loopback-only llama.cpp start scripts.
 - `shared/`: shared JSON contracts and test fixtures.

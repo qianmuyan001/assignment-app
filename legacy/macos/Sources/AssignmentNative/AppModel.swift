@@ -169,4 +169,3 @@ final class AppModel: ObservableObject {
         return haystack.localizedCaseInsensitiveContains(needle)
     }
 }
-

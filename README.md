@@ -16,8 +16,8 @@ priority mappings, date-list rules, fixtures, and acceptance cases.
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
 `native/apple/AssignmentApp2.xcodeproj`. Its single application target also
-supports Mac Catalyst, while the existing `native/macos` SwiftPM 1.0 client is
-preserved unchanged. The Apple client provides task CRUD, completion/restoring,
+supports Mac Catalyst. The retired pure macOS SwiftPM 1.0 client is archived at
+`legacy/macos` for historical reference. The Apple client provides task CRUD, completion/restoring,
 All/Today/This Week/Overdue/Completed views, search, filters, sorting,
 simple/professional modes, and persistent appearance settings. See
 `native/apple/README.md` for the database safety model and verification details.
@@ -66,8 +66,8 @@ priority mappings, date-list rules, fixtures, and acceptance cases.
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
 `native/apple/AssignmentApp2.xcodeproj`. Its single application target also
-supports Mac Catalyst, while the existing `native/macos` SwiftPM 1.0 client is
-preserved unchanged. The Apple client provides task CRUD, completion/restoring,
+supports Mac Catalyst. The retired pure macOS SwiftPM 1.0 client is archived at
+`legacy/macos` for historical reference. The Apple client provides task CRUD, completion/restoring,
 All/Today/This Week/Overdue/Completed views, search, filters, sorting,
 simple/professional modes, and persistent appearance settings. See
 `native/apple/README.md` for the database safety model and verification details.
@@ -116,7 +116,7 @@ SQLite assignment schema without replacing or deleting the database.
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
 | Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | 2.0 Debug preview; iPad and Apple Silicon Catalyst builds verified |
-| macOS legacy | SwiftUI + WKWebView | macOS Keychain | Existing 1.0 native baseline retained unchanged |
+| macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
 | Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 preview source; build and smoke-test on Windows |
 
 Apple 2.0:
@@ -131,13 +131,13 @@ Legacy macOS 1.0:
 ```bash
 cd /path/to/assignment-app
 ./native/local-ai/start-macos.command
-open native/macos/dist/Assignments.app
+open legacy/macos/dist/Assignments.app
 ```
 
 The llama.cpp runtime is included. On first use, the start script downloads the
 default Qwen3 1.7B model into llama.cpp's local cache.
 For copying the app, use
-`native/macos/dist/Assignments-macOS-arm64.zip`.
+`legacy/macos/dist/Assignments-macOS-arm64.zip`.
 
 The retained native macOS 1.0 source connector supports two login modes:
 

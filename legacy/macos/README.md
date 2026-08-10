@@ -1,8 +1,8 @@
 # macOS native app
 
-> **2.0 location:** the approved iPadOS and Mac Catalyst alternative now lives
-> in `../apple/AssignmentApp2.xcodeproj`. This directory remains the retained
-> pure macOS SwiftPM 1.0 baseline. The commands below build that legacy client;
+> **Archived:** this retired pure macOS SwiftPM 1.0 baseline is retained only
+> for historical reference. The active iPadOS and Mac Catalyst project lives at
+> `../../native/apple/AssignmentApp2.xcodeproj`. The commands below build this legacy client;
 > they do not produce the Apple 2.0 acceptance package.
 
 ## Run the packaged build
@@ -17,7 +17,7 @@ cd /path/to/assignment-app
 Then open:
 
 ```bash
-open native/macos/dist/Assignments.app
+open legacy/macos/dist/Assignments.app
 ```
 
 `dist/Assignments-macOS-arm64.zip` is the clean archive for copying the app.
@@ -27,7 +27,7 @@ open native/macos/dist/Assignments.app
 Requires Xcode with Swift 6.2 or newer:
 
 ```bash
-cd /path/to/assignment-app/native/macos
+cd /path/to/assignment-app/legacy/macos
 swift test
 ./package_app.sh
 codesign --verify --deep --strict dist/Assignments.app

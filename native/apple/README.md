@@ -3,8 +3,8 @@
 `native/apple/AssignmentApp2.xcodeproj` is the Apple 2.0 alternative requested
 after the original iPadOS project could not be located. It is a real SwiftUI
 iPadOS application target created with Xcode. The same `AssignmentApp2` target
-has Mac Catalyst enabled; there is no separate AppKit target and the existing
-`native/macos` SwiftPM 1.0 client remains unchanged.
+has Mac Catalyst enabled; there is no separate AppKit target. The retired
+SwiftPM 1.0 client is archived under `legacy/macos`.
 
 ## Initial 2.0 scope
 
@@ -79,7 +79,7 @@ other later features are not exposed as non-functional controls.
 ## Relationship to the 1.0 Apple client
 
 The 2.0 implementation preserves and adapts the useful platform-neutral ideas
-from `native/macos/Sources/AssignmentNative/Models.swift`,
+from `legacy/macos/Sources/AssignmentNative/Models.swift`,
 `AssignmentDatabase.swift`, and the SwiftUI task list in `ContentView.swift`:
 the assignment vocabulary, compatible stored status values, local SQLite
 approach, Application Support storage, and native SwiftUI presentation. Those
@@ -90,7 +90,7 @@ The 1.0 `BrowserSession`, Keychain credential flow, `LocalAIParser`, source
 connector, AppKit-specific interactions, packaging script, and historical
 `dist` products were deliberately not copied into this initial task-management
 version. They are desktop-specific or outside the requested 2.0 scope. Nothing
-under `native/macos` was moved or deleted.
+under `legacy/macos` remains available for historical reference.
 
 ## Project layout
 
