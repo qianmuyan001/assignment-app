@@ -307,7 +307,7 @@ class AssignmentForm(ctk.CTkToplevel):
         return textbox
 
     def _load_assignment(self) -> None:
-        self.status_menu.set(self._status_labels()["not_started"])
+        self.status_menu.set(self._status_labels()["todo"])
         self.due_time_entry.insert(0, "23:59")
 
         if not self.assignment:
@@ -332,7 +332,7 @@ class AssignmentForm(ctk.CTkToplevel):
             str(self.assignment.get("source_url") or ""),
         )
 
-        status = str(self.assignment.get("status") or "not_started")
+        status = str(self.assignment.get("status") or "todo")
         if status in STATUS_VALUES:
             self.status_menu.set(self._status_labels()[status])
 
@@ -405,7 +405,7 @@ class AssignmentForm(ctk.CTkToplevel):
         for value, label in self._status_labels().items():
             if selected == label:
                 return value
-        return "not_started"
+        return "todo"
 
     def _parse_due_date_and_time(self, due_date: str, due_time: str) -> datetime:
         try:

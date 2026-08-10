@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assignment-app.local/schemas/task-v2.schema.json",
+  "title": "Assignment App 2.0 Task",
+  "type": "object",
+  "required": [
+    "id",
+    "course_name",
+    "title",
+    "due_date",
+    "description",
+    "link",
+    "status",
+    "priority"
+  ],
+  "properties": {
+    "id": { "type": "integer", "minimum": 1 },
+    "course_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "due_date": {
+      "description": "Local wall time without timezone or UTC offset, or null.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2})?$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "description": { "type": ["string", "null"] },
+    "link": { "type": ["string", "null"], "maxLength": 1000 },
+    "status": { "enum": ["todo", "in_progress", "done"] },
+    "priority": { "enum": ["low", "medium", "high"], "default": "medium" },
+    "source_name": { "type": ["string", "null"], "maxLength": 255 },
+    "source_type": { "type": ["string", "null"], "maxLength": 80 },
+    "source_file": { "type": ["string", "null"], "maxLength": 1000 },
+    "source_url": { "type": ["string", "null"], "maxLength": 1000 },
+    "created_at": { "type": ["string", "null"] },
+    "updated_at": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false,
+  "x-sqlite-storage": {
+    "table": "assignments",
+    "databaseVersion": 2,
+    "fieldAliases": {
+      "course": "course_name",
+      "source_link": "link"
+    },
+    "statusMapping": {
+      "todo": "not_started",
+      "in_progress": "in_progress",
+      "done": "completed"
+    }
+  }
+}
+

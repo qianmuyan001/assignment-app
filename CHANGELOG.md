@@ -6,6 +6,48 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Added
+
+- Shared Assignment App 2.0 task schema, status/priority definitions, local-time
+  smart-list rules, fixtures, and common platform acceptance cases.
+- Versioned SQLite schema v2 migration with WAL-safe online backups,
+  transactional validation, automatic failure restoration, and migration tests.
+- WinUI 3 task CRUD, overdue navigation, search, status/course/priority filters,
+  due/priority sorting, loading/error/empty states, and delete confirmation.
+- Persistent simple/professional task display modes and system/light/dark
+  appearance settings for Windows.
+- Windows x64 self-contained publish and launch-smoke-test script.
+- Real SwiftUI iPadOS Xcode application target with Mac Catalyst enabled on the
+  same target, preserving the legacy SwiftPM macOS client.
+- Apple 2.0 task CRUD, completion/restoring, smart lists, search, filters,
+  sorting, native editor and delete confirmation, responsive split navigation,
+  keyboard commands, persistent simple/professional modes, and appearance.
+- Apple SQLite v1-to-v2 online-backup migration, failure restoration, shared
+  fixture coverage, Catalyst unit tests, and timestamped ad-hoc Debug packaging.
+- Shared Apple scheme with repeatable iPad Simulator and Catalyst test actions,
+  plus App Sandbox entitlements and clean non-instrumented package verification.
+
+### Changed
+
+- 2.0 UI/API statuses are `todo`, `in_progress`, and `done`, while SQLite keeps
+  the 1.0 physical values for backward compatibility.
+- Apple `completedAt` is derived from `updated_at` while a task is done because
+  shared schema v2 intentionally has no independent completion timestamp.
+
+### Known limitations
+
+- Apple Debug packages use ad-hoc signing. Public Mac distribution still needs
+  a Developer ID Application identity, hardened runtime review, notarization,
+  and stapling; physical iPad distribution needs an Apple development/team
+  signing configuration.
+- The optional Catalyst UI-automation target can hang before the runner connects
+  under the current Xcode 27 beta host. It is excluded from the shared scheme's
+  default Test action; the default 25-test suite and package launch/database
+  smoke checks are repeatable and pass.
+- WinUI source and Core tests are ready, but the self-contained x64 directory
+  must be produced and launch-verified on Windows because the Windows App SDK
+  XAML compiler has native Windows dependencies.
+
 ## [1.0.0] - 2026-08-06
 
 ### Added

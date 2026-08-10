@@ -105,7 +105,7 @@ class AssignmentCard(ctk.CTkFrame):
         on_delete: Callable[[dict[str, Any], "AssignmentCard"], None],
         on_complete: Callable[[dict[str, Any]], None],
     ) -> None:
-        status = clean_text(self.assignment.get("status")) or "not_started"
+        status = clean_text(self.assignment.get("status")) or "todo"
         completed = status in {"completed", "done"}
         due_at = parse_due_datetime(self.assignment.get("due_date"))
 

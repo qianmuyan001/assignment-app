@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 
-STATUS_VALUES = ["not_started", "in_progress", "completed"]
+STATUS_VALUES = ["todo", "in_progress", "done"]
 STATUS_LABELS = {
     "not_started": "Not started",
     "in_progress": "In progress",

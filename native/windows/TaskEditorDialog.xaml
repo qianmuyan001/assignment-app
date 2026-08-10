@@ -1,0 +1,86 @@
+<ContentDialog
+    x:Class="AssignmentNative.TaskEditorDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Assignment"
+    PrimaryButtonText="Save"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
+
+    <ScrollViewer MaxHeight="620" MinWidth="440">
+        <StackPanel Spacing="12" Padding="0,4,0,0">
+            <TextBlock x:Name="ValidationText"
+                       Visibility="Collapsed"
+                       Foreground="IndianRed"
+                       TextWrapping="Wrap"/>
+
+            <TextBox x:Name="TitleBox"
+                     Header="Title"
+                     MaxLength="255"
+                     PlaceholderText="What needs to be done?"/>
+            <TextBox x:Name="CourseBox"
+                     Header="Course"
+                     MaxLength="120"
+                     PlaceholderText="Course name"/>
+
+            <CheckBox x:Name="HasDueDateBox"
+                      Content="Set a due date and time"
+                      Checked="HasDueDate_Changed"
+                      Unchecked="HasDueDate_Changed"/>
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <DatePicker x:Name="DueDatePicker"
+                            Header="Due date"
+                            IsEnabled="False"
+                            HorizontalAlignment="Stretch"/>
+                <TimePicker x:Name="DueTimePicker"
+                            Grid.Column="1"
+                            Header="Due time"
+                            IsEnabled="False"
+                            HorizontalAlignment="Stretch"/>
+            </Grid>
+
+            <ComboBox x:Name="StatusBox"
+                      Header="Status"
+                      SelectedIndex="0"
+                      HorizontalAlignment="Stretch">
+                <ComboBoxItem Content="To do" Tag="todo"/>
+                <ComboBoxItem Content="In progress" Tag="in_progress"/>
+                <ComboBoxItem Content="Done" Tag="done"/>
+            </ComboBox>
+
+            <StackPanel x:Name="ProfessionalFields" Spacing="12">
+                <TextBox x:Name="DescriptionBox"
+                         Header="Description"
+                         PlaceholderText="Notes, requirements, or context"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         MinHeight="88"
+                         MaxHeight="180"/>
+                <ComboBox x:Name="PriorityBox"
+                          Header="Priority"
+                          SelectedIndex="1"
+                          HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Low" Tag="low"/>
+                    <ComboBoxItem Content="Medium" Tag="medium"/>
+                    <ComboBoxItem Content="High" Tag="high"/>
+                </ComboBox>
+                <TextBox x:Name="LinkBox"
+                         Header="Source link"
+                         MaxLength="1000"
+                         PlaceholderText="https://…"/>
+            </StackPanel>
+
+            <TextBlock x:Name="ModeHelpText"
+                       Text="Professional fields are hidden in simple mode but their saved values are preserved."
+                       FontSize="12"
+                       Opacity="0.65"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed"/>
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

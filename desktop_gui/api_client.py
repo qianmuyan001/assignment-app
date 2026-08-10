@@ -52,7 +52,7 @@ def mark_assignment_complete(assignment_id: int) -> dict[str, Any]:
         result = _request(
             "PATCH",
             f"/assignments/{assignment_id}/status",
-            json={"status": "completed"},
+            json={"status": "done"},
         )
     except ApiError as error:
         if error.status_code != 422:
@@ -60,7 +60,7 @@ def mark_assignment_complete(assignment_id: int) -> dict[str, Any]:
         result = _request(
             "PATCH",
             f"/assignments/{assignment_id}/status",
-            json={"status": "done"},
+            json={"status": "completed"},
         )
 
     if not isinstance(result, dict):
@@ -118,4 +118,3 @@ def _error_message_from_response(response: requests.Response) -> str:
             return "\n".join(messages)
 
     return fallback
-

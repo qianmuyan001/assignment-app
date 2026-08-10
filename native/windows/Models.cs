@@ -1,27 +1,20 @@
-using System.Text.Json.Serialization;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media;
+using CoreAssignmentCandidate = AssignmentNative.Core.AssignmentCandidate;
+using CoreAssignmentItem = AssignmentNative.Core.AssignmentItem;
 
 namespace AssignmentNative;
 
-public sealed class AssignmentItem
+public sealed class AssignmentItem : CoreAssignmentItem
 {
-    public long Id { get; init; }
-    public string CourseName { get; init; } = "";
-    public string Title { get; init; } = "";
-    public DateTimeOffset? DueDate { get; init; }
-    public string? Description { get; init; }
-    public string? Link { get; init; }
-    public string Status { get; init; } = "not_started";
-    public string? SourceName { get; init; }
-    public string? SourceUrl { get; init; }
-
     public string StatusDisplay => Status switch
     {
         "in_progress" => "In progress",
-        "completed" => "Completed",
-        _ => "Not started"
+        "done" => "Done",
+        _ => "To do"
     };
+
+    public string PriorityDisplay => char.ToUpperInvariant(Priority[0]) + Priority[1..];
 
     public string DueDisplay => DueDate is null
         ? "No due date"
@@ -35,7 +28,7 @@ public sealed class AssignmentItem
     {
         get
         {
-            var color = Status == "completed"
+            var color = Status == "done"
                 ? Colors.MediumSeaGreen
                 : DueDate is not null && DueDate < DateTimeOffset.Now
                     ? Colors.IndianRed
@@ -45,37 +38,28 @@ public sealed class AssignmentItem
             return new SolidColorBrush(color);
         }
     }
+
+    public static AssignmentItem FromCore(CoreAssignmentItem item) => new()
+    {
+        Id = item.Id,
+        CourseName = item.CourseName,
+        Title = item.Title,
+        DueDate = item.DueDate,
+        Description = item.Description,
+        Link = item.Link,
+        Status = item.Status,
+        Priority = item.Priority,
+        SourceName = item.SourceName,
+        SourceType = item.SourceType,
+        SourceFile = item.SourceFile,
+        SourceUrl = item.SourceUrl,
+        CreatedAt = item.CreatedAt,
+        UpdatedAt = item.UpdatedAt
+    };
 }
 
-public sealed class AssignmentCandidate
+public sealed class AssignmentCandidate : CoreAssignmentCandidate
 {
-    [JsonPropertyName("course_name")]
-    public string? CourseName { get; set; }
-
-    [JsonPropertyName("title")]
-    public string Title { get; set; } = "";
-
-    [JsonPropertyName("due_date")]
-    public string? DueDate { get; set; }
-
-    [JsonPropertyName("due_time")]
-    public string? DueTime { get; set; }
-
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-
-    [JsonPropertyName("source_name")]
-    public string? SourceName { get; set; }
-
-    [JsonPropertyName("source_url")]
-    public string? SourceUrl { get; set; }
-
-    [JsonPropertyName("confidence")]
-    public string Confidence { get; set; } = "low";
-
-    [JsonPropertyName("warnings")]
-    public List<string> Warnings { get; set; } = [];
-
     public string DueDisplay =>
         $"{DueDate ?? "Unknown date"} {DueTime ?? ""}".Trim();
 
@@ -86,31 +70,31 @@ public sealed class AssignmentCandidate
 
 public sealed class CandidateEnvelope
 {
-    [JsonPropertyName("assignments")]
+    [System.Text.Json.Serialization.JsonPropertyName("assignments")]
     public List<AssignmentCandidate> Assignments { get; set; } = [];
 }
 
 public sealed class CapturedPage
 {
-    [JsonPropertyName("url")]
+    [System.Text.Json.Serialization.JsonPropertyName("url")]
     public string Url { get; set; } = "";
 
-    [JsonPropertyName("title")]
+    [System.Text.Json.Serialization.JsonPropertyName("title")]
     public string Title { get; set; } = "";
 
-    [JsonPropertyName("text")]
+    [System.Text.Json.Serialization.JsonPropertyName("text")]
     public string Text { get; set; } = "";
 
-    [JsonPropertyName("links")]
+    [System.Text.Json.Serialization.JsonPropertyName("links")]
     public List<CapturedLink> Links { get; set; } = [];
 }
 
 public sealed class CapturedLink
 {
-    [JsonPropertyName("text")]
+    [System.Text.Json.Serialization.JsonPropertyName("text")]
     public string Text { get; set; } = "";
 
-    [JsonPropertyName("url")]
+    [System.Text.Json.Serialization.JsonPropertyName("url")]
     public string Url { get; set; } = "";
 }
 

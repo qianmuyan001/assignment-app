@@ -41,7 +41,7 @@ except ImportError:
     from ui_components import AssignmentCard, MetricCard
 
 
-STATUS_FILTERS = ["all", "not_started", "in_progress", "completed"]
+STATUS_FILTERS = ["all", "todo", "in_progress", "done"]
 NAVIGATION = [
     ("all", "▦"),
     ("today", "◷"),

@@ -6,29 +6,6 @@
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     Title="Assignments">
 
-    <Window.Resources>
-        <DataTemplate x:Key="CandidateTemplate"
-                      x:DataType="local:AssignmentCandidate">
-            <Border Style="{StaticResource GlassCardStyle}" Margin="0,0,0,8">
-                <StackPanel Spacing="5">
-                    <TextBlock Text="{x:Bind CourseDisplay}"
-                               FontSize="12" Opacity="0.62"
-                               FontWeight="SemiBold"/>
-                    <TextBlock Text="{x:Bind Title}"
-                               FontSize="16" FontWeight="SemiBold"
-                               TextWrapping="Wrap"/>
-                    <TextBlock Text="{x:Bind DueDisplay}"
-                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                    <TextBlock Text="{x:Bind Description}"
-                               MaxLines="2"
-                               TextTrimming="CharacterEllipsis"
-                               TextWrapping="Wrap"
-                               Opacity="0.62"/>
-                </StackPanel>
-            </Border>
-        </DataTemplate>
-    </Window.Resources>
-
     <NavigationView
         x:Name="Navigation"
         IsBackButtonVisible="Collapsed"
@@ -36,13 +13,36 @@
         IsPaneToggleButtonVisible="True"
         IsTitleBarAutoPaddingEnabled="True"
         OpenPaneLength="230"
-        PaneDisplayMode="Left"
+        PaneDisplayMode="Auto"
         SelectionChanged="Navigation_SelectionChanged">
+
+        <NavigationView.Resources>
+            <DataTemplate x:Key="CandidateTemplate"
+                          x:DataType="local:AssignmentCandidate">
+                <Border Style="{StaticResource TaskCardStyle}" Margin="0,0,0,8">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="{x:Bind CourseDisplay}"
+                                   FontSize="12" Opacity="0.62"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind Title}"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind DueDisplay}"
+                                   Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="{x:Bind Description}"
+                                   MaxLines="3"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="Wrap"
+                                   Opacity="0.62"/>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </NavigationView.Resources>
 
         <NavigationView.PaneHeader>
             <StackPanel Spacing="2" Margin="8,10,0,12">
                 <TextBlock Text="Assignments" FontSize="20" FontWeight="SemiBold"/>
-                <TextBlock Text="Native workspace" Opacity="0.58" FontSize="12"/>
+                <TextBlock Text="Local task workspace" Opacity="0.58" FontSize="12"/>
             </StackPanel>
         </NavigationView.PaneHeader>
 
@@ -50,76 +50,135 @@
             <NavigationViewItem Content="All Assignments" Tag="all" Icon="AllApps"/>
             <NavigationViewItem Content="Today" Tag="today" Icon="CalendarDay"/>
             <NavigationViewItem Content="This Week" Tag="week" Icon="CalendarWeek"/>
+            <NavigationViewItem Content="Overdue" Tag="overdue" Icon="Important"/>
             <NavigationViewItem Content="Completed" Tag="completed" Icon="Accept"/>
+            <NavigationViewItemSeparator/>
             <NavigationViewItem Content="Sources" Tag="sources" Icon="Link"/>
         </NavigationView.MenuItems>
 
-        <Grid>
-            <Grid x:Name="AssignmentPanel" Padding="28,20,28,24" RowSpacing="18">
+        <Grid x:Name="RootGrid" Loaded="RootGrid_Loaded">
+            <Grid x:Name="AssignmentPanel" Padding="24,18,24,22" RowSpacing="12">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid ColumnSpacing="16">
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="3">
+                    <StackPanel Spacing="2">
                         <TextBlock x:Name="PageTitle" Text="All Assignments"
-                                   FontSize="30" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="AssignmentCount" Opacity="0.58"/>
+                                   FontSize="28" FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock x:Name="AssignmentCount" Opacity="0.62"/>
                     </StackPanel>
-                    <Button Grid.Column="1" Content="Connect source"
-                            Click="ConnectSource_Click"
+                    <Button x:Name="AddAssignmentButton"
+                            Grid.Column="1"
+                            Content="Add assignment"
+                            Click="AddAssignment_Click"
                             Style="{StaticResource AccentButtonStyle}"
-                            Padding="16,9"/>
+                            Padding="14,8"
+                            IsEnabled="False"/>
                 </Grid>
 
-                <AutoSuggestBox
-                    Grid.Row="1"
-                    x:Name="SearchBox"
-                    PlaceholderText="Search assignments, courses, or sources"
-                    TextChanged="SearchBox_TextChanged"
-                    QueryIcon="Find"/>
+                <InfoBar x:Name="ErrorBar"
+                         Grid.Row="1"
+                         IsOpen="False"
+                         IsClosable="True"
+                         Severity="Error"
+                         Title="Could not load assignments"/>
 
-                <Grid Grid.Row="2">
-                    <ListView
-                        x:Name="AssignmentList"
-                        ItemsSource="{x:Bind Assignments}"
-                        SelectionMode="None"
-                        IsItemClickEnabled="False">
+                <ScrollViewer Grid.Row="2"
+                              HorizontalScrollMode="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollMode="Disabled"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal" Spacing="8" MinWidth="880">
+                        <AutoSuggestBox x:Name="SearchBox"
+                                        Width="300"
+                                        PlaceholderText="Search title, course, or description"
+                                        TextChanged="SearchBox_TextChanged"
+                                        QueryIcon="Find"/>
+                        <ComboBox x:Name="StatusFilterBox"
+                                  Width="150"
+                                  Header="Status"
+                                  SelectedIndex="0"
+                                  SelectionChanged="Filter_SelectionChanged">
+                            <ComboBoxItem Content="All statuses" Tag="all"/>
+                            <ComboBoxItem Content="To do" Tag="todo"/>
+                            <ComboBoxItem Content="In progress" Tag="in_progress"/>
+                            <ComboBoxItem Content="Done" Tag="done"/>
+                        </ComboBox>
+                        <ComboBox x:Name="CourseFilterBox"
+                                  Width="180"
+                                  Header="Course"
+                                  SelectedIndex="0"
+                                  SelectionChanged="Filter_SelectionChanged"/>
+                        <ComboBox x:Name="PriorityFilterBox"
+                                  Width="150"
+                                  Header="Priority"
+                                  SelectedIndex="0"
+                                  SelectionChanged="Filter_SelectionChanged">
+                            <ComboBoxItem Content="All priorities" Tag="all"/>
+                            <ComboBoxItem Content="High" Tag="high"/>
+                            <ComboBoxItem Content="Medium" Tag="medium"/>
+                            <ComboBoxItem Content="Low" Tag="low"/>
+                        </ComboBox>
+                        <ComboBox x:Name="SortBox"
+                                  Width="170"
+                                  Header="Sort"
+                                  SelectedIndex="0"
+                                  SelectionChanged="Filter_SelectionChanged">
+                            <ComboBoxItem Content="Due date" Tag="due_date"/>
+                            <ComboBoxItem Content="Priority" Tag="priority"/>
+                        </ComboBox>
+                        <Button Content="Clear"
+                                VerticalAlignment="Bottom"
+                                Click="ClearFilters_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="3">
+                    <ListView x:Name="AssignmentList"
+                              ItemsSource="{x:Bind AssignmentRows}"
+                              SelectionMode="None"
+                              IsItemClickEnabled="False">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0,0,0,12"/>
-                                <Setter Property="CornerRadius" Value="18"/>
+                                <Setter Property="Margin" Value="0,0,0,10"/>
+                                <Setter Property="CornerRadius" Value="8"/>
                             </Style>
                         </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="local:AssignmentItem">
-                                <Border Style="{StaticResource GlassCardStyle}">
-                                    <Grid ColumnSpacing="14">
+                            <DataTemplate x:DataType="local:TaskRowViewModel">
+                                <Border Style="{StaticResource TaskCardStyle}">
+                                    <Grid ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="5"/>
+                                            <ColumnDefinition Width="4"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Background="{x:Bind AccentBrush}"
-                                                CornerRadius="3"/>
+                                        <Border Background="{x:Bind AccentBrush}" CornerRadius="2"/>
                                         <StackPanel Grid.Column="1" Spacing="7">
-                                            <Grid>
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{x:Bind CourseName}"
                                                            Foreground="{x:Bind AccentBrush}"
                                                            FontSize="12"
-                                                           FontWeight="Bold"/>
-                                                <Border HorizontalAlignment="Right"
+                                                           FontWeight="SemiBold"
+                                                           TextWrapping="Wrap"/>
+                                                <Border Grid.Column="1"
                                                         Background="{x:Bind AccentBrush}"
-                                                        Opacity="0.78"
-                                                        CornerRadius="12"
-                                                        Padding="9,3">
+                                                        CornerRadius="10"
+                                                        Padding="8,2">
                                                     <TextBlock Text="{x:Bind StatusDisplay}"
                                                                Foreground="White"
                                                                FontSize="11"
@@ -128,35 +187,50 @@
                                             </Grid>
                                             <TextBlock Text="{x:Bind Title}"
                                                        FontSize="17"
-                                                       FontWeight="SemiBold"/>
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"/>
                                             <TextBlock Text="{x:Bind DueDisplay}"
                                                        Foreground="{x:Bind AccentBrush}"
-                                                       FontSize="13"/>
-                                            <TextBlock Text="{x:Bind Description}"
-                                                       Opacity="0.65"
-                                                       MaxLines="2"
-                                                       TextTrimming="CharacterEllipsis"
+                                                       FontSize="13"
                                                        TextWrapping="Wrap"/>
-                                            <Grid Margin="0,4,0,0">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE71B;" FontSize="12"/>
-                                                    <TextBlock Text="{x:Bind SourceDisplay}"
-                                                               Opacity="0.58"
-                                                               FontSize="12"/>
+                                            <StackPanel Visibility="{x:Bind ProfessionalVisibility}"
+                                                        Spacing="7">
+                                                <TextBlock Text="{x:Bind DescriptionDisplay}"
+                                                           Opacity="0.70"
+                                                           MaxLines="4"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="Wrap"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Border Background="{x:Bind PriorityBrush}"
+                                                            CornerRadius="4" Padding="7,2">
+                                                        <TextBlock Text="{x:Bind PriorityDisplay}"
+                                                                   Foreground="White"
+                                                                   FontSize="11"/>
+                                                    </Border>
+                                                    <Button Content="Open source link"
+                                                            Tag="{x:Bind Link}"
+                                                            Visibility="{x:Bind LinkVisibility}"
+                                                            Click="OpenTaskLink_Click"
+                                                            Padding="8,2"/>
                                                 </StackPanel>
-                                                <StackPanel HorizontalAlignment="Right"
-                                                            Orientation="Horizontal"
-                                                            Spacing="8">
-                                                    <Button Content="Done"
-                                                            Tag="{x:Bind Id}"
-                                                            Click="Done_Click"/>
-                                                    <Button Tag="{x:Bind Id}"
-                                                            Click="Delete_Click"
-                                                            ToolTipService.ToolTip="Delete">
-                                                        <FontIcon Glyph="&#xE74D;"/>
-                                                    </Button>
-                                                </StackPanel>
-                                            </Grid>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Right"
+                                                        Spacing="8"
+                                                        Margin="0,4,0,0">
+                                                <Button Content="Edit"
+                                                        Tag="{x:Bind Id}"
+                                                        Click="EditAssignment_Click"/>
+                                                <Button Content="Mark done"
+                                                        Tag="{x:Bind Id}"
+                                                        Visibility="{x:Bind CompleteButtonVisibility}"
+                                                        Click="Done_Click"/>
+                                                <Button Tag="{x:Bind Id}"
+                                                        Click="Delete_Click"
+                                                        ToolTipService.ToolTip="Delete assignment">
+                                                    <FontIcon Glyph="&#xE74D;"/>
+                                                </Button>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -167,13 +241,28 @@
                     <StackPanel x:Name="EmptyState"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Spacing="8">
-                        <FontIcon Glyph="&#xE73E;" FontSize="38" Opacity="0.5"/>
-                        <TextBlock Text="Nothing here" FontSize="20"
+                                Spacing="8"
+                                Visibility="Collapsed">
+                        <FontIcon Glyph="&#xE73E;" FontSize="36" Opacity="0.5"/>
+                        <TextBlock x:Name="EmptyStateTitle"
+                                   Text="No assignments here"
+                                   FontSize="20"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"/>
-                        <TextBlock Text="Connect a source or choose another view."
-                                   Opacity="0.58"/>
+                        <TextBlock x:Name="EmptyStateMessage"
+                                   Text="Add an assignment or change the filters."
+                                   Opacity="0.62"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="420"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="LoadingState"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <ProgressRing IsActive="True" Width="36" Height="36"/>
+                        <TextBlock Text="Loading assignments…" Opacity="0.68"/>
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -190,67 +279,81 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Grid>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
                     <StackPanel Spacing="3">
                         <TextBlock Text="Secure Source Connector"
-                                   FontSize="28" FontWeight="SemiBold"/>
+                                   FontSize="28" FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
                         <TextBlock Text="Sign in first, then let the local model extract assignments."
-                                   Opacity="0.58"/>
+                                   Opacity="0.58" TextWrapping="Wrap"/>
                     </StackPanel>
-                    <StackPanel HorizontalAlignment="Right"
-                                Orientation="Horizontal" Spacing="7">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7">
                         <FontIcon Glyph="&#xEA18;" Foreground="ForestGreen"/>
                         <TextBlock Text="Local only" Foreground="ForestGreen"
                                    FontWeight="SemiBold"/>
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="1" ColumnSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="210"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="SourceNameBox" PlaceholderText="Source name · e.g. Canvas"/>
-                    <TextBox x:Name="CourseHintBox" Grid.Column="1"
-                             PlaceholderText="Course hint · optional"/>
-                    <ComboBox x:Name="LoginModeBox" Grid.Column="2"
-                              SelectedIndex="0"
-                              SelectionChanged="LoginMode_SelectionChanged"
-                              HorizontalAlignment="Stretch">
-                        <ComboBoxItem Content="Interactive login" Tag="interactive"/>
-                        <ComboBoxItem Content="Credential Locker fill" Tag="saved"/>
-                    </ComboBox>
-                </Grid>
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollMode="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollMode="Disabled">
+                    <Grid ColumnSpacing="10" MinWidth="720">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="210"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SourceNameBox" PlaceholderText="Source name · e.g. Canvas"/>
+                        <TextBox x:Name="CourseHintBox" Grid.Column="1"
+                                 PlaceholderText="Course hint · optional"/>
+                        <ComboBox x:Name="LoginModeBox" Grid.Column="2"
+                                  SelectedIndex="0"
+                                  SelectionChanged="LoginMode_SelectionChanged"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="Interactive login" Tag="interactive"/>
+                            <ComboBoxItem Content="Credential Locker fill" Tag="saved"/>
+                        </ComboBox>
+                    </Grid>
+                </ScrollViewer>
 
                 <Grid Grid.Row="2" ColumnSpacing="8">
-                    <Button Click="BrowserBack_Click">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Click="BrowserBack_Click" ToolTipService.ToolTip="Back">
                         <FontIcon Glyph="&#xE72B;"/>
                     </Button>
-                    <Button Margin="42,0,0,0" Click="BrowserForward_Click">
+                    <Button Grid.Column="1" Click="BrowserForward_Click"
+                            ToolTipService.ToolTip="Forward">
                         <FontIcon Glyph="&#xE72A;"/>
                     </Button>
-                    <Button Margin="84,0,0,0" Click="BrowserReload_Click">
+                    <Button Grid.Column="2" Click="BrowserReload_Click"
+                            ToolTipService.ToolTip="Reload">
                         <FontIcon Glyph="&#xE72C;"/>
                     </Button>
-                    <Grid Margin="126,0,210,0">
-                        <TextBox x:Name="AddressBox"
-                                 PlaceholderText="https://your-school.example"
-                                 KeyDown="AddressBox_KeyDown"/>
-                    </Grid>
-                    <Button HorizontalAlignment="Right"
-                            Margin="0,0,126,0"
-                            Content="Open"
+                    <TextBox x:Name="AddressBox" Grid.Column="3"
+                             PlaceholderText="https://your-school.example"
+                             KeyDown="AddressBox_KeyDown"/>
+                    <Button Grid.Column="4" Content="Open"
                             Click="OpenAddress_Click"
                             Style="{StaticResource AccentButtonStyle}"/>
-                    <Button x:Name="CredentialButton"
-                            HorizontalAlignment="Right"
+                    <Button x:Name="CredentialButton" Grid.Column="5"
                             Content="Credential"
                             Visibility="Collapsed"
                             Click="CredentialButton_Click"/>
                 </Grid>
 
-                <Border Grid.Row="3" CornerRadius="15"
+                <Border Grid.Row="3" CornerRadius="8"
                         BorderThickness="1"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
@@ -259,15 +362,19 @@
                                       NavigationCompleted="Browser_NavigationCompleted"/>
                 </Border>
 
-                <Grid Grid.Row="4">
+                <Grid Grid.Row="4" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
                     <StackPanel Spacing="2">
                         <TextBlock x:Name="BrowserTitle" Text="No page loaded"
-                                   FontWeight="SemiBold"/>
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock x:Name="BrowserLocation" Opacity="0.58"
-                                   FontSize="12" MaxLines="1"/>
+                                   FontSize="12" MaxLines="1"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <StackPanel HorizontalAlignment="Right"
-                                Orientation="Horizontal" Spacing="10">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
                         <ToggleSwitch x:Name="AutoFillToggle"
                                       Header="Auto-fill exact origin"
                                       Visibility="Collapsed"/>
@@ -282,10 +389,33 @@
             </Grid>
 
             <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed">
-                <StackPanel Padding="32,24" Spacing="18" MaxWidth="760"
+                <StackPanel Padding="28,22" Spacing="16" MaxWidth="760"
                             HorizontalAlignment="Left">
-                    <TextBlock Text="Settings" FontSize="30" FontWeight="SemiBold"/>
-                    <Border Style="{StaticResource GlassCardStyle}">
+                    <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold"/>
+                    <Border Style="{StaticResource TaskCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Task display" FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <ComboBox x:Name="DisplayModeBox"
+                                      Header="Mode"
+                                      SelectedIndex="0"
+                                      SelectionChanged="DisplayMode_SelectionChanged">
+                                <ComboBoxItem Content="Simple" Tag="simple"/>
+                                <ComboBoxItem Content="Professional" Tag="professional"/>
+                            </ComboBox>
+                            <TextBlock Text="Simple shows the title, course, due time, and status. Professional also shows the description, priority, and source link. Hidden fields are never cleared."
+                                       TextWrapping="Wrap" FontSize="12" Opacity="0.65"/>
+                            <ComboBox x:Name="ThemeBox"
+                                      Header="Appearance"
+                                      SelectedIndex="0"
+                                      SelectionChanged="Theme_SelectionChanged">
+                                <ComboBoxItem Content="Use system setting" Tag="system"/>
+                                <ComboBoxItem Content="Light" Tag="light"/>
+                                <ComboBoxItem Content="Dark" Tag="dark"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource TaskCardStyle}">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Local AI" FontSize="18"
                                        FontWeight="SemiBold"/>
@@ -304,16 +434,27 @@
                                        FontSize="12" Opacity="0.58"/>
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource GlassCardStyle}">
+                    <Border Style="{StaticResource TaskCardStyle}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Local data" FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="Task data stays in SQLite on this PC. Versioned migrations create a recoverable backup before changing an existing database."
+                                       TextWrapping="Wrap"/>
+                            <TextBlock x:Name="DatabaseVersionText"
+                                       FontSize="12" Opacity="0.68"/>
+                            <TextBlock x:Name="DatabasePathText"
+                                       FontSize="11" Opacity="0.58"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource TaskCardStyle}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="Privacy" FontSize="18"
                                        FontWeight="SemiBold"/>
                             <TextBlock Text="• Passwords stay in Windows Credential Locker"/>
                             <TextBlock Text="• Course content stays on this PC"/>
-                            <TextBlock Text="• The local model cannot control the login browser"/>
-                            <TextBlock x:Name="DatabasePathText"
-                                       Margin="0,8,0,0" FontSize="11"
-                                       Opacity="0.58" TextWrapping="Wrap"/>
+                            <TextBlock Text="• The local model cannot control the login browser"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

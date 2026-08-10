@@ -1,0 +1,17 @@
+{
+  "database_version": 2,
+  "sqlite_user_version": 2,
+  "table": "assignments",
+  "canonical_statuses": ["todo", "in_progress", "done"],
+  "stored_statuses": ["not_started", "in_progress", "completed"],
+  "status_to_storage": {
+    "todo": "not_started",
+    "in_progress": "in_progress",
+    "done": "completed"
+  },
+  "priorities": ["low", "medium", "high"],
+  "default_priority": "medium",
+  "due_date_storage": "YYYY-MM-DD HH:mm:ss local wall time without timezone offset",
+  "attachments_in_task_table": false
+}
+

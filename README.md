@@ -6,6 +6,56 @@ This project has a FastAPI backend, a SQLite database, and a desktop GUI for man
 
 Current version: **1.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
 
+## Assignment App 2.0 preview
+
+The repository now contains the shared 2.0 task contract, a versioned SQLite v2
+migration, and independent Apple and Windows implementations of the first 2.0
+task-management workflow. Both clients use the same task fields, status and
+priority mappings, date-list rules, fixtures, and acceptance cases.
+
+Because the original iPadOS project was not present, the approved Apple
+alternative is a real SwiftUI iPadOS project at
+`native/apple/AssignmentApp2.xcodeproj`. Its single application target also
+supports Mac Catalyst, while the existing `native/macos` SwiftPM 1.0 client is
+preserved unchanged. The Apple client provides task CRUD, completion/restoring,
+All/Today/This Week/Overdue/Completed views, search, filters, sorting,
+simple/professional modes, and persistent appearance settings. See
+`native/apple/README.md` for the database safety model and verification details.
+
+Shared rules and disposable migration tests:
+
+```bash
+python3 -m unittest discover -s shared/tests -v
+```
+
+Apple iPad Simulator and Mac Catalyst builds require the installed full Xcode
+beta and an available iPad simulator UUID:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
+  xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
+  -scheme AssignmentApp2 -configuration Debug \
+  -destination 'platform=iOS Simulator,id=55D6D2F6-FB7A-429C-ADFA-8BF9F8F2286F' \
+  -derivedDataPath /private/tmp/assignment-app-xcode-derived-data \
+  CODE_SIGNING_ALLOWED=NO build
+
+./native/apple/package-catalyst.sh
+```
+
+The packaging script writes an ad-hoc-signed Debug app, ZIP, logs, and build
+metadata to a new timestamped directory under `artifacts/apple/`.
+
+Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
+.NET 8 SDK installed):
+
+```powershell
+.\native\windows\publish-x64.ps1
+```
+
+The resulting self-contained test directory is `artifacts\windows-x64`. See
+`native/windows/README.md` for prerequisites, manual commands, database
+selection, and smoke-test details.
+
 The active backend lives in `backend/`. The desktop GUI lives in `desktop_gui/` and talks to the backend through HTTP requests.
 
 ## Native macOS and Windows versions
@@ -15,10 +65,18 @@ SQLite assignment schema without replacing or deleting the database.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
-| macOS | SwiftUI + WKWebView | macOS Keychain | Built and tested |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Source ready; build on Windows |
+| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | 2.0 Debug preview; iPad and Apple Silicon Catalyst builds verified |
+| macOS legacy | SwiftUI + WKWebView | macOS Keychain | Existing 1.0 native baseline retained unchanged |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 preview source; build and smoke-test on Windows |
 
-macOS:
+Apple 2.0:
+
+```bash
+open native/apple/AssignmentApp2.xcodeproj
+./native/apple/package-catalyst.sh
+```
+
+Legacy macOS 1.0:
 
 ```bash
 cd /path/to/assignment-app
@@ -31,7 +89,7 @@ default Qwen3 1.7B model into llama.cpp's local cache.
 For copying the app, use
 `native/macos/dist/Assignments-macOS-arm64.zip`.
 
-The native source connector supports two login modes:
+The retained native macOS 1.0 source connector supports two login modes:
 
 1. Interactive login: type the password directly into the website. The app and
    model never read the password.
@@ -238,5 +296,13 @@ The current SQLite backend supports:
 - `source_file`
 - `source_url`
 - `status`
+- `priority` (`low`, `medium`, or `high`; existing records migrate to `medium`)
+
+The 2.0 API and desktop UI use `todo`, `in_progress`, and `done`. SQLite keeps
+the compatible 1.0 values `not_started`, `in_progress`, and `completed`; the
+Repository layer performs the mapping. A successful upgrade sets
+`PRAGMA user_version=2`. Existing databases are backed up with SQLite's online
+backup API before any migration, including databases with uncheckpointed WAL
+content.
 
 Manual assignments use `source_type` as `manual`. HTML imports use `source_type` as `local_html` and store the selected file name in `source_file`.
