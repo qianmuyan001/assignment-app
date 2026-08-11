@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Changed
+
+- Archived the retired Python CustomTkinter frontend under
+  `legacy/desktop_gui/`. The root launchers now start the backend and open the
+  web client instead of treating the Python GUI as an active frontend.
+
 ## [2.0.0] - 2026-08-09
 
 ### Added

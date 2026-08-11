@@ -1,7 +1,7 @@
 # Native Assignment App
 
 This directory contains the platform-native replacements for the original
-CustomTkinter interface.
+CustomTkinter interface, which is archived at `../legacy/desktop_gui/`.
 
 ## 2.0 implementation status
 

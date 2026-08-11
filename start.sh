@@ -2,7 +2,7 @@
 
 # Start the Assignment Schedule App on macOS or Linux.
 # This script creates the virtual environment if needed, starts the backend,
-# launches the desktop GUI, and stops the backend when the GUI closes.
+# opens the web client, and keeps the backend alive until it is interrupted.
 
 set -u
 
@@ -79,12 +79,15 @@ then
   exit 1
 fi
 
-echo "Starting desktop GUI..."
-python desktop_gui/main_window.py
-GUI_EXIT_CODE=$?
-
-if [ "$GUI_EXIT_CODE" -ne 0 ]; then
-  echo "The desktop GUI closed with an error code: $GUI_EXIT_CODE"
+echo "Opening web client..."
+if command -v open >/dev/null 2>&1; then
+  open "$BACKEND_URL" >/dev/null 2>&1 || true
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "$BACKEND_URL" >/dev/null 2>&1 || true
+else
+  echo "Open $BACKEND_URL in your browser."
 fi
 
-exit "$GUI_EXIT_CODE"
+echo "Web client is running at $BACKEND_URL. Press Ctrl+C to stop the backend."
+wait "$BACKEND_PID"
+exit $?

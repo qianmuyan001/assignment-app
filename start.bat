@@ -2,8 +2,8 @@
 setlocal
 
 REM Start the Assignment Schedule App on Windows.
-REM This creates .venv if needed, starts the backend, launches the GUI,
-REM and stops the backend when the GUI closes.
+REM This creates .venv if needed, starts the backend, opens the web client,
+REM and stops the backend when the user closes this launcher.
 
 set "PROJECT_ROOT=%~dp0"
 set "PID_FILE=%PROJECT_ROOT%.assignment_app_backend.pid"
@@ -77,17 +77,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Starting desktop GUI...
-python desktop_gui\main_window.py
-set "GUI_EXIT_CODE=%errorlevel%"
+echo Opening web client...
+start "" http://127.0.0.1:8000
+
+echo Web client is running at http://127.0.0.1:8000.
+echo Press any key to stop the backend.
+pause >nul
 
 echo Stopping backend...
 taskkill /PID %BACKEND_PID% /T /F >nul 2>nul
 if exist "%PID_FILE%" del "%PID_FILE%"
 
-if not "%GUI_EXIT_CODE%"=="0" (
-    echo The desktop GUI closed with an error code: %GUI_EXIT_CODE%
-)
-
-pause
-exit /b %GUI_EXIT_CODE%
+exit /b 0

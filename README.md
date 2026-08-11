@@ -2,7 +2,9 @@
 
 [![Latest release](https://img.shields.io/github/v/release/qianmuyan001/assignment-app?display_name=tag)](https://github.com/qianmuyan001/assignment-app/releases/latest)
 
-This project has a FastAPI backend, a SQLite database, and a desktop GUI for managing school assignments.
+This project has a FastAPI backend, a SQLite database, a web client, and active
+native Apple and Windows clients for managing school assignments. The retired
+Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 
 Current version: **2.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
 
@@ -106,7 +108,9 @@ The resulting self-contained test directory is `artifacts\windows-x64`. See
 `native/windows/README.md` for prerequisites, manual commands, database
 selection, and smoke-test details.
 
-The active backend lives in `backend/`. The desktop GUI lives in `desktop_gui/` and talks to the backend through HTTP requests.
+The active backend lives in `backend/`, and its web client lives in
+`backend/app/static/`. The retired Python desktop GUI lives in
+`legacy/desktop_gui/` and remains available for historical compatibility.
 
 ## Native macOS and Windows versions
 
@@ -188,8 +192,8 @@ The start script will:
 - Create `.venv` if it does not exist.
 - Install packages from `requirements.txt`.
 - Start the FastAPI backend in the background.
-- Start the desktop GUI.
-- Stop the backend when the GUI closes.
+- Open the web client in the default browser.
+- Keep the backend running until you stop the launcher.
 
 If the backend is left running for any reason, stop it with:
 
@@ -226,37 +230,41 @@ The backend will run at:
 ## Web Client
 
 Opening `http://127.0.0.1:8000` in a browser serves the Cover Flow web client
-from `backend/app/static/`. It reads and writes the same SQLite database as the
-desktop GUI, so the two stay in sync.
+from `backend/app/static/`. It reads and writes the backend SQLite database that
+was also used by the archived Python desktop GUI.
 
 The client was previously a second, parallel FastAPI application under
 `assignment_app/` that stored assignments in a JSON file and was not started by
 any script. Its interface now runs against the real backend, and the duplicate
 application has been removed.
 
-## Run The Desktop GUI
+## Archived Python Desktop GUI
 
-Open a second terminal while the backend is still running:
+The former CustomTkinter frontend is archived under `legacy/desktop_gui/`. It is
+no longer launched by `start.sh`, `start.command`, or `start.bat`. To run it for
+historical compatibility, start the backend and then open a second terminal:
 
 ```bash
 cd /path/to/assignment-app
 source .venv/bin/activate
-python desktop_gui/main_window.py
+python legacy/desktop_gui/main_window.py
 ```
 
 To point the GUI at a different backend URL:
 
 ```bash
-ASSIGNMENT_API_BASE_URL=http://127.0.0.1:8000 python desktop_gui/main_window.py
+ASSIGNMENT_API_BASE_URL=http://127.0.0.1:8000 python legacy/desktop_gui/main_window.py
 ```
 
 ## HTML Import
 
-The desktop GUI can import possible assignments from a local `.html` or `.htm` file that you saved manually from Canvas or another course website.
+The archived Python desktop GUI can import possible assignments from a local
+`.html` or `.htm` file that you saved manually from Canvas or another course
+website.
 
 How to use it:
 
-1. Start the app with `./start.sh` or start the backend and GUI manually.
+1. Start the backend, then launch `legacy/desktop_gui/main_window.py` manually.
 2. Choose a parser mode in the desktop GUI: `Auto`, `AI`, or `Rule-based`.
 3. Click `Import from HTML`.
 4. Choose a local `.html` or `.htm` file.
@@ -289,7 +297,7 @@ Limitations of the legacy Python HTML importer:
 - It does not perfectly understand every course page layout.
 - It may find extra items or miss assignments, so review before importing.
 
-The separate native clients add the secure signed-in browser and local AI page
+The Windows native client adds the secure signed-in browser and local AI page
 scanner; the statements above apply only to the legacy HTML-file importer.
 
 ## AI Assignment Parsing
@@ -333,7 +341,7 @@ export ASSIGNMENT_AI_MOCK_RESPONSE='[]'
 
 Future AI agent page downloading can reuse `parse_import_content()` in `backend/app/services/import_pipeline.py` directly. It accepts cleaned text plus source information, so a future agent can pass Canvas page text, browser-exported HTML text, PDF text, CSV text, or pasted text without requiring a local file path.
 
-## Desktop GUI Features
+## Archived Python Desktop GUI Features
 
 - Use English by default or switch the interface to Chinese in **Settings → Language**. The choice is remembered for future launches.
 - View all assignments.
