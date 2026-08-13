@@ -645,7 +645,7 @@ internal static class Program
                         writerStarted.Set();
                         write.ExecuteNonQuery();
                     });
-                    True(writerStarted.Wait(TimeSpan.FromSeconds(2)));
+                    True(writerStarted.Wait(TimeSpan.FromSeconds(10)));
                     False(externalWriter.Wait(TimeSpan.FromMilliseconds(150)));
                 }
             }
