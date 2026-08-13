@@ -14,7 +14,7 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   progress, all-day dates, time zones, and soft deletion.
 - Added Phase 1 repositories and API endpoints for Backend, iPadOS/Mac Catalyst,
   and Windows Core. User-facing native organization screens remain Phase 2.
-- Added 57 shared contract tests, 44 Apple unit tests per platform, 30 Windows
+- Added 57 shared contract tests, 46 Apple unit tests on Catalyst, 47 Windows
   Core tests, and cross-language schema validation fixtures.
 
 ### Fixed

@@ -120,7 +120,7 @@ build and security details.
 Three workflows define the Phase 0 gates:
 
 - `.github/workflows/shared-backend.yml`: version consistency, Python error
-  lint, 55 shared contract/migration tests, and isolated FastAPI/Web asset tests.
+  lint, 57 shared contract/migration tests, and isolated FastAPI/Web asset tests.
 - `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
   clean-tree packaging, signature checks, and packaged-app database smoke.
 - `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,

@@ -152,29 +152,32 @@ Migration validates legacy payload, IDs, schema, indexes, triggers, foreign
 keys, UUID lineage, status/progress invariants, and SQLite integrity before
 commit. On failure it rolls back first, then verifies the original version,
 `integrity_check`, `foreign_key_check`, and a logical fingerprint that includes
-`WITHOUT ROWID` tables and `sqlite_sequence`. If restoration is actually
-required, SQLite Online
-Backup writes the verified backup back into the existing database in place; the
-implementation never replaces the live database inode or changes its WAL
-journal mode. Transaction validation and post-commit validation are separate
-phases, so a post-commit error cannot roll back or close an already released
-SQLite pointer. A failed migration is
-thrown to the view model, so no partially migrated database can be opened for
-writes. The independent backup is retained for manual recovery.
+`WITHOUT ROWID` tables and `sqlite_sequence`. Once SQLite releases its write
+lock, recovery is read-only: a healthy external change or a post-commit failure
+is preserved and startup fails closed instead of restoring an older backup over
+a possible concurrent write. Transaction validation and post-commit validation
+are separate phases, so a post-commit error cannot roll back or close an already
+released SQLite pointer. A failed or unverifiable migration is thrown to the
+view model, no partially migrated database is opened for writes, and the
+independent backup remains available for reviewed manual recovery.
 
-The final Phase 1 local regression on 2026-08-12 passed 44/44 unit tests on Mac
-Catalyst and 44/44 on the iPad Simulator, plus 3/3 iPad UI smoke tests. All test
-databases for the final runs were created under `/private/tmp`:
+The final frozen Phase 1 source passed 46/46 unit tests on Mac Catalyst and 3/3
+iPad UI smoke tests. The iPad unit runner was attempted on iPadOS 18.5 and 26.1,
+including one explicit serial run, but CoreSimulator stopped before workers
+materialized and zero tests executed. That current-source iPad unit result is
+therefore **not accepted**; the earlier 44/44 iPad result predates the final
+recovery hardening. Test databases used isolated `/private/tmp` paths:
 
 ```text
-/private/tmp/assignment-app-phase1-catalyst-final6-20260812.xcresult
-/private/tmp/assignment-app-phase1-ipad-final6-20260812.xcresult
-/private/tmp/assignment-app-phase1-ui-smoke-final4-20260812.xcresult
+/private/tmp/assignment-app-phase1-safe-recovery-full-final-20260812.xcresult
+/private/tmp/assignment-app-phase1-safe-recovery-ipad26-ui-smoke-final-20260812.xcresult
+/private/tmp/assignment-app-phase1-safe-recovery-ipad26-serial-final-20260812.xcresult
 ```
 
-These XCResult bundles are local test evidence, not a signed or notarized
-Phase 1 application package. The existing repository package predates schema
-v3 and remains Phase 0 evidence only.
+The final local Phase 1 Catalyst package is under
+`/private/tmp/assignment-app-phase1-final-artifacts/apple/` and is described in
+its own `build-info.txt`. It is ad-hoc signed and not notarized. Repository
+packages still predate schema v3 and remain Phase 0 evidence only.
 
 The shared 2.0 contract is in `shared/`:
 
@@ -356,6 +359,21 @@ The Phase 0 Apple CI uses this clean-tree gate and records iPad unit/UI and
 Catalyst unit results in `build-info.txt`. A normal local dirty-tree package is
 allowed for development but is explicitly marked `source_tree_dirty=true` and
 cannot be used as same-SHA release evidence.
+
+The frozen Phase 1 local development package is:
+
+```text
+/private/tmp/assignment-app-phase1-final-artifacts/apple/debug-safe-recovery-final-20260812/
+```
+
+Its canonical `Assignment-App-2.0.0-Catalyst-Debug-arm64.zip` is an ad-hoc
+signed, sandboxed arm64 Catalyst Debug build from revision `7f55ef7` with a
+dirty-source disclosure. The extracted ZIP passed strict signature checks; the
+real process stayed alive and created a disposable schema-v3 database with 22
+assignment columns, 30 contract indexes, 12 contract triggers,
+`quick_check=ok`, and no foreign-key errors. ZIP SHA-256:
+`9cb4ad79c476237200c59d7307960acfc0ab585d6f0a9184c24dd5965368ec5f`.
+This is current local Phase 1 evidence, not a notarized or clean-SHA release.
 
 The latest local Phase 0 development verification package is:
 

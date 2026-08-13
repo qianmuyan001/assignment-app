@@ -110,7 +110,7 @@ From the repository root:
 dotnet run --project .\native\windows\AssignmentNative.Core.Tests\AssignmentNative.Core.Tests.csproj -c Release
 ```
 
-The 30-test harness covers existing task CRUD/rules plus schema v3 migration,
+The 47-test harness covers existing task CRUD/rules plus schema v3 migration,
 shared UUID and Unicode-normalization vectors, organization CRUD, task tags,
 derived subtask progress, safe attachment metadata, canonical recurrence,
 soft-delete restore, immutable database identity, concurrent initialization,

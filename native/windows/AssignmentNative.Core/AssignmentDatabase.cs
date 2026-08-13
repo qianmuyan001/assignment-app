@@ -962,30 +962,30 @@ public sealed class AssignmentDatabase
         var parsedDueDate = LocalWallTime.ParseLegacy(rawDueDate, timeZone);
         return new AssignmentItem
         {
-        Id = reader.GetInt64(0),
-        Uuid = reader.GetString(1),
-        CourseName = reader.GetString(2),
-        Title = reader.GetString(3),
-        DueDate = parsedDueDate,
-        Description = reader.IsDBNull(5) ? null : reader.GetString(5),
-        Link = reader.IsDBNull(6) ? null : reader.GetString(6),
-        Status = TaskStatuses.FromDatabaseStatus(reader.GetString(7)),
-        Priority = TaskPriorities.Normalize(reader.GetString(8)),
-        SourceName = reader.IsDBNull(9) ? null : reader.GetString(9),
-        SourceType = reader.IsDBNull(10) ? null : reader.GetString(10),
-        SourceFile = reader.IsDBNull(11) ? null : reader.GetString(11),
-        SourceUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
-        CreatedAt = ParseTimestamp(reader.IsDBNull(13) ? null : reader.GetString(13))
+            Id = reader.GetInt64(0),
+            Uuid = reader.GetString(1),
+            CourseName = reader.GetString(2),
+            Title = reader.GetString(3),
+            DueDate = parsedDueDate,
+            Description = reader.IsDBNull(5) ? null : reader.GetString(5),
+            Link = reader.IsDBNull(6) ? null : reader.GetString(6),
+            Status = TaskStatuses.FromDatabaseStatus(reader.GetString(7)),
+            Priority = TaskPriorities.Normalize(reader.GetString(8)),
+            SourceName = reader.IsDBNull(9) ? null : reader.GetString(9),
+            SourceType = reader.IsDBNull(10) ? null : reader.GetString(10),
+            SourceFile = reader.IsDBNull(11) ? null : reader.GetString(11),
+            SourceUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
+            CreatedAt = ParseTimestamp(reader.IsDBNull(13) ? null : reader.GetString(13))
             ?? DateTimeOffset.MinValue,
-        UpdatedAt = ParseTimestamp(reader.IsDBNull(14) ? null : reader.GetString(14))
+            UpdatedAt = ParseTimestamp(reader.IsDBNull(14) ? null : reader.GetString(14))
             ?? DateTimeOffset.MinValue,
-        CourseId = reader.IsDBNull(15) ? null : reader.GetInt64(15),
-        ProjectId = reader.IsDBNull(16) ? null : reader.GetInt64(16),
-        CompletedAt = ParseTimestamp(reader.IsDBNull(17) ? null : reader.GetString(17)),
-        ProgressPercent = reader.GetInt32(18),
-        AllDay = reader.GetInt32(19) == 1,
-        TimezoneId = timezoneId,
-        DeletedAt = ParseTimestamp(reader.IsDBNull(21) ? null : reader.GetString(21)),
+            CourseId = reader.IsDBNull(15) ? null : reader.GetInt64(15),
+            ProjectId = reader.IsDBNull(16) ? null : reader.GetInt64(16),
+            CompletedAt = ParseTimestamp(reader.IsDBNull(17) ? null : reader.GetString(17)),
+            ProgressPercent = reader.GetInt32(18),
+            AllDay = reader.GetInt32(19) == 1,
+            TimezoneId = timezoneId,
+            DeletedAt = ParseTimestamp(reader.IsDBNull(21) ? null : reader.GetString(21)),
             StoredDueDateText = rawDueDate,
             StoredDueDateValue = parsedDueDate
         };

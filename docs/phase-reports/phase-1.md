@@ -16,12 +16,15 @@ gates, not substitutes for the local Core and Simulator results below.
 Inspected source state:
 
 - branch: `codex/ideal-through-phase4`
-- HEAD: `6bbf0091017ce5fe8305bc339bb3d91d8dc2a3fe`
+- HEAD: `7f55ef720820f00cd1194af25337f8f23402b90a`
 - source version: `2.0.0`
-- source tree: dirty with the uncommitted Phase 1 closeout
+- source tree: dirty with final documentation and mechanical formatting edits
 - remote: `https://github.com/qianmuyan001/assignment-app.git`
 - published local tags: only `v1.0.0`
-- no commit, push, tag, pull request, or release was created
+- a local commit `7f55ef7` appeared during shared-worktree closeout under the
+  configured user identity; Codex and all active subagents reported that they
+  did not create it or write the index
+- no push, tag, pull request, or release was created
 
 ## Implemented
 
@@ -111,7 +114,7 @@ python3 -m unittest discover -s shared/tests -v
 
 PYTHONWARNINGS='error::ResourceWarning' .venv/bin/python \
   -m unittest backend.tests.test_database_v3 -v
-8/8 passed
+9/9 passed
 
 PYTHONWARNINGS='error::ResourceWarning' .venv/bin/python \
   -m unittest backend.tests.test_api -v
@@ -124,21 +127,18 @@ dotnet build native/windows/AssignmentNative.Core.Tests/\
 DOTNET_ROLL_FORWARD=Major dotnet run --project \
   native/windows/AssignmentNative.Core.Tests/AssignmentNative.Core.Tests.csproj \
   -c Release --no-build
-30/30 passed
+47/47 passed
 
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   -project native/apple/AssignmentApp2.xcodeproj -scheme AssignmentApp2 \
   -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
   -derivedDataPath /private/tmp/assignment-app-xcode-derived-data \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
-44/44 passed
+46/46 passed
 
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
-  -project native/apple/AssignmentApp2.xcodeproj -scheme AssignmentApp2 \
-  -destination 'platform=iOS Simulator,id=F0BB9838-B33F-417E-852C-26BE36AD75CF' \
-  -derivedDataPath /private/tmp/assignment-app-xcode-derived-data \
-  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
-44/44 passed
+Current frozen-source iPad unit test attempts on iPadOS 18.5 and 26.1,
+including a single-worker serial retry:
+0 tests executed; TEST INTERRUPTED before workers materialized — not accepted
 
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   -project native/apple/AssignmentApp2.xcodeproj -scheme AssignmentApp2UISmoke \
@@ -161,11 +161,11 @@ result; the app remains unverified until run on Windows x64.
 ## Evidence and artifacts
 
 ```text
-/private/tmp/assignment-app-phase1-catalyst-final6-20260812.xcresult
-/private/tmp/assignment-app-phase1-ipad-final6-20260812.xcresult
-/private/tmp/assignment-app-phase1-ui-smoke-final4-20260812.xcresult
-/private/tmp/assignment-app-phase1-artifacts/apple/debug-phase1-local-20260812-r2/
-/private/tmp/assignment-windows-contract.1xxuUS/windows-v3.db
+/private/tmp/assignment-app-phase1-safe-recovery-full-final-20260812.xcresult
+/private/tmp/assignment-app-phase1-safe-recovery-ipad26-ui-smoke-final-20260812.xcresult
+/private/tmp/assignment-app-phase1-safe-recovery-ipad26-serial-final-20260812.xcresult
+/private/tmp/assignment-app-phase1-final-artifacts/apple/debug-safe-recovery-final-20260812/
+/private/tmp/assignment-win-v3-contract-final2.wXLIHG/windows-core-v3.db
 ```
 
 The Apple result bundles are arm64 local test evidence built with Xcode 27 beta
@@ -174,10 +174,13 @@ ad-hoc-signed, sandboxed arm64 Catalyst Debug app and canonical ZIP. Its launch
 smoke created only a disposable container-temp database and verified schema v3,
 22 assignment columns, 30 contract indexes, 12 contract triggers, integrity,
 and foreign keys. The ZIP SHA-256 is
-`89657e0d9272f864eaf14a5e709ce094160e8c2f8b38862eff16fe5f98cbea2c`.
+`9cb4ad79c476237200c59d7307960acfc0ab585d6f0a9184c24dd5965368ec5f`.
 Because the source tree was dirty, this is a local test package rather than a
-clean-SHA release artifact. No Windows x64 publish directory was generated on
-this Mac.
+clean-SHA release artifact. Its source revision is `7f55ef7`, architecture is
+arm64, version is 2.0.0, signing is ad-hoc, App Sandbox is enabled, strict
+signature and archive checks passed, and the packaged process remained alive
+after creating and validating its disposable schema-v3 database. No Windows
+x64 publish directory was generated on this Mac.
 
 The existing Catalyst ZIP under
 `artifacts/apple/debug-20260811-080150Z/` is an ad-hoc arm64 Phase 0/schema-v2
@@ -196,7 +199,9 @@ artifact; it must not be described or distributed as Phase 1 evidence.
   from v2 to v3 and created its normal sibling backup. That path may be a prior
   unsandboxed test-host database, but it is outside the approved temporary
   scope. It was not inspected, deleted, restored, or touched again. All final
-  Apple tests explicitly used `/private/tmp`.
+  Apple tests explicitly used `/private/tmp`; the package launch smoke used only
+  its disposable `~/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp/`
+  path and removed that smoke database family during cleanup.
 - No other repository or user SQLite database was opened for migration, reset,
   or overwritten during the final Phase 1 verification.
 
@@ -205,9 +210,11 @@ artifact; it must not be described or distributed as Phase 1 evidence.
 1. Run the Windows workflow or `publish-x64.ps1` on real Windows x64 and retain
    the Core, WinUI publish, launch, database-smoke, architecture, hash, and
    Authenticode evidence.
-2. After authorization to commit/push, run the clean-SHA Apple workflow and
-   generate a new schema-v3 Catalyst package.
-3. Team Spirit AppIcon remains blocked on an authorized SVG or transparent
+2. Rerun all 46 current-source iPad unit tests after the Xcode 27 beta Simulator
+   can materialize test workers; the current attempts executed zero tests.
+3. After reconciling the externally created local commit and remaining dirty
+   closeout edits, run the clean-SHA Apple workflow.
+4. Team Spirit AppIcon remains blocked on an authorized SVG or transparent
    1024×1024-or-larger PNG and trademark clearance.
 
 No project, test, package, signature, screenshot, Windows result, or launch was
