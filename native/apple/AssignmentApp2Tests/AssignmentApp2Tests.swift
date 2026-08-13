@@ -751,7 +751,7 @@ struct SQLiteRepositoryTests {
         #expect(updated.status == .inProgress)
     }
 
-    @Test("Deleting a task removes only the selected row")
+    @Test("Deleting a task soft-deletes only the selected row")
     func deleteTask() throws {
         let temporary = try TemporaryDatabase()
         defer { temporary.cleanup() }
@@ -769,7 +769,13 @@ struct SQLiteRepositoryTests {
         #expect(remainingIDs == [second.id])
         #expect(
             try scalarInt(at: temporary.databaseURL, sql: "SELECT COUNT(*) FROM assignments")
-                == 1
+                == 2
+        )
+        #expect(
+            try scalarInt(
+                at: temporary.databaseURL,
+                sql: "SELECT COUNT(*) FROM assignments WHERE deleted_at IS NOT NULL"
+            ) == 1
         )
     }
 
@@ -824,9 +830,9 @@ struct SQLiteRepositoryTests {
         let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
         let assignments = try repository.fetchAll()
 
-        #expect(try repository.schemaVersion == 2)
+        #expect(try repository.schemaVersion == 3)
         #expect(repository.lastMigrationResult.fromVersion == 1)
-        #expect(repository.lastMigrationResult.toVersion == 2)
+        #expect(repository.lastMigrationResult.toVersion == 3)
         #expect(repository.lastMigrationResult.migrated)
         #expect(assignments.map(\.id) == [41, 42])
         #expect(assignments.map(\.status) == [.done, .todo])
@@ -919,24 +925,34 @@ struct SQLiteRepositoryTests {
         #expect(assignment.sourceURL == "https://例子.测试/source")
     }
 
-    @Test("A fresh database is v2 and enforces the medium priority default")
-    func databaseV2VersionAndPriorityDefault() throws {
+    @Test("A fresh database is v3 and task creation keeps shared defaults")
+    func databaseV3VersionAndPriorityDefault() throws {
         let temporary = try TemporaryDatabase()
         defer { temporary.cleanup() }
         let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
 
-        try executeSQL(
-            at: temporary.databaseURL,
-            """
-            INSERT INTO assignments (course_name, title)
-            VALUES ('Biology', 'Default priority');
-            """
+        _ = try repository.create(
+            AssignmentDraft(courseName: "Biology", title: "Default priority")
         )
 
-        let v2Columns = try tableColumns(at: temporary.databaseURL)
-        #expect(try repository.schemaVersion == 2)
-        #expect(SQLiteAssignmentRepository.databaseVersion == 2)
-        #expect(v2Columns.contains("priority"))
+        let v3Columns = try tableColumns(at: temporary.databaseURL)
+        #expect(try repository.schemaVersion == 3)
+        #expect(SQLiteAssignmentRepository.databaseVersion == 3)
+        #expect(v3Columns.count == 22)
+        #expect(v3Columns.contains("uuid"))
+        #expect(v3Columns.contains("progress_percent"))
+        #expect(
+            try scalarInt(
+                at: temporary.databaseURL,
+                sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
+            ) == 30
+        )
+        #expect(
+            try scalarInt(
+                at: temporary.databaseURL,
+                sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"
+            ) == 12
+        )
         #expect(
             try scalarText(
                 at: temporary.databaseURL,

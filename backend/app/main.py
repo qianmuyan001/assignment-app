@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import models
 from .database import ensure_assignment_schema
-from .routers import assignments
+from .routers import assignments, organization
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(assignments.router)
+app.include_router(organization.router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

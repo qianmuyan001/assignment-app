@@ -8,11 +8,27 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ### Changed
 
+- Unified root, Apple, and Windows source versions at 2.0.0 while explicitly
+  keeping the version untagged and unpublished.
+- Replaced the single Python workflow with independent shared/backend, Apple,
+  and real Windows x64 CI definitions. Package metadata now records source SHA,
+  source cleanliness, toolchain, tests, launch smoke, architecture, and signing.
+- Backend API tests now force a temporary database before importing the app and
+  assert that the real local database plus existing WAL/SHM/backup sidecars
+  retain their exact size, modification time, and SHA-256 content hash.
+- Apple and Windows packaging now use unique timestamped output directories and
+  refuse to overwrite an earlier artifact.
+- Pinned the Windows Core SQLite native bundle to `2.1.12`, replacing the
+  deprecated vulnerable `2.1.11` transitive resolution without changing the
+  application database schema.
 - Archived the retired Python CustomTkinter frontend under
   `legacy/desktop_gui/`. The root launchers now start the backend and open the
   web client instead of treating the Python GUI as an active frontend.
 
-## [2.0.0] - 2026-08-09
+## [2.0.0] - 2026-08-09 (source baseline; not tagged or released)
+
+This version identifies the repository source and application metadata. There
+is currently no `v2.0.0` Git tag or GitHub Release.
 
 ### Added
 
@@ -79,8 +95,8 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   signing configuration.
 - The optional Catalyst UI-automation target can hang before the runner connects
   under the current Xcode 27 beta host. It is excluded from the shared scheme's
-  default Test action; the default 25-test suite and package launch/database
-  smoke checks are repeatable and pass.
+  default Test action. Current source contains 32 stable unit tests; the older
+  2026-08-07 package contains 25 per platform and is not current-SHA evidence.
 - WinUI source and Core tests are ready, but the self-contained x64 directory
   must be produced and launch-verified on Windows because the Windows App SDK
   XAML compiler has native Windows dependencies.
@@ -102,6 +118,5 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 - OS credential-store integration for opt-in website credential filling.
 - Personal filesystem paths removed from public documentation.
 
-[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...v2.0.0
+[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/qianmuyan001/assignment-app/releases/tag/v1.0.0

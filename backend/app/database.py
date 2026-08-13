@@ -2,20 +2,30 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
+from typing import BinaryIO
 from typing import Generator
 from uuid import uuid4
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from shared.schema_v3 import (
+    DATABASE_VERSION,
+    create_v3_schema,
+    migrate_v2_to_v3,
+    validate_v3_schema,
+)
 
-DATABASE_VERSION = 2
 _DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / "assignments.db"
+_LOCK_TIMEOUT_SECONDS = 30.0
 
 
 def _configured_database_path() -> Path:
@@ -32,6 +42,21 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
 )
+
+
+@event.listens_for(engine, "connect")
+def _configure_sqlalchemy_sqlite_connection(
+    dbapi_connection: sqlite3.Connection,
+    _connection_record: object,
+) -> None:
+    """Apply the shared SQLite safety contract to every pooled connection."""
+
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute("PRAGMA busy_timeout = 10000")
+    finally:
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -62,12 +87,12 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def ensure_assignment_schema() -> MigrationResult:
-    """Create or safely upgrade the configured local database to schema v2.
+    """Create or safely upgrade the configured local database to schema v3.
 
-    Existing databases are backed up with SQLite's online backup API before any
-    schema statement runs. This is safe when the source database uses WAL mode.
-    A failed migration is restored from that backup and the error is re-raised,
-    so application startup cannot continue against a partial schema.
+    A process-wide advisory lock and SQLite ``BEGIN IMMEDIATE`` transaction
+    cover version re-check, online backup, migration, validation, commit, and
+    failure restoration. Concurrent application processes therefore cannot
+    race with a stale backup.
     """
 
     return migrate_database(DATABASE_PATH)
@@ -91,12 +116,31 @@ def migrate_database(
         engine.dispose()
 
     try:
-        connection = _connect(path)
-        try:
-            raw_version = _user_version(connection)
-            table_exists = _table_exists(connection, "assignments")
-        finally:
-            connection.close()
+        with _migration_lock(path):
+            return _migrate_database_while_locked(
+                path,
+                migration_hook=migration_hook,
+            )
+    finally:
+        if uses_global_engine:
+            engine.dispose()
+
+
+def _migrate_database_while_locked(
+    path: Path,
+    *,
+    migration_hook: Callable[[sqlite3.Connection], None] | None,
+) -> MigrationResult:
+    connection = _connect(path)
+    backup_path: Path | None = None
+    backup_fingerprint: str | None = None
+    raw_version = 0
+    inferred_version = 0
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        raw_version = _user_version(connection)
+        table_exists = _table_exists(connection, "assignments")
+        inferred_version = 1 if table_exists and raw_version == 0 else raw_version
 
         if raw_version > DATABASE_VERSION:
             raise DatabaseMigrationError(
@@ -104,47 +148,53 @@ def migrate_database(
                 f"version {DATABASE_VERSION}."
             )
 
-        if not table_exists:
-            _create_new_database(path)
-            return MigrationResult(
-                from_version=raw_version,
-                to_version=DATABASE_VERSION,
-                migrated=True,
-                strategy="create",
+        if table_exists and inferred_version not in {1, 2, 3}:
+            raise DatabaseMigrationError(
+                f"Unsupported database schema version {raw_version}."
             )
 
-        inferred_version = 1 if raw_version == 0 else raw_version
-        if raw_version == DATABASE_VERSION:
-            connection = _connect(path)
-            try:
-                _validate_v2_schema(connection)
-            finally:
-                connection.close()
+        if inferred_version == DATABASE_VERSION:
+            validate_v3_schema(connection)
+            connection.commit()
             return MigrationResult(
                 from_version=DATABASE_VERSION,
                 to_version=DATABASE_VERSION,
                 migrated=False,
             )
 
-        backup_path = _backup_database(path, inferred_version)
-        try:
-            strategy = _upgrade_existing_database(
+        if table_exists:
+            backup_path, backup_fingerprint = _backup_database_while_locked(
                 path,
+                inferred_version,
+            )
+
+        if not table_exists:
+            create_v3_schema(connection)
+            if migration_hook is not None:
+                migration_hook(connection)
+            validate_v3_schema(connection)
+            strategy = "create-v3"
+        else:
+            strategy_parts: list[str] = []
+            if inferred_version == 1:
+                v2_strategy = _migrate_assignments_to_v2(connection)
+                _validate_v2_schema(connection)
+                connection.execute("PRAGMA user_version = 2")
+                strategy_parts.append(f"v1-v2-{v2_strategy}")
+            elif inferred_version != 2:
+                raise DatabaseMigrationError(
+                    f"No migration dispatcher for schema {inferred_version}."
+                )
+
+            migrate_v2_to_v3(
+                connection,
                 migration_hook=migration_hook,
             )
-        except Exception as exc:
-            try:
-                _restore_database(backup_path, path)
-            except Exception as restore_exc:
-                raise DatabaseMigrationError(
-                    "Database migration failed and automatic restoration also failed. "
-                    f"The consistent backup is preserved at {backup_path}."
-                ) from restore_exc
-            raise DatabaseMigrationError(
-                "Database migration failed; the original database was restored from "
-                f"{backup_path}."
-            ) from exc
+            strategy_parts.append("v2-v3-additive")
+            strategy = "+".join(strategy_parts)
 
+        _validate_committed_candidate(connection)
+        connection.commit()
         return MigrationResult(
             from_version=inferred_version,
             to_version=DATABASE_VERSION,
@@ -152,14 +202,43 @@ def migrate_database(
             backup_path=backup_path,
             strategy=strategy,
         )
+    except Exception as exc:
+        connection.rollback()
+        if backup_path is not None and backup_fingerprint is not None:
+            try:
+                restored_from_backup = _verify_rollback_or_restore_in_place(
+                    connection,
+                    backup_path,
+                    expected_version=raw_version,
+                    expected_fingerprint=backup_fingerprint,
+                )
+            except Exception as restore_exc:
+                raise DatabaseMigrationError(
+                    "Database migration failed and automatic restoration also failed. "
+                    f"The consistent backup is preserved at {backup_path}."
+                ) from restore_exc
+            recovery = (
+                "was restored in place with SQLite Online Backup"
+                if restored_from_backup
+                else "was restored and verified unchanged after transaction rollback"
+            )
+            raise DatabaseMigrationError(
+                "Database migration failed; the complete original payload "
+                f"{recovery}. The recovery backup is preserved at {backup_path}."
+            ) from exc
+        if isinstance(exc, DatabaseMigrationError):
+            raise
+        raise DatabaseMigrationError("Database schema creation failed safely.") from exc
     finally:
-        if uses_global_engine:
-            engine.dispose()
+        if connection:
+            connection.close()
 
 
-def _connect(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path, timeout=10)
+def _connect(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
+    target: str = f"{path.as_uri()}?mode=ro" if read_only else str(path)
+    connection = sqlite3.connect(target, timeout=10, uri=read_only)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 10000")
     return connection
 
@@ -176,83 +255,193 @@ def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
     return row is not None
 
 
-def _create_new_database(path: Path) -> None:
-    connection = _connect(path)
-    try:
-        connection.execute("BEGIN IMMEDIATE")
-        _create_assignments_table(connection)
-        _create_assignment_indexes(connection)
-        connection.execute(f"PRAGMA user_version = {DATABASE_VERSION}")
-        _validate_v2_schema(connection)
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def _backup_database(path: Path, from_version: int) -> Path:
+def _backup_database_while_locked(
+    path: Path,
+    from_version: int,
+) -> tuple[Path, str]:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     backup_path = path.with_name(
         f"{path.name}.v{from_version}-to-v{DATABASE_VERSION}."
         f"{timestamp}.{uuid4().hex[:8]}.bak"
     )
 
-    source = _connect(path)
+    source = _connect(path, read_only=True)
     destination = _connect(backup_path)
     try:
+        source_fingerprint = _logical_database_fingerprint(source)
         source.backup(destination)
         destination.commit()
+        journal_mode = str(
+            destination.execute("PRAGMA journal_mode = DELETE").fetchone()[0]
+        ).lower()
+        if journal_mode != "delete":
+            raise DatabaseMigrationError(
+                "Migration backup could not be made standalone."
+            )
         if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise DatabaseMigrationError("SQLite reported an invalid migration backup.")
+        backup_fingerprint = _logical_database_fingerprint(destination)
+        if backup_fingerprint != source_fingerprint:
+            raise DatabaseMigrationError(
+                "SQLite online backup did not preserve the complete logical payload."
+            )
     except Exception:
         destination.close()
         source.close()
-        backup_path.unlink(missing_ok=True)
+        _remove_database_family(backup_path, remove_main=True)
         raise
     else:
         destination.close()
         source.close()
-    return backup_path
+    _remove_database_sidecars(backup_path)
+    return backup_path, backup_fingerprint
 
 
-def _restore_database(backup_path: Path, database_path: Path) -> None:
-    source = _connect(backup_path)
-    destination = _connect(database_path)
+def _verify_rollback_or_restore_in_place(
+    destination: sqlite3.Connection,
+    backup_path: Path,
+    *,
+    expected_version: int,
+    expected_fingerprint: str,
+) -> bool:
+    """Keep the original inode when rollback worked; otherwise restore in place.
+
+    Returns ``True`` only when an online-backup restore was necessary. No main
+    database file or target WAL/SHM sidecar is replaced or unlinked.
+    """
+
+    if _database_matches_snapshot(
+        destination,
+        expected_version=expected_version,
+        expected_fingerprint=expected_fingerprint,
+    ):
+        return False
+
+    source = _connect(backup_path, read_only=True)
     try:
         source.backup(destination)
         destination.commit()
-        if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise DatabaseMigrationError("SQLite reported an invalid restored database.")
     finally:
-        destination.close()
         source.close()
+    if not _database_matches_snapshot(
+        destination,
+        expected_version=expected_version,
+        expected_fingerprint=expected_fingerprint,
+    ):
+        raise DatabaseMigrationError(
+            "In-place SQLite Online Backup restoration did not reproduce the snapshot."
+        )
+    return True
 
 
-def _upgrade_existing_database(
-    path: Path,
+def _database_matches_snapshot(
+    connection: sqlite3.Connection,
     *,
-    migration_hook: Callable[[sqlite3.Connection], None] | None,
-) -> str:
-    connection = _connect(path)
+    expected_version: int,
+    expected_fingerprint: str,
+) -> bool:
     try:
-        connection.execute("PRAGMA foreign_keys = OFF")
-        connection.execute("BEGIN IMMEDIATE")
-        strategy = _migrate_assignments_to_v2(connection)
-        if migration_hook is not None:
-            migration_hook(connection)
-        _validate_v2_schema(connection)
-        connection.execute(f"PRAGMA user_version = {DATABASE_VERSION}")
-        if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise DatabaseMigrationError("SQLite integrity check failed after migration.")
-        connection.commit()
-        return strategy
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+        if connection.in_transaction:
+            return False
+        if _user_version(connection) != expected_version:
+            return False
+        integrity = [
+            str(row[0])
+            for row in connection.execute("PRAGMA integrity_check").fetchall()
+        ]
+        if integrity != ["ok"]:
+            return False
+        return _logical_database_fingerprint(connection) == expected_fingerprint
+    except sqlite3.Error:
+        return False
+
+
+def _validate_committed_candidate(connection: sqlite3.Connection) -> None:
+    validate_v3_schema(connection)
+    if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+        raise DatabaseMigrationError("SQLite integrity check failed after migration.")
+    foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()
+    if foreign_key_errors:
+        raise DatabaseMigrationError(
+            f"SQLite foreign key check failed after migration: {foreign_key_errors!r}"
+        )
+
+
+def _logical_database_fingerprint(connection: sqlite3.Connection) -> str:
+    """Hash complete schema and row payload independently of SQLite page layout."""
+
+    digest = sha256()
+    for statement in connection.iterdump():
+        digest.update(statement.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _remove_database_sidecars(path: Path) -> None:
+    for suffix in ("-wal", "-shm"):
+        path.with_name(path.name + suffix).unlink(missing_ok=True)
+
+
+def _remove_database_family(path: Path, *, remove_main: bool) -> None:
+    _remove_database_sidecars(path)
+    if remove_main:
+        path.unlink(missing_ok=True)
+
+
+@contextmanager
+def _migration_lock(path: Path) -> Generator[None, None, None]:
+    """Hold an advisory cross-process lock for the complete migration lifecycle."""
+
+    lock_path = path.with_name(path.name + ".migration.lock")
+    with lock_path.open("a+b") as lock_file:
+        _ensure_lock_byte(lock_file)
+        _acquire_lock(lock_file)
+        try:
+            yield
+        finally:
+            _release_lock(lock_file)
+
+
+def _ensure_lock_byte(lock_file: BinaryIO) -> None:
+    lock_file.seek(0, os.SEEK_END)
+    if lock_file.tell() == 0:
+        lock_file.write(b"\0")
+        lock_file.flush()
+    lock_file.seek(0)
+
+
+def _acquire_lock(lock_file: BinaryIO) -> None:
+    deadline = time.monotonic() + _LOCK_TIMEOUT_SECONDS
+    while True:
+        try:
+            if os.name == "nt":
+                import msvcrt  # pylint: disable=import-outside-toplevel,import-error
+
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl  # pylint: disable=import-outside-toplevel
+
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except (BlockingIOError, OSError) as exc:
+            if time.monotonic() >= deadline:
+                raise DatabaseMigrationError(
+                    "Timed out waiting for another database migration process."
+                ) from exc
+            time.sleep(0.05)
+
+
+def _release_lock(lock_file: BinaryIO) -> None:
+    if os.name == "nt":
+        import msvcrt  # pylint: disable=import-outside-toplevel,import-error
+
+        lock_file.seek(0)
+        msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl  # pylint: disable=import-outside-toplevel
+
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _migrate_assignments_to_v2(connection: sqlite3.Connection) -> str:

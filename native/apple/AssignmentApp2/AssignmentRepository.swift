@@ -15,6 +15,9 @@ protocol AssignmentRepository: AnyObject {
     func delete(id: Int64) throws
 
     @discardableResult
+    func restore(id: Int64) throws -> Assignment
+
+    @discardableResult
     func updateStatus(
         id: Int64,
         status: AssignmentStatus
@@ -24,9 +27,10 @@ protocol AssignmentRepository: AnyObject {
 
 enum MigrationStrategy: String, Equatable {
     case none
-    case create
-    case additive
-    case rebuild
+    case createV3 = "create-v3"
+    case v2ToV3 = "v2-v3-additive"
+    case v1AdditiveToV3 = "v1-v2-additive+v2-v3-additive"
+    case v1RebuildToV3 = "v1-v2-rebuild+v2-v3-additive"
 }
 
 
@@ -53,6 +57,7 @@ struct DatabaseMigrationError: LocalizedError {
 
 
 enum AssignmentRepositoryError: LocalizedError {
+    case validation(String)
     case open(String)
     case prepare(String)
     case execute(String)
@@ -62,6 +67,8 @@ enum AssignmentRepositoryError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .validation(let message):
+            return message
         case .open(let message):
             return "Could not open the task database: \(message)"
         case .prepare(let message):

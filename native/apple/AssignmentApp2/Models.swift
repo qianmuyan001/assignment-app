@@ -172,6 +172,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
 struct Assignment: Identifiable, Hashable {
     let id: Int64
+    let uuid: UUID
     var courseName: String
     var title: String
     var dueDate: Date?
@@ -185,13 +186,20 @@ struct Assignment: Identifiable, Hashable {
     var sourceURL: String?
     var createdAt: Date
     var updatedAt: Date
-
-    var completedAt: Date? {
-        status == .done ? updatedAt : nil
-    }
+    var courseID: Int64?
+    var projectID: Int64?
+    var completedAt: Date?
+    var progressPercent: Int
+    var allDay: Bool
+    var timeZoneIdentifier: String?
+    var deletedAt: Date?
+    /// Original SQLite wall-time text. Reused only when it still represents
+    /// the unchanged `dueDate` in the effective timezone.
+    var storedDueDateText: String?
 
     init(
         id: Int64,
+        uuid: UUID = UUID(),
         courseName: String,
         title: String,
         dueDate: Date? = nil,
@@ -204,9 +212,18 @@ struct Assignment: Identifiable, Hashable {
         sourceFile: String? = nil,
         sourceURL: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        courseID: Int64? = nil,
+        projectID: Int64? = nil,
+        completedAt: Date? = nil,
+        progressPercent: Int? = nil,
+        allDay: Bool = false,
+        timeZoneIdentifier: String? = nil,
+        deletedAt: Date? = nil,
+        storedDueDateText: String? = nil
     ) {
         self.id = id
+        self.uuid = uuid
         self.courseName = courseName
         self.title = title
         self.dueDate = dueDate
@@ -220,6 +237,14 @@ struct Assignment: Identifiable, Hashable {
         self.sourceURL = sourceURL
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.courseID = courseID
+        self.projectID = projectID
+        self.completedAt = completedAt ?? (status == .done ? updatedAt : nil)
+        self.progressPercent = progressPercent ?? (status == .done ? 100 : 0)
+        self.allDay = allDay
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.deletedAt = deletedAt
+        self.storedDueDateText = storedDueDateText
     }
 }
 
@@ -460,7 +485,7 @@ enum LocalWallTime {
 
 enum DatabaseTimestamp {
     static func string(from date: Date) -> String {
-        formatter().string(from: date)
+        formatter(format: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").string(from: date)
     }
 
     static func date(from value: String?) throws -> Date {
@@ -477,6 +502,11 @@ enum DatabaseTimestamp {
             if let parsed = formatter(format: format).date(from: trimmed) {
                 return parsed
             }
+        }
+        let fractionalISO = ISO8601DateFormatter()
+        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractionalISO.date(from: trimmed) {
+            return parsed
         }
         if let parsed = ISO8601DateFormatter().date(from: trimmed) {
             return parsed

@@ -18,6 +18,7 @@ from backend.app.database import (
 )
 from backend.app.models import Assignment
 from backend.app.schemas import AssignmentCreate
+from shared.schema_v3 import DATABASE_VERSION, new_v3_uuid
 from shared.task_rules import (
     STATUS_FROM_DATABASE,
     STATUS_TO_DATABASE,
@@ -168,13 +169,17 @@ class TaskCrudContractTests(unittest.TestCase):
 
     def _insert_task(self) -> int:
         with closing(self._connect()) as connection, connection:
+            audit_time = "2026-08-05T17:00:00Z"
             cursor = connection.execute(
                 """
                 INSERT INTO assignments (
-                    course_name, title, due_date, description, link, status, priority
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    uuid, course_name, title, due_date, description, link,
+                    status, priority, completed_at, progress_percent, all_day,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?)
                 """,
                 (
+                    new_v3_uuid(),
                     "Physics",
                     "Wave lab",
                     "2026-08-05 18:00:00",
@@ -182,6 +187,8 @@ class TaskCrudContractTests(unittest.TestCase):
                     "https://example.test/lab",
                     database_status("todo"),
                     "medium",
+                    audit_time,
+                    audit_time,
                 ),
             )
             return int(cursor.lastrowid)
@@ -202,7 +209,8 @@ class TaskCrudContractTests(unittest.TestCase):
             connection.execute(
                 """
                 UPDATE assignments
-                SET title = ?, description = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
+                SET title = ?, description = ?, priority = ?,
+                    updated_at = '2026-08-05T17:30:00Z'
                 WHERE id = ?
                 """,
                 ("Updated 波形", "Edited <>& 📈", "high", task_id),
@@ -213,23 +221,44 @@ class TaskCrudContractTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(tuple(row), (task_id, "Updated 波形", "Edited <>& 📈", "high"))
 
-    def test_03_delete_task(self) -> None:
+    def test_03_soft_delete_task(self) -> None:
         task_id = self._insert_task()
         with closing(self._connect()) as connection, connection:
-            connection.execute("DELETE FROM assignments WHERE id = ?", (task_id,))
-            count = connection.execute(
+            connection.execute(
+                "UPDATE assignments SET deleted_at='2026-08-05T18:00:00Z' "
+                "WHERE id = ?",
+                (task_id,),
+            )
+            active_count = connection.execute(
+                "SELECT COUNT(*) FROM assignments "
+                "WHERE id = ? AND deleted_at IS NULL",
+                (task_id,),
+            ).fetchone()[0]
+            retained_count = connection.execute(
                 "SELECT COUNT(*) FROM assignments WHERE id = ?", (task_id,)
             ).fetchone()[0]
-        self.assertEqual(count, 0)
+        self.assertEqual(active_count, 0)
+        self.assertEqual(retained_count, 1)
 
     def test_04_change_status_uses_legacy_storage_values(self) -> None:
         task_id = self._insert_task()
         with closing(self._connect()) as connection, connection:
             observed = []
             for canonical in ("todo", "in_progress", "done"):
+                is_done = canonical == "done"
                 connection.execute(
-                    "UPDATE assignments SET status = ? WHERE id = ?",
-                    (database_status(canonical), task_id),
+                    """
+                    UPDATE assignments
+                    SET status = ?, completed_at = ?, progress_percent = ?,
+                        updated_at = '2026-08-05T19:00:00Z'
+                    WHERE id = ?
+                    """,
+                    (
+                        database_status(canonical),
+                        "2026-08-05T19:00:00Z" if is_done else None,
+                        100 if is_done else 0,
+                        task_id,
+                    ),
                 )
                 stored = connection.execute(
                     "SELECT status FROM assignments WHERE id = ?", (task_id,)
@@ -351,14 +380,17 @@ class MigrationAndCompatibilityContractTests(unittest.TestCase):
             wal_keeper.close()
 
         self.assertTrue(result.migrated)
-        self.assertEqual((result.from_version, result.to_version), (1, 2))
-        self.assertEqual(result.strategy, "rebuild")
+        self.assertEqual((result.from_version, result.to_version), (1, DATABASE_VERSION))
+        self.assertEqual(result.strategy, "v1-v2-rebuild+v2-v3-additive")
         self.assertIsNotNone(result.backup_path)
         self.assertTrue(result.backup_path.is_file())
 
         with closing(sqlite3.connect(self.database_path)) as connection, connection:
             connection.row_factory = sqlite3.Row
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(
+                connection.execute("PRAGMA user_version").fetchone()[0],
+                DATABASE_VERSION,
+            )
             row = connection.execute(
                 "SELECT * FROM assignments WHERE id = 41"
             ).fetchone()
@@ -391,7 +423,7 @@ class MigrationAndCompatibilityContractTests(unittest.TestCase):
 
         result = migrate_database(self.database_path)
 
-        self.assertEqual(result.strategy, "additive")
+        self.assertEqual(result.strategy, "v1-v2-additive+v2-v3-additive")
         with closing(sqlite3.connect(self.database_path)) as connection, connection:
             after_ids = [
                 row[0]
@@ -405,7 +437,7 @@ class MigrationAndCompatibilityContractTests(unittest.TestCase):
             version = connection.execute("PRAGMA user_version").fetchone()[0]
         self.assertEqual(after_ids, before_ids)
         self.assertEqual(priorities, [("medium",)])
-        self.assertEqual(version, 2)
+        self.assertEqual(version, DATABASE_VERSION)
 
     def test_14_failed_migration_restores_original_and_stops(self) -> None:
         _create_current_v1_database(self.database_path)

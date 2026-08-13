@@ -1,4 +1,4 @@
-# Assignment App 2.0 shared task rules
+# Assignment App shared task rules
 
 This document is the behavior contract for the macOS and Windows clients.
 
@@ -13,14 +13,20 @@ This document is the behavior contract for the macOS and Windows clients.
   `done <-> completed` at the data-access boundary.
 - Priorities are `low`, `medium`, and `high`; a missing 1.0 value migrates to
   `medium`.
-- `PRAGMA user_version` is `2` after a successful migration.
+- `PRAGMA user_version` is `3` after the task-organization migration. The v2
+  contract remains the required input compatibility boundary.
 - Attachments, model assets, and caches must not be stored in `assignments`.
+- Schema v3 adds stable UUID, formal course/project relationships, tags,
+  subtasks, attachment metadata, reminders, real progress, all-day/time-zone
+  fields, completion time, and soft deletion. See `task-organization-v3.md`.
 
 ## Local date and time
 
 - `due_date` is an optional local wall time with no UTC offset. Persist it as
   `YYYY-MM-DD HH:mm:ss`; interpret it using the device's current local calendar
-  and timezone. Offset-bearing values are rejected rather than silently shifted.
+  and `timezone_id`, or the device's current zone when that field is null.
+  Offset-bearing values are rejected rather than silently shifted. Migration
+  never rewrites an existing wall-time value.
 - All ranges are half-open: the start is included and the end is excluded.
 - Today is `[local day 00:00, next local day 00:00)`.
 - The week is the natural Monday-based week `[Monday 00:00, next Monday 00:00)`.

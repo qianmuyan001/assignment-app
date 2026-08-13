@@ -96,14 +96,23 @@ dotnet run --project .\native\windows\AssignmentNative.Windows.csproj -c Debug -
 ```
 
 The script restores dependencies, runs the Core tests, publishes a
-self-contained x64 directory, starts `AssignmentNative.exe` for five seconds,
-and stops it after confirming that it remained running. The launch check forces
-an isolated temporary database, then restores the caller's
-`ASSIGNMENT_DB_PATH`; it never migrates the repository or user database. Output:
+self-contained x64 directory, and starts `AssignmentNative.exe`. It waits up to
+30 seconds for the isolated database to satisfy the complete current schema,
+index, and `PRAGMA quick_check` contract before stopping the process. The launch
+check restores the caller's `ASSIGNMENT_DB_PATH`; it never migrates the
+repository or user database. Output is unique per run:
 
 ```text
-artifacts\windows-x64\
+artifacts\windows\x64-<UTC timestamp>\
+  build-info.txt
+  logs\
+  publish\AssignmentNative.exe
 ```
+
+The script refuses to overwrite an existing artifact directory. CI additionally
+uses `-RequireCleanTree`, and `build-info.txt` records the Git SHA, dirty state,
+Windows/.NET environment, architecture, tests, launch smoke, executable hash,
+and Authenticode status.
 
 To publish without the launch smoke test (for example in a headless runner):
 
@@ -114,6 +123,13 @@ To publish without the launch smoke test (for example in a headless runner):
 Copy the entire publish directory to the test computer and run
 `AssignmentNative.exe`. Web source scanning still requires the Microsoft Edge
 WebView2 Runtime on that computer.
+
+## Continuous integration
+
+`.github/workflows/windows.yml` runs the same script on a real GitHub-hosted
+`windows-2025` x64 runner and uploads the timestamped artifact. The workflow has
+not passed until its logs show the Core suite, WinUI publish, live process, and
+isolated database verification; macOS builds are never accepted as WinUI proof.
 
 ## macOS host limitation
 

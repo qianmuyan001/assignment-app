@@ -13,8 +13,16 @@ internal static class Program
         "Assignment tests UTC+08",
         "Assignment tests UTC+08");
 
-    public static int Main()
+    public static int Main(string[] args)
     {
+        if (args.Length > 0)
+        {
+            return args.Length == 2 &&
+                   string.Equals(args[0], "--verify-database", StringComparison.Ordinal)
+                ? VerifyDatabase(args[1])
+                : PrintUsage();
+        }
+
         var tests = new (string Name, Action Run)[]
         {
             ("add assignment", AddAssignment),
@@ -61,6 +69,125 @@ internal static class Program
         }
         Console.Error.WriteLine($"Failed: {string.Join(", ", failures)}");
         return 1;
+    }
+
+    private static int PrintUsage()
+    {
+        Console.Error.WriteLine(
+            "Usage: AssignmentNative.Core.Tests [--verify-database <absolute-path>]");
+        return 2;
+    }
+
+    private static int VerifyDatabase(string databasePath)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(databasePath);
+            if (!File.Exists(fullPath))
+            {
+                throw new TestFailureException(
+                    $"Smoke database was not created at {fullPath}.");
+            }
+
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = fullPath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Pooling = false
+            }.ToString());
+            connection.Open();
+
+            using var version = connection.CreateCommand();
+            version.CommandText = "PRAGMA user_version";
+            Equal(
+                AssignmentDatabase.CurrentSchemaVersion,
+                Convert.ToInt32(version.ExecuteScalar(), CultureInfo.InvariantCulture));
+
+            using var integrity = connection.CreateCommand();
+            integrity.CommandText = "PRAGMA quick_check";
+            Equal(
+                "ok",
+                Convert.ToString(integrity.ExecuteScalar(), CultureInfo.InvariantCulture));
+
+            var expectedColumns = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "id", "course_name", "title", "due_date", "description", "link",
+                "status", "priority", "source_name", "source_type", "source_file",
+                "source_url", "created_at", "updated_at"
+            };
+            using var columnsCommand = connection.CreateCommand();
+            columnsCommand.CommandText =
+                "SELECT name FROM pragma_table_info('assignments') ORDER BY name";
+            var actualColumns = new HashSet<string>(StringComparer.Ordinal);
+            using (var reader = columnsCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    actualColumns.Add(reader.GetString(0));
+                }
+            }
+            if (!actualColumns.SetEquals(expectedColumns))
+            {
+                throw new TestFailureException(
+                    "Smoke database assignments columns differ from the complete v2 contract. " +
+                    $"Expected: {string.Join(", ", expectedColumns.Order())}; " +
+                    $"actual: {string.Join(", ", actualColumns.Order())}.");
+            }
+
+            var expectedIndexes = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["ix_assignments_course_name"] = "course_name",
+                ["ix_assignments_due_date"] = "due_date",
+                ["ix_assignments_priority"] = "priority",
+                ["ix_assignments_status"] = "status"
+            };
+            using var indexesCommand = connection.CreateCommand();
+            indexesCommand.CommandText =
+                "SELECT name FROM pragma_index_list('assignments') WHERE origin = 'c'";
+            var actualIndexes = new HashSet<string>(StringComparer.Ordinal);
+            using (var reader = indexesCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    actualIndexes.Add(reader.GetString(0));
+                }
+            }
+            if (!expectedIndexes.Keys.ToHashSet(StringComparer.Ordinal).IsSubsetOf(actualIndexes))
+            {
+                throw new TestFailureException(
+                    "Smoke database is missing required v2 assignments indexes. " +
+                    $"Expected: {string.Join(", ", expectedIndexes.Keys.Order())}; " +
+                    $"actual: {string.Join(", ", actualIndexes.Order())}.");
+            }
+            foreach (var (indexName, expectedColumn) in expectedIndexes)
+            {
+                using var indexInfo = connection.CreateCommand();
+                indexInfo.CommandText = "SELECT name FROM pragma_index_info($index) ORDER BY seqno";
+                indexInfo.Parameters.AddWithValue("$index", indexName);
+                var indexedColumns = new List<string>();
+                using var reader = indexInfo.ExecuteReader();
+                while (reader.Read())
+                {
+                    indexedColumns.Add(reader.GetString(0));
+                }
+                if (!indexedColumns.SequenceEqual([expectedColumn]))
+                {
+                    throw new TestFailureException(
+                        $"Smoke database index {indexName} must target only {expectedColumn}; " +
+                        $"actual: {string.Join(", ", indexedColumns)}.");
+                }
+            }
+
+            Console.WriteLine(
+                $"PASS  launch smoke database (schema v{AssignmentDatabase.CurrentSchemaVersion}, " +
+                $"quick_check ok, {actualColumns.Count} columns, {actualIndexes.Count} indexes)");
+            return 0;
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"FAIL  launch smoke database\n{error}");
+            return 1;
+        }
     }
 
     private static void AddAssignment()
@@ -433,8 +560,8 @@ internal static class Program
         var fixturePath = FindSharedFixture();
         if (fixturePath is null)
         {
-            Console.WriteLine("SKIP  shared fixture not present yet");
-            return;
+            throw new TestFailureException(
+                "Shared conformance fixture was not found; the cross-platform contract cannot be verified.");
         }
 
         using var document = JsonDocument.Parse(File.ReadAllText(fixturePath));
@@ -659,14 +786,9 @@ internal static class Program
                     var preferred = Path.Combine(
                         fixtureDirectory,
                         "task-conformance-v2.json");
-                    var fixture = File.Exists(preferred)
-                        ? preferred
-                        : Directory.EnumerateFiles(fixtureDirectory, "*.json")
-                        .OrderBy(path => path, StringComparer.Ordinal)
-                        .FirstOrDefault();
-                    if (fixture is not null)
+                    if (File.Exists(preferred))
                     {
-                        return fixture;
+                        return preferred;
                     }
                 }
                 directory = directory.Parent;

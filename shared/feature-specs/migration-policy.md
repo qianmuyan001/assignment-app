@@ -1,4 +1,40 @@
-# SQLite v1 to v2 migration policy
+# SQLite migration policy
+
+## v2 to v3
+
+- The platform migration runner acquires its cross-process migration lock,
+  enables foreign keys on connection A, starts `BEGIN IMMEDIATE`, and rechecks
+  the source version before any write or DDL.
+- While connection A holds that write reservation but has not changed data,
+  read-only connection B creates a uniquely named, standalone backup with
+  SQLite Online Backup and verifies `integrity_check=ok`. The lock remains held
+  through commit or restoration, so another process cannot restore a stale v2
+  backup over a completed v3 migration.
+- `shared.schema_v3.migrate_v2_to_v3` performs schema changes and validation on
+  connection A but never begins, commits, rolls back, opens a file, or creates a
+  backup.
+- `assignments` is upgraded only through additive `ALTER TABLE` statements.
+  Unknown columns, indexes, triggers, row IDs, and every v2 field value remain.
+  Existing assignment triggers are captured, suspended during the derived-field
+  backfill to avoid user-visible side effects, and recreated with their original
+  SQL inside the same transaction.
+- The transaction creates one production-random database instance UUID v4.
+  Migrated UUIDs use it as their UUID v5 namespace and follow the seeded test
+  vectors in `shared/fixtures/task-organization-v3.json`. Database copies retain
+  that lineage value; independent databases must not share it. Courses merge
+  only when their original stored `course_name` values are exactly equal.
+- `due_date` and all v2 audit text are copied without parsing or conversion.
+  Migrated rows use `timezone_id=NULL`.
+- Before commit, compare the complete ordered v2 payload, verify derived v3
+  fields, required objects, UUIDs, foreign keys, attachment metadata,
+  progress/state invariants, `integrity_check`, and `user_version=3`.
+- Any error rolls back the entire transaction. The platform runner then restores
+  the original with SQLite Online Backup, validates that restoration, preserves
+  the independent backup, raises a fatal migration error, and stops startup.
+- Tests use a new temporary database or a private database copy. Never attach a
+  test runner to the configured user or repository database.
+
+## v1 to v2 compatibility step
 
 - A database with an `assignments` table and `PRAGMA user_version = 0` is the
   historical 1.0 schema and is treated as version 1.
@@ -19,5 +55,7 @@
 - Never run migration tests against the configured user database. Tests create
   disposable SQLite files and may set `ASSIGNMENT_DB_PATH` to an isolated path.
 
-The executable runner is `backend/app/database.py`; the SQL file in
-`shared/migrations` is reference DDL only.
+The current v1-to-v2 executable runner is `backend/app/database.py`. A platform
+moving directly from v1 to v3 first establishes and validates v2 inside the
+same protected migration workflow, then invokes the v3 primitive. SQL files in
+`shared/migrations` are reference DDL only.

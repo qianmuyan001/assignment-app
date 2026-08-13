@@ -1,0 +1,56 @@
+name: Windows x64
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-publish:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Record Windows toolchain
+        shell: pwsh
+        run: |
+          dotnet --info
+          Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+
+      - name: Check cross-platform version metadata
+        run: python scripts/check_version_sync.py
+
+      - name: Test, publish, and launch-smoke x64
+        shell: pwsh
+        run: ./native/windows/publish-x64.ps1 -RequireCleanTree
+
+      - name: Upload Windows x64 package and evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-app-windows-x64-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: artifacts/windows/**
+
+      - name: Upload Windows failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-app-windows-x64-diagnostics-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: artifacts/windows/**/logs/**
