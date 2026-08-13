@@ -25,10 +25,10 @@ public sealed class SecureBrowserService
             "AssignmentNative",
             "WebView2");
         Directory.CreateDirectory(userDataFolder);
-        var environment = await CoreWebView2Environment.CreateAsync(
-            null,
+        var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
+            string.Empty,
             userDataFolder,
-            null);
+            new CoreWebView2EnvironmentOptions());
         await _webView.EnsureCoreWebView2Async(environment);
         _webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
