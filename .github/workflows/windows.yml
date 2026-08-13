@@ -33,9 +33,12 @@ jobs:
       - name: Check cross-platform version metadata
         run: python scripts/check_version_sync.py
 
-      - name: Test, publish, and launch-smoke x64
+      - name: Test and publish x64
         shell: pwsh
-        run: ./native/windows/publish-x64.ps1 -RequireCleanTree
+        # GitHub-hosted runners run in a non-interactive service session, which
+        # cannot provide a valid WinUI desktop window station. Keep interactive
+        # launch acceptance on a signed-in Windows x64 machine.
+        run: ./native/windows/publish-x64.ps1 -RequireCleanTree -SkipSmokeTest
 
       - name: Upload Windows x64 package and evidence
         if: success()

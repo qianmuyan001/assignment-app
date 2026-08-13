@@ -161,10 +161,12 @@ WebView2 Runtime on that computer.
 
 ## Continuous integration
 
-`.github/workflows/windows.yml` runs the same script on a real GitHub-hosted
-`windows-2025` x64 runner and uploads the timestamped artifact. The workflow has
-not passed until its logs show the Core suite, WinUI publish, live process, and
-isolated database verification; macOS builds are never accepted as WinUI proof.
+`.github/workflows/windows.yml` runs the script with `-SkipSmokeTest` on a real
+GitHub-hosted `windows-2025` x64 runner and uploads the timestamped artifact.
+That proves the Core suite and WinUI publish on Windows, but the hosted runner's
+non-interactive service session is not a valid GUI launch environment. Live
+process and isolated database verification remain a separate signed-in Windows
+x64 acceptance gate; macOS builds are never accepted as WinUI proof.
 
 ## macOS host limitation
 

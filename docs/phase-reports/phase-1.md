@@ -207,9 +207,9 @@ artifact; it must not be described or distributed as Phase 1 evidence.
 
 ## Remaining external gates
 
-1. Run the Windows workflow or `publish-x64.ps1` on real Windows x64 and retain
-   the Core, WinUI publish, launch, database-smoke, architecture, hash, and
-   Authenticode evidence.
+1. Run the Windows workflow to retain Core, WinUI publish, architecture, hash,
+   and Authenticode evidence; separately run `publish-x64.ps1` in a signed-in
+   Windows x64 desktop session to retain launch and database-smoke evidence.
 2. Rerun all 46 current-source iPad unit tests after the Xcode 27 beta Simulator
    can materialize test workers; the current attempts executed zero tests.
 3. After reconciling the externally created local commit and remaining dirty

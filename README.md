@@ -124,7 +124,8 @@ Three workflows define the Phase 0 gates:
 - `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
   clean-tree packaging, signature checks, and packaged-app database smoke.
 - `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,
-  isolated launch/database smoke, and artifact upload.
+  and artifact upload. Interactive launch/database smoke remains a separate
+  signed-in Windows acceptance gate because hosted runners are headless.
 
 Adding a workflow is not proof that it passed. A platform is accepted only when
 the workflow or a matching local environment produces logs and an artifact whose
