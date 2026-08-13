@@ -3,7 +3,32 @@ import SQLite3
 
 
 final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendable {
-    static let databaseVersion: Int32 = 2
+    static let databaseVersion: Int32 = 3
+
+    #if DEBUG
+    /// Unit-test host applications are constructed before XCTest can run a
+    /// test-level `setUp`. Keep the host's implicit repository away from every
+    /// user database at the earliest possible default-path lookup.
+    private static let xctestHostRootURL: URL = {
+        URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+            .appendingPathComponent(
+                "assignment-app-xctest-\(ProcessInfo.processInfo.processIdentifier)-"
+                    + UUID().uuidString.lowercased(),
+                isDirectory: true
+            )
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+    }()
+
+    private static let xctestHostDatabaseURL: URL = {
+        let url = xctestHostRootURL
+            .appendingPathComponent("assignments.db", isDirectory: false)
+        FileHandle.standardError.write(
+            Data("assignment_xctest_database_path=\(url.path)\n".utf8)
+        )
+        return url
+    }()
+    #endif
 
     let databaseURL: URL
     let lastMigrationResult: MigrationResult
@@ -21,17 +46,20 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
     /// before final validation and commit to prove backup restoration.
     init(
         databaseURL: URL,
-        migrationFailureInjector: (() throws -> Void)?
+        migrationFailureInjector: (() throws -> Void)?,
+        databaseInstanceUUID: UUID? = nil
     ) throws {
         self.databaseURL = databaseURL.standardizedFileURL
+        Self.preconditionSafeTestDatabaseURL(self.databaseURL)
         try FileManager.default.createDirectory(
             at: self.databaseURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        self.lastMigrationResult = try Self.prepareDatabase(
+        self.lastMigrationResult = try MigrationCoordinator.prepareDatabase(
             at: self.databaseURL,
-            migrationFailureInjector: migrationFailureInjector
+            migrationFailureInjector: migrationFailureInjector,
+            databaseInstanceUUID: databaseInstanceUUID
         )
 
         let opened = try Self.openConnection(at: self.databaseURL)
@@ -66,10 +94,12 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
             let database = try requireDatabase()
             let statement = try Self.prepare(
                 """
-                SELECT id, course_name, title, due_date, description, link,
+                SELECT id, uuid, course_name, title, due_date, description, link,
                        status, priority, source_name, source_type, source_file,
-                       source_url, created_at, updated_at
+                       source_url, created_at, updated_at, course_id, project_id,
+                       completed_at, progress_percent, all_day, timezone_id, deleted_at
                 FROM assignments
+                WHERE deleted_at IS NULL
                 ORDER BY id ASC
                 """,
                 on: database
@@ -94,42 +124,59 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
         let draft = try draft.validated()
         return try lock.withLock {
             let database = try requireDatabase()
-            let statement = try Self.prepare(
-                """
-                INSERT INTO assignments (
-                    course_name, title, due_date, description, link, status,
-                    priority, source_name, source_type, source_file, source_url,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                on: database
-            )
-            defer { sqlite3_finalize(statement) }
-
-            let now = Date()
-            Self.bind(draft.courseName, to: statement, index: 1)
-            Self.bind(draft.title, to: statement, index: 2)
-            Self.bind(
-                draft.dueDate.map { LocalWallTime.string(from: $0) },
-                to: statement,
-                index: 3
-            )
-            Self.bind(draft.assignmentDescription.nilIfEmpty, to: statement, index: 4)
-            Self.bind(draft.link.nilIfEmpty, to: statement, index: 5)
-            Self.bind(draft.status.storageValue, to: statement, index: 6)
-            Self.bind(draft.priority.rawValue, to: statement, index: 7)
-            Self.bind(draft.sourceName.nilIfEmpty, to: statement, index: 8)
-            Self.bind(draft.sourceType.nilIfEmpty, to: statement, index: 9)
-            Self.bind(draft.sourceFile.nilIfEmpty, to: statement, index: 10)
-            Self.bind(draft.sourceURL.nilIfEmpty, to: statement, index: 11)
-            Self.bind(DatabaseTimestamp.string(from: now), to: statement, index: 12)
-            Self.bind(DatabaseTimestamp.string(from: now), to: statement, index: 13)
-
-            guard sqlite3_step(statement) == SQLITE_DONE else {
-                throw AssignmentRepositoryError.execute(Self.message(from: database))
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let courseID = try Self.resolveCourseID(
+                    named: draft.courseName,
+                    preferredID: nil,
+                    on: database
+                )
+                let statement = try Self.prepare(
+                    """
+                    INSERT INTO assignments (
+                        uuid, course_name, title, due_date, description, link, status,
+                        priority, source_name, source_type, source_file, source_url,
+                        created_at, updated_at, course_id, project_id, completed_at,
+                        progress_percent, all_day, timezone_id, deleted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 0, NULL, NULL)
+                    """,
+                    on: database
+                )
+                defer { sqlite3_finalize(statement) }
+                let now = Date()
+                let timestamp = DatabaseTimestamp.string(from: now)
+                Self.bind(UUID().canonicalString, to: statement, index: 1)
+                Self.bind(draft.courseName, to: statement, index: 2)
+                Self.bind(draft.title, to: statement, index: 3)
+                Self.bind(
+                    draft.dueDate.map { LocalWallTime.string(from: $0) },
+                    to: statement,
+                    index: 4
+                )
+                Self.bind(draft.assignmentDescription.nilIfEmpty, to: statement, index: 5)
+                Self.bind(draft.link.nilIfEmpty, to: statement, index: 6)
+                Self.bind(draft.status.storageValue, to: statement, index: 7)
+                Self.bind(draft.priority.rawValue, to: statement, index: 8)
+                Self.bind(draft.sourceName.nilIfEmpty, to: statement, index: 9)
+                Self.bind(draft.sourceType.nilIfEmpty, to: statement, index: 10)
+                Self.bind(draft.sourceFile.nilIfEmpty, to: statement, index: 11)
+                Self.bind(draft.sourceURL.nilIfEmpty, to: statement, index: 12)
+                Self.bind(timestamp, to: statement, index: 13)
+                Self.bind(timestamp, to: statement, index: 14)
+                sqlite3_bind_int64(statement, 15, courseID)
+                Self.bind(draft.status == .done ? timestamp : nil, to: statement, index: 16)
+                sqlite3_bind_int(statement, 17, draft.status == .done ? 100 : 0)
+                guard sqlite3_step(statement) == SQLITE_DONE else {
+                    throw AssignmentRepositoryError.execute(Self.message(from: database))
+                }
+                let id = sqlite3_last_insert_rowid(database)
+                let created = try Self.fetch(id: id, on: database)
+                try Self.execute("COMMIT", on: database)
+                return created
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            let id = sqlite3_last_insert_rowid(database)
-            return try Self.fetch(id: id, on: database)
         }
     }
 
@@ -138,60 +185,201 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
         let draft = try AssignmentDraft(assignment: assignment).validated()
         return try lock.withLock {
             let database = try requireDatabase()
-            let statement = try Self.prepare(
-                """
-                UPDATE assignments
-                SET course_name = ?, title = ?, due_date = ?, description = ?,
-                    link = ?, status = ?, priority = ?, source_name = ?,
-                    source_type = ?, source_file = ?, source_url = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                on: database
-            )
-            defer { sqlite3_finalize(statement) }
-
-            Self.bind(draft.courseName, to: statement, index: 1)
-            Self.bind(draft.title, to: statement, index: 2)
-            Self.bind(
-                draft.dueDate.map { LocalWallTime.string(from: $0) },
-                to: statement,
-                index: 3
-            )
-            Self.bind(draft.assignmentDescription.nilIfEmpty, to: statement, index: 4)
-            Self.bind(draft.link.nilIfEmpty, to: statement, index: 5)
-            Self.bind(draft.status.storageValue, to: statement, index: 6)
-            Self.bind(draft.priority.rawValue, to: statement, index: 7)
-            Self.bind(draft.sourceName.nilIfEmpty, to: statement, index: 8)
-            Self.bind(draft.sourceType.nilIfEmpty, to: statement, index: 9)
-            Self.bind(draft.sourceFile.nilIfEmpty, to: statement, index: 10)
-            Self.bind(draft.sourceURL.nilIfEmpty, to: statement, index: 11)
-            Self.bind(DatabaseTimestamp.string(from: Date()), to: statement, index: 12)
-            sqlite3_bind_int64(statement, 13, assignment.id)
-
-            guard sqlite3_step(statement) == SQLITE_DONE else {
-                throw AssignmentRepositoryError.execute(Self.message(from: database))
+            guard !assignment.allDay || draft.dueDate != nil else {
+                throw AssignmentRepositoryError.corruptData(
+                    "An all-day task must have a due date."
+                )
             }
-            guard sqlite3_changes(database) == 1 else {
-                throw AssignmentRepositoryError.notFound(assignment.id)
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let current = try Self.fetch(id: assignment.id, on: database)
+                let effectiveTimeZone = try Self.validatedTimeZone(
+                    identifier: assignment.timeZoneIdentifier
+                )
+                let courseID = try Self.resolveCourseID(
+                    named: draft.courseName,
+                    preferredID: assignment.courseID,
+                    on: database
+                )
+                try Self.validateProject(
+                    assignment.projectID,
+                    courseID: courseID,
+                    on: database
+                )
+                let timestamp = DatabaseTimestamp.string(from: Date())
+                let childCount = try TaskProgressPersistence.activeSubtaskCount(
+                    assignmentID: assignment.id,
+                    on: database
+                )
+                let finalState: TaskProgressPersistence.ParentState
+                if childCount > 0 {
+                    if assignment.status != current.status {
+                        finalState = try TaskProgressPersistence.applyParentStatusCommand(
+                            assignmentID: assignment.id,
+                            status: assignment.status,
+                            timestamp: timestamp,
+                            on: database
+                        )
+                    } else {
+                        guard let derived = try TaskProgressPersistence.derivedState(
+                            assignmentID: assignment.id,
+                            on: database,
+                            completionTimestamp: timestamp
+                        ) else {
+                            throw AssignmentRepositoryError.corruptData(
+                                "Active subtasks disappeared during task update."
+                            )
+                        }
+                        guard assignment.progressPercent == derived.progressPercent else {
+                            throw AssignmentRepositoryError.validation(
+                                "Task progress is derived from active subtasks and cannot conflict."
+                            )
+                        }
+                        finalState = derived
+                    }
+                } else {
+                    finalState = try Self.independentParentState(
+                        requested: assignment,
+                        current: current,
+                        timestamp: timestamp
+                    )
+                }
+                let statement = try Self.prepare(
+                    """
+                    UPDATE assignments
+                    SET course_name = ?, title = ?, due_date = ?, description = ?,
+                        link = ?, status = ?, priority = ?, source_name = ?,
+                        source_type = ?, source_file = ?, source_url = ?, updated_at = ?,
+                        course_id = ?, project_id = ?, completed_at = ?,
+                        progress_percent = ?, all_day = ?, timezone_id = ?
+                    WHERE id = ? AND deleted_at IS NULL
+                    """,
+                    on: database
+                )
+                defer { sqlite3_finalize(statement) }
+                Self.bind(draft.courseName, to: statement, index: 1)
+                Self.bind(draft.title, to: statement, index: 2)
+                Self.bind(
+                    try Self.storedDueDateText(
+                        date: draft.dueDate,
+                        originalText: assignment.storedDueDateText,
+                        originalDate: assignment.storedDueDateValue,
+                        timeZone: effectiveTimeZone
+                    ),
+                    to: statement,
+                    index: 3
+                )
+                Self.bind(draft.assignmentDescription.nilIfEmpty, to: statement, index: 4)
+                Self.bind(draft.link.nilIfEmpty, to: statement, index: 5)
+                Self.bind(finalState.status.storageValue, to: statement, index: 6)
+                Self.bind(draft.priority.rawValue, to: statement, index: 7)
+                Self.bind(draft.sourceName.nilIfEmpty, to: statement, index: 8)
+                Self.bind(draft.sourceType.nilIfEmpty, to: statement, index: 9)
+                Self.bind(draft.sourceFile.nilIfEmpty, to: statement, index: 10)
+                Self.bind(draft.sourceURL.nilIfEmpty, to: statement, index: 11)
+                Self.bind(timestamp, to: statement, index: 12)
+                sqlite3_bind_int64(statement, 13, courseID)
+                if let projectID = assignment.projectID {
+                    sqlite3_bind_int64(statement, 14, projectID)
+                } else {
+                    sqlite3_bind_null(statement, 14)
+                }
+                Self.bind(finalState.completedAt, to: statement, index: 15)
+                sqlite3_bind_int(statement, 16, Int32(finalState.progressPercent))
+                sqlite3_bind_int(statement, 17, assignment.allDay ? 1 : 0)
+                Self.bind(assignment.timeZoneIdentifier, to: statement, index: 18)
+                sqlite3_bind_int64(statement, 19, assignment.id)
+                guard sqlite3_step(statement) == SQLITE_DONE else {
+                    throw AssignmentRepositoryError.execute(Self.message(from: database))
+                }
+                guard sqlite3_changes(database) == 1 else {
+                    throw AssignmentRepositoryError.notFound(assignment.id)
+                }
+                let updated = try Self.fetch(id: assignment.id, on: database)
+                try Self.execute("COMMIT", on: database)
+                return updated
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            return try Self.fetch(id: assignment.id, on: database)
         }
     }
 
     func delete(id: Int64) throws {
         try lock.withLock {
             let database = try requireDatabase()
-            let statement = try Self.prepare(
-                "DELETE FROM assignments WHERE id = ?",
-                on: database
-            )
-            defer { sqlite3_finalize(statement) }
-            sqlite3_bind_int64(statement, 1, id)
-            guard sqlite3_step(statement) == SQLITE_DONE else {
-                throw AssignmentRepositoryError.execute(Self.message(from: database))
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let timestamp = DatabaseTimestamp.string(from: Date())
+                let statement = try Self.prepare(
+                    """
+                    UPDATE assignments
+                    SET deleted_at = ?, updated_at = ?
+                    WHERE id = ? AND deleted_at IS NULL
+                    """,
+                    on: database
+                )
+                Self.bind(timestamp, to: statement, index: 1)
+                Self.bind(timestamp, to: statement, index: 2)
+                sqlite3_bind_int64(statement, 3, id)
+                do { try SQLiteSupport.checkDone(statement, on: database) }
+                catch { sqlite3_finalize(statement); throw error }
+                sqlite3_finalize(statement)
+                guard sqlite3_changes(database) == 1 else {
+                    throw AssignmentRepositoryError.notFound(id)
+                }
+
+                let reminders = try Self.prepare(
+                    """
+                    UPDATE reminders SET is_enabled = 0, updated_at = ?
+                    WHERE assignment_id = ? AND deleted_at IS NULL
+                    """,
+                    on: database
+                )
+                Self.bind(timestamp, to: reminders, index: 1)
+                sqlite3_bind_int64(reminders, 2, id)
+                do { try SQLiteSupport.checkDone(reminders, on: database) }
+                catch { sqlite3_finalize(reminders); throw error }
+                sqlite3_finalize(reminders)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            guard sqlite3_changes(database) == 1 else {
-                throw AssignmentRepositoryError.notFound(id)
+        }
+    }
+
+    @discardableResult
+    func restore(id: Int64) throws -> Assignment {
+        try lock.withLock {
+            let database = try requireDatabase()
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                guard try Self.assignmentExists(id: id, on: database) else {
+                    throw AssignmentRepositoryError.notFound(id)
+                }
+                let timestamp = DatabaseTimestamp.string(from: Date())
+                let statement = try Self.prepare(
+                    "UPDATE assignments SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+                    on: database
+                )
+                Self.bind(timestamp, to: statement, index: 1)
+                sqlite3_bind_int64(statement, 2, id)
+                do { try SQLiteSupport.checkDone(statement, on: database) }
+                catch { sqlite3_finalize(statement); throw error }
+                sqlite3_finalize(statement)
+                _ = try TaskProgressPersistence.recalculateParent(
+                    assignmentID: id,
+                    resetWhenEmpty: false,
+                    timestamp: timestamp,
+                    on: database
+                )
+                let restored = try Self.fetch(id: id, on: database)
+                try Self.execute("COMMIT", on: database)
+                return restored
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
         }
     }
@@ -203,34 +391,40 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
     ) throws -> Assignment {
         try lock.withLock {
             let database = try requireDatabase()
-            let statement = try Self.prepare(
-                """
-                UPDATE assignments
-                SET status = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                on: database
-            )
-            defer { sqlite3_finalize(statement) }
-            Self.bind(status.storageValue, to: statement, index: 1)
-            Self.bind(DatabaseTimestamp.string(from: Date()), to: statement, index: 2)
-            sqlite3_bind_int64(statement, 3, id)
-            guard sqlite3_step(statement) == SQLITE_DONE else {
-                throw AssignmentRepositoryError.execute(Self.message(from: database))
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let timestamp = DatabaseTimestamp.string(from: Date())
+                _ = try TaskProgressPersistence.applyParentStatusCommand(
+                    assignmentID: id,
+                    status: status,
+                    timestamp: timestamp,
+                    on: database
+                )
+                let updated = try Self.fetch(id: id, on: database)
+                try Self.execute("COMMIT", on: database)
+                return updated
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            guard sqlite3_changes(database) == 1 else {
-                throw AssignmentRepositoryError.notFound(id)
-            }
-            return try Self.fetch(id: id, on: database)
         }
     }
 
     static func defaultDatabaseURL() -> URL {
         #if DEBUG
+        // XCTest host initialization can occur before test setUp. Ignore every
+        // caller-supplied environment override in a test process and use a
+        // unique process-owned /private/tmp directory instead.
+        if isRunningUnderXCTest {
+            preconditionSafeTestDatabaseURL(xctestHostDatabaseURL)
+            return xctestHostDatabaseURL
+        }
         if let override = ProcessInfo.processInfo.environment["ASSIGNMENT_DB_PATH"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !override.isEmpty {
-            return URL(fileURLWithPath: override)
+            let overrideURL = URL(fileURLWithPath: override).standardizedFileURL
+            preconditionSafeTestDatabaseURL(overrideURL)
+            return overrideURL
         }
         #endif
 
@@ -242,6 +436,46 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
             .appendingPathComponent("AssignmentApp2", isDirectory: true)
             .appendingPathComponent("assignments.db", isDirectory: false)
     }
+
+    static func preconditionSafeTestDatabaseURL(_ url: URL) {
+        #if DEBUG
+        guard isRunningUnderXCTest else { return }
+        let candidate = url.standardizedFileURL.resolvingSymlinksInPath()
+        let roots = [
+            xctestHostRootURL,
+            URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+                .standardizedFileURL.resolvingSymlinksInPath(),
+            FileManager.default.temporaryDirectory
+                .standardizedFileURL.resolvingSymlinksInPath(),
+        ]
+        let path = candidate.path
+        let isInsideDisposableRoot = roots.contains { root in
+            let rootPath = root.path
+            return path.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
+        }
+        precondition(
+            candidate.isFileURL && isInsideDisposableRoot,
+            "XCTest database paths must resolve inside the process test root or /private/tmp: "
+                + path
+        )
+        #endif
+    }
+
+    #if DEBUG
+    private static var isRunningUnderXCTest: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        if environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || environment["XCInjectBundleInto"] != nil {
+            return true
+        }
+        if environment["DYLD_INSERT_LIBRARIES"]?
+            .localizedCaseInsensitiveContains("xctest") == true {
+            return true
+        }
+        return NSClassFromString("XCTestCase") != nil
+    }
+    #endif
 
     private func requireDatabase() throws -> OpaquePointer {
         guard let database else {
@@ -255,32 +489,163 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
 // MARK: - Row mapping
 
 private extension SQLiteAssignmentRepository {
+    static func validatedTimeZone(identifier: String?) throws -> TimeZone {
+        guard let identifier else { return .current }
+        guard !identifier.isEmpty, let timeZone = TimeZone(identifier: identifier) else {
+            throw AssignmentRepositoryError.validation(
+                "Task timezone_id must be a valid IANA timezone identifier."
+            )
+        }
+        return timeZone
+    }
+
+    static func storedDueDateText(
+        date: Date?,
+        originalText: String?,
+        originalDate: Date?,
+        timeZone: TimeZone
+    ) throws -> String? {
+        guard let date else { return nil }
+        if let originalText, originalDate == date {
+            return originalText
+        }
+        return LocalWallTime.string(from: date, timeZone: timeZone)
+    }
+
+    static func independentParentState(
+        requested: Assignment,
+        current: Assignment,
+        timestamp: String
+    ) throws -> TaskProgressPersistence.ParentState {
+        guard (0...100).contains(requested.progressPercent) else {
+            throw AssignmentRepositoryError.validation(
+                "Task progress must be between 0 and 100."
+            )
+        }
+
+        let status: AssignmentStatus
+        let progress: Int
+        if requested.status != current.status {
+            status = requested.status
+            switch status {
+            case .done:
+                progress = 100
+            case .todo:
+                progress = 0
+            case .inProgress:
+                progress = requested.progressPercent == 100
+                    ? 0
+                    : requested.progressPercent
+            }
+        } else if requested.progressPercent != current.progressPercent {
+            progress = requested.progressPercent
+            status = progress == 100 ? .done : (progress == 0 ? .todo : .inProgress)
+        } else {
+            status = current.status
+            progress = current.progressPercent
+        }
+        let completedAt = status == .done
+            ? DatabaseTimestamp.string(
+                from: requested.completedAt ?? current.completedAt ?? Date()
+            )
+            : nil
+        return .init(
+            status: status,
+            progressPercent: progress,
+            completedAt: status == .done ? (completedAt ?? timestamp) : nil
+        )
+    }
+
+    static func validateProject(
+        _ projectID: Int64?,
+        courseID: Int64,
+        on database: OpaquePointer
+    ) throws {
+        guard let projectID else { return }
+        let statement = try prepare(
+            "SELECT course_id FROM projects WHERE id = ? AND deleted_at IS NULL",
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, projectID)
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_ROW else {
+            if result == SQLITE_DONE {
+                throw AssignmentRepositoryError.validation(
+                    "A task can only reference an active project."
+                )
+            }
+            throw AssignmentRepositoryError.execute(message(from: database))
+        }
+        if let projectCourseID = SQLiteSupport.int64(statement, 0),
+           projectCourseID != courseID {
+            throw AssignmentRepositoryError.validation(
+                "Task and project must reference the same course."
+            )
+        }
+    }
+
+    static func assignmentExists(id: Int64, on database: OpaquePointer) throws -> Bool {
+        let statement = try prepare(
+            "SELECT 1 FROM assignments WHERE id = ? LIMIT 1",
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, id)
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_ROW || result == SQLITE_DONE else {
+            throw AssignmentRepositoryError.execute(message(from: database))
+        }
+        return result == SQLITE_ROW
+    }
+
     static func assignment(from statement: OpaquePointer) throws -> Assignment {
-        guard let courseName = text(statement, 1),
-              let title = text(statement, 2),
-              let storedStatus = text(statement, 6),
-              let storedPriority = text(statement, 7) else {
+        guard let uuidText = text(statement, 1),
+              let uuid = UUID(uuidString: uuidText),
+              uuid.canonicalString == uuidText,
+              let courseName = text(statement, 2),
+              let title = text(statement, 3),
+              let storedStatus = text(statement, 7),
+              let storedPriority = text(statement, 8) else {
             throw AssignmentRepositoryError.corruptData(
                 "A required task field is NULL."
             )
         }
 
         do {
+            let timeZoneIdentifier = text(statement, 20)
+            let timeZone = try validatedTimeZone(identifier: timeZoneIdentifier)
+            let storedDueDateText = text(statement, 4)
+            let parsedDueDate = try storedDueDateText.map {
+                try LocalWallTime.legacyDate(from: $0, timeZone: timeZone)
+            }
             return Assignment(
                 id: sqlite3_column_int64(statement, 0),
+                uuid: uuid,
                 courseName: courseName,
                 title: title,
-                dueDate: try LocalWallTime.date(from: text(statement, 3)),
-                assignmentDescription: text(statement, 4),
-                link: text(statement, 5),
+                dueDate: parsedDueDate,
+                assignmentDescription: text(statement, 5),
+                link: text(statement, 6),
                 status: try AssignmentStatus(storageValue: storedStatus),
                 priority: try AssignmentPriority(storageValue: storedPriority),
-                sourceName: text(statement, 8),
-                sourceType: text(statement, 9),
-                sourceFile: text(statement, 10),
-                sourceURL: text(statement, 11),
-                createdAt: try DatabaseTimestamp.date(from: text(statement, 12)),
-                updatedAt: try DatabaseTimestamp.date(from: text(statement, 13))
+                sourceName: text(statement, 9),
+                sourceType: text(statement, 10),
+                sourceFile: text(statement, 11),
+                sourceURL: text(statement, 12),
+                createdAt: try DatabaseTimestamp.date(from: text(statement, 13)),
+                updatedAt: try DatabaseTimestamp.date(from: text(statement, 14)),
+                courseID: sqlite3_column_type(statement, 15) == SQLITE_NULL
+                    ? nil : sqlite3_column_int64(statement, 15),
+                projectID: sqlite3_column_type(statement, 16) == SQLITE_NULL
+                    ? nil : sqlite3_column_int64(statement, 16),
+                completedAt: try text(statement, 17).map { try DatabaseTimestamp.date(from: $0) },
+                progressPercent: Int(sqlite3_column_int(statement, 18)),
+                allDay: sqlite3_column_int(statement, 19) == 1,
+                timeZoneIdentifier: timeZoneIdentifier,
+                deletedAt: try text(statement, 21).map { try DatabaseTimestamp.date(from: $0) },
+                storedDueDateText: storedDueDateText,
+                storedDueDateValue: parsedDueDate
             )
         } catch let error as AssignmentRepositoryError {
             throw error
@@ -292,11 +657,12 @@ private extension SQLiteAssignmentRepository {
     static func fetch(id: Int64, on database: OpaquePointer) throws -> Assignment {
         let statement = try prepare(
             """
-            SELECT id, course_name, title, due_date, description, link,
+            SELECT id, uuid, course_name, title, due_date, description, link,
                    status, priority, source_name, source_type, source_file,
-                   source_url, created_at, updated_at
+                   source_url, created_at, updated_at, course_id, project_id,
+                   completed_at, progress_percent, all_day, timezone_id, deleted_at
             FROM assignments
-            WHERE id = ?
+            WHERE id = ? AND deleted_at IS NULL
             """,
             on: database
         )
@@ -310,6 +676,61 @@ private extension SQLiteAssignmentRepository {
             throw AssignmentRepositoryError.execute(message(from: database))
         }
         return try assignment(from: statement)
+    }
+
+    static func resolveCourseID(
+        named name: String,
+        preferredID: Int64?,
+        on database: OpaquePointer
+    ) throws -> Int64 {
+        if let preferredID {
+            let preferred = try prepare(
+                "SELECT name FROM courses WHERE id = ? AND deleted_at IS NULL",
+                on: database
+            )
+            sqlite3_bind_int64(preferred, 1, preferredID)
+            let matches = sqlite3_step(preferred) == SQLITE_ROW
+                && text(preferred, 0) == name
+            sqlite3_finalize(preferred)
+            if matches { return preferredID }
+        }
+
+        let existing = try prepare(
+            """
+            SELECT id FROM courses
+            WHERE name = ? AND deleted_at IS NULL
+            ORDER BY id LIMIT 1
+            """,
+            on: database
+        )
+        bind(name, to: existing, index: 1)
+        if sqlite3_step(existing) == SQLITE_ROW {
+            let id = sqlite3_column_int64(existing, 0)
+            sqlite3_finalize(existing)
+            return id
+        }
+        sqlite3_finalize(existing)
+
+        let timestamp = DatabaseTimestamp.string(from: Date())
+        let normalized = SharedIdentity.canonicalName(name)
+        let insert = try prepare(
+            """
+            INSERT INTO courses (
+                uuid, name, normalized_name, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            on: database
+        )
+        defer { sqlite3_finalize(insert) }
+        bind(UUID().canonicalString, to: insert, index: 1)
+        bind(name, to: insert, index: 2)
+        bind(normalized, to: insert, index: 3)
+        bind(timestamp, to: insert, index: 4)
+        bind(timestamp, to: insert, index: 5)
+        guard sqlite3_step(insert) == SQLITE_DONE else {
+            throw AssignmentRepositoryError.execute(message(from: database))
+        }
+        return sqlite3_last_insert_rowid(database)
     }
 }
 
@@ -348,7 +769,7 @@ private extension SQLiteAssignmentRepository {
                 toVersion: databaseVersion,
                 migrated: true,
                 backupURL: nil,
-                strategy: .create
+                strategy: .createV3
             )
         }
 
@@ -466,11 +887,11 @@ private extension SQLiteAssignmentRepository {
             let strategy: MigrationStrategy
             if try requiresRebuild(columns: columns, on: database) {
                 try rebuildAssignments(columns: columns, on: database)
-                strategy = .rebuild
+                strategy = .v1RebuildToV3
             } else {
                 try addV2Columns(columns: columns, on: database)
                 try createIndexes(on: database)
-                strategy = .additive
+                strategy = .v1AdditiveToV3
             }
 
             try normalizeLegacyDueDates(on: database)
@@ -702,36 +1123,19 @@ private extension SQLiteAssignmentRepository {
             "SELECT id, due_date FROM assignments WHERE due_date IS NOT NULL",
             on: database
         )
-        var normalized: [(Int64, String)] = []
+        defer { sqlite3_finalize(query) }
         var result = sqlite3_step(query)
         while result == SQLITE_ROW {
-            let id = sqlite3_column_int64(query, 0)
             guard let stored = text(query, 1) else {
-                sqlite3_finalize(query)
                 throw DatabaseMigrationError("A non-null due date could not be read.")
             }
-            let date = try LocalWallTime.legacyDate(from: stored)
-            normalized.append((id, LocalWallTime.string(from: date)))
+            // Parse only. Legacy wall-time text is user data and must remain
+            // byte-for-byte unchanged until the user edits that due date.
+            _ = try LocalWallTime.legacyDate(from: stored)
             result = sqlite3_step(query)
         }
-        sqlite3_finalize(query)
         guard result == SQLITE_DONE else {
             throw AssignmentRepositoryError.execute(message(from: database))
-        }
-
-        let update = try prepare(
-            "UPDATE assignments SET due_date = ? WHERE id = ?",
-            on: database
-        )
-        defer { sqlite3_finalize(update) }
-        for (id, dueDate) in normalized {
-            sqlite3_reset(update)
-            sqlite3_clear_bindings(update)
-            bind(dueDate, to: update, index: 1)
-            sqlite3_bind_int64(update, 2, id)
-            guard sqlite3_step(update) == SQLITE_DONE else {
-                throw AssignmentRepositoryError.execute(message(from: database))
-            }
         }
     }
 
@@ -892,13 +1296,12 @@ private extension SQLiteAssignmentRepository {
         defer { sqlite3_finalize(statement) }
         var result = sqlite3_step(statement)
         while result == SQLITE_ROW {
-            guard let value = text(statement, 0),
-                  let date = try LocalWallTime.date(from: value),
-                  LocalWallTime.string(from: date) == value else {
+            guard let value = text(statement, 0) else {
                 throw DatabaseMigrationError(
                     "Database v2 contains a due date outside the local-wall-time contract."
                 )
             }
+            _ = try LocalWallTime.legacyDate(from: value)
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else {
@@ -1216,6 +1619,58 @@ private extension SQLiteAssignmentRepository {
         if result == SQLITE_ROW { return true }
         if result == SQLITE_DONE { return false }
         throw AssignmentRepositoryError.execute(message(from: database))
+    }
+}
+
+
+// Internal transaction-owned v1/v2 primitives used only by MigrationCoordinator.
+// The coordinator owns BEGIN/COMMIT, the online backup, locking, and recovery.
+extension SQLiteAssignmentRepository {
+    static func createV2SchemaInCurrentTransaction(on database: OpaquePointer) throws {
+        // A fresh database uses v2 only as the transaction-local structural
+        // seed required by the additive v3 migration. Do not create the three
+        // obsolete v2-only lookup indexes here: canonical fresh and canonical
+        // migrated v3 databases must both contain exactly the shared v3 index
+        // set. Final v3 validation is the authoritative validation for this
+        // no-user-data path.
+        try createAssignmentsTable(on: database)
+        try execute("PRAGMA user_version = 2", on: database)
+    }
+
+    /// Returns true when the legacy table required a rebuild rather than an
+    /// additive v1-to-v2 upgrade.
+    static func migrateV1ToV2InCurrentTransaction(on database: OpaquePointer) throws -> Bool {
+        guard !(try tableExists("assignments_v1_migration", on: database)) else {
+            throw DatabaseMigrationError(
+                "Cannot migrate while assignments_v1_migration already exists."
+            )
+        }
+        let columns = try assignmentColumns(table: "assignments", on: database)
+        let missingRequired = Set(["id", "course_name", "title"]).subtracting(columns.keys)
+        guard missingRequired.isEmpty else {
+            throw DatabaseMigrationError(
+                "Legacy assignments table is missing required columns: "
+                    + missingRequired.sorted().joined(separator: ", ")
+            )
+        }
+        try validateLegacyValues(columns: columns, on: database)
+        let idsBefore = try assignmentIDs(on: database)
+        let rebuilt = try requiresRebuild(columns: columns, on: database)
+        if rebuilt {
+            try rebuildAssignments(columns: columns, on: database)
+        } else {
+            try addV2Columns(columns: columns, on: database)
+            try createIndexes(on: database)
+        }
+        try normalizeLegacyDueDates(on: database)
+        guard idsBefore == (try assignmentIDs(on: database)) else {
+            throw DatabaseMigrationError(
+                "Assignment identity validation failed during v1-to-v2 migration."
+            )
+        }
+        try validateV2Schema(on: database, requireVersion: false)
+        try execute("PRAGMA user_version = 2", on: database)
+        return rebuilt
     }
 }
 

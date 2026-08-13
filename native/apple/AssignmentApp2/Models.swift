@@ -172,6 +172,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
 struct Assignment: Identifiable, Hashable {
     let id: Int64
+    let uuid: UUID
     var courseName: String
     var title: String
     var dueDate: Date?
@@ -185,13 +186,24 @@ struct Assignment: Identifiable, Hashable {
     var sourceURL: String?
     var createdAt: Date
     var updatedAt: Date
-
-    var completedAt: Date? {
-        status == .done ? updatedAt : nil
-    }
+    var courseID: Int64?
+    var projectID: Int64?
+    var completedAt: Date?
+    var progressPercent: Int
+    var allDay: Bool
+    var timeZoneIdentifier: String?
+    var deletedAt: Date?
+    /// Original SQLite wall-time text. Reused only when it still represents
+    /// the unchanged `dueDate` loaded by the repository.
+    var storedDueDateText: String?
+    /// Parsed baseline paired with `storedDueDateText`. This is intentionally
+    /// not persisted; it prevents a timezone-only edit or a device timezone
+    /// change from rewriting legacy wall-time text.
+    var storedDueDateValue: Date?
 
     init(
         id: Int64,
+        uuid: UUID = UUID(),
         courseName: String,
         title: String,
         dueDate: Date? = nil,
@@ -204,9 +216,19 @@ struct Assignment: Identifiable, Hashable {
         sourceFile: String? = nil,
         sourceURL: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        courseID: Int64? = nil,
+        projectID: Int64? = nil,
+        completedAt: Date? = nil,
+        progressPercent: Int? = nil,
+        allDay: Bool = false,
+        timeZoneIdentifier: String? = nil,
+        deletedAt: Date? = nil,
+        storedDueDateText: String? = nil,
+        storedDueDateValue: Date? = nil
     ) {
         self.id = id
+        self.uuid = uuid
         self.courseName = courseName
         self.title = title
         self.dueDate = dueDate
@@ -220,6 +242,15 @@ struct Assignment: Identifiable, Hashable {
         self.sourceURL = sourceURL
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.courseID = courseID
+        self.projectID = projectID
+        self.completedAt = completedAt ?? (status == .done ? updatedAt : nil)
+        self.progressPercent = progressPercent ?? (status == .done ? 100 : 0)
+        self.allDay = allDay
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.deletedAt = deletedAt
+        self.storedDueDateText = storedDueDateText
+        self.storedDueDateValue = storedDueDateValue
     }
 }
 
@@ -416,8 +447,9 @@ enum LocalWallTime {
         return date
     }
 
-    /// v1 SQLAlchemy databases may include fractional seconds. The migration
-    /// accepts that one legacy representation and rewrites it to canonical v2.
+    /// v1 SQLAlchemy databases may include fractional seconds, and historical
+    /// local wall times may fall inside a daylight-saving gap. Both forms stay
+    /// readable so an unrelated edit can preserve the stored text verbatim.
     static func legacyDate(
         from value: String,
         timeZone: TimeZone = .current
@@ -426,20 +458,98 @@ enum LocalWallTime {
             return canonical
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.range(of: legacyFractionPattern, options: .regularExpression) != nil else {
+        let isCanonical = trimmed.range(
+            of: canonicalPattern,
+            options: .regularExpression
+        ) != nil
+        let isLegacyFraction = trimmed.range(
+            of: legacyFractionPattern,
+            options: .regularExpression
+        ) != nil
+        guard isCanonical || isLegacyFraction else {
             if containsOffset(in: trimmed) {
                 throw AssignmentDataError.offsetBearingLocalWallTime(trimmed)
             }
             throw AssignmentDataError.invalidLocalWallTime(trimmed)
         }
-        let normalized = trimmed.replacingOccurrences(of: "T", with: " ")
-        guard let date = formatter(
-            format: "yyyy-MM-dd HH:mm:ss.SSSSSS",
-            timeZone: timeZone
-        ).date(from: normalized) else {
+        guard let date = compatibilityDate(from: trimmed, timeZone: timeZone) else {
             throw AssignmentDataError.invalidLocalWallTime(trimmed)
         }
         return date
+    }
+
+    private static func compatibilityDate(
+        from value: String,
+        timeZone: TimeZone
+    ) -> Date? {
+        let normalized = value.replacingOccurrences(of: "T", with: " ")
+        let parts = normalized.split(separator: " ", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+        let dateParts = parts[0].split(separator: "-", omittingEmptySubsequences: false)
+        let timeAndFraction = parts[1].split(
+            separator: ".",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        )
+        let timeParts = timeAndFraction[0].split(
+            separator: ":",
+            omittingEmptySubsequences: false
+        )
+        guard dateParts.count == 3, (2...3).contains(timeParts.count),
+              let year = Int(dateParts[0]),
+              let month = Int(dateParts[1]),
+              let day = Int(dateParts[2]),
+              let hour = Int(timeParts[0]),
+              let minute = Int(timeParts[1]),
+              let second = timeParts.count == 3 ? Int(timeParts[2]) : 0 else {
+            return nil
+        }
+
+        var validation = Calendar(identifier: .gregorian)
+        validation.timeZone = TimeZone(secondsFromGMT: 0)!
+        let fields: Set<Calendar.Component> = [
+            .year, .month, .day, .hour, .minute, .second,
+        ]
+        var components = DateComponents(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second
+        )
+        guard let validationDate = validation.date(from: components),
+              validation.dateComponents(fields, from: validationDate) == components else {
+            return nil
+        }
+
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = timeZone
+        components.calendar = local
+        components.timeZone = timeZone
+        let dayStartComponents = DateComponents(year: year, month: month, day: day)
+        guard let dayStart = local.date(from: dayStartComponents),
+              let localDate = local.nextDate(
+                  after: dayStart.addingTimeInterval(-1),
+                  matching: DateComponents(hour: hour, minute: minute, second: second),
+                  matchingPolicy: .nextTimePreservingSmallerComponents,
+                  repeatedTimePolicy: .first,
+                  direction: .forward
+              ) else {
+            return nil
+        }
+        guard local.dateComponents([.year, .month, .day], from: localDate)
+            == DateComponents(year: year, month: month, day: day) else {
+            return nil
+        }
+        guard timeAndFraction.count == 2 else { return localDate }
+        let rawFraction = String(timeAndFraction[1])
+        guard !rawFraction.isEmpty,
+              rawFraction.allSatisfy(\.isNumber),
+              let fraction = Double("0.\(rawFraction)") else {
+            return nil
+        }
+        return localDate.addingTimeInterval(fraction)
     }
 
     private static func formatter(format: String, timeZone: TimeZone) -> DateFormatter {
@@ -460,7 +570,7 @@ enum LocalWallTime {
 
 enum DatabaseTimestamp {
     static func string(from date: Date) -> String {
-        formatter().string(from: date)
+        formatter(format: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").string(from: date)
     }
 
     static func date(from value: String?) throws -> Date {
@@ -477,6 +587,11 @@ enum DatabaseTimestamp {
             if let parsed = formatter(format: format).date(from: trimmed) {
                 return parsed
             }
+        }
+        let fractionalISO = ISO8601DateFormatter()
+        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractionalISO.date(from: trimmed) {
+            return parsed
         }
         if let parsed = ISO8601DateFormatter().date(from: trimmed) {
             return parsed

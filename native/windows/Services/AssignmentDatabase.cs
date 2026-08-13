@@ -17,12 +17,14 @@ public sealed class AssignmentDatabase
     public string? LastBackupPath => _database.LastBackupPath;
     public int SchemaVersion => _database.SchemaVersion;
     public CoreDatabase Core => _database;
+    public TaskOrganizationRepository Organization { get; }
 
     public AssignmentDatabase(
         string? path = null,
         AssignmentDatabaseOptions? options = null)
     {
         _database = new CoreDatabase(path, options);
+        Organization = new TaskOrganizationRepository(_database);
     }
 
     public IReadOnlyList<AssignmentItem> FetchAssignments() =>
@@ -44,7 +46,12 @@ public sealed class AssignmentDatabase
 
     public void UpdateStatus(long id, string status) => _database.UpdateStatus(id, status);
 
+    public void UpdateProgress(long id, int progressPercent) =>
+        _database.UpdateProgress(id, progressPercent);
+
     public void Delete(long id) => _database.Delete(id);
+
+    public AssignmentItem Restore(long id) => AssignmentItem.FromCore(_database.Restore(id));
 
     public int InsertCandidates(
         IEnumerable<AssignmentCandidate> candidates,

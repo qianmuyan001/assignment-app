@@ -3,4 +3,9 @@ __pycache__/
 .venv/
 assignments.db
 *.db-journal
-
+*.db-shm
+*.db-wal
+*.db.migration.lock
+*.bak
+*.bak-shm
+*.bak-wal

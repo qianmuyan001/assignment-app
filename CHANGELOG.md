@@ -6,13 +6,57 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Added
+
+- Added the shared SQLite schema v3 contract and additive v1/v2-to-v3 migration
+  for stable UUIDs, database lineage, courses, projects, tags, task-tag links,
+  subtasks, attachment metadata, reminders, completion timestamps, real task
+  progress, all-day dates, time zones, and soft deletion.
+- Added Phase 1 repositories and API endpoints for Backend, iPadOS/Mac Catalyst,
+  and Windows Core. User-facing native organization screens remain Phase 2.
+- Added 57 shared contract tests, 46 Apple unit tests on Catalyst, 47 Windows
+  Core tests, and cross-language schema validation fixtures.
+
+### Fixed
+
+- Hardened migration concurrency and recovery around SQLite Online Backup,
+  `BEGIN IMMEDIATE`, cross-process locks, exact rollback verification, full
+  logical fingerprints, integrity checks, foreign-key checks, and immutable
+  database lineage. After SQLite releases its write lock, an unexpected live
+  change is preserved and startup fails closed instead of overwriting a
+  possible external commit with an older backup.
+- Made active subtasks the authoritative source of parent task progress and
+  status, with atomic parent commands and soft-delete/restore behavior.
+- Preserved legacy local wall-time text through migrations, device/timezone-only
+  edits, ambiguous times, and daylight-saving gaps; offset-bearing values are
+  rejected rather than shifted.
+- Unified the supported RFC 5545 recurrence subset across Python, Swift, and C#,
+  including ASCII-only integer syntax, and reject untyped, explicit BLOB, or
+  generated BLOB-affinity attachment columns.
+
 ### Changed
 
+- Unified root, Apple, and Windows source versions at 2.0.0 while explicitly
+  keeping the version untagged and unpublished.
+- Replaced the single Python workflow with independent shared/backend, Apple,
+  and real Windows x64 CI definitions. Package metadata now records source SHA,
+  source cleanliness, toolchain, tests, launch smoke, architecture, and signing.
+- Backend API tests now force a temporary database before importing the app and
+  assert that the real local database plus existing WAL/SHM/backup sidecars
+  retain their exact size, modification time, and SHA-256 content hash.
+- Apple and Windows packaging now use unique timestamped output directories and
+  refuse to overwrite an earlier artifact.
+- Pinned the Windows Core SQLite native bundle to `2.1.12`, replacing the
+  deprecated vulnerable `2.1.11` transitive resolution without changing the
+  application database schema.
 - Archived the retired Python CustomTkinter frontend under
   `legacy/desktop_gui/`. The root launchers now start the backend and open the
   web client instead of treating the Python GUI as an active frontend.
 
-## [2.0.0] - 2026-08-09
+## [2.0.0] - 2026-08-09 (source baseline; not tagged or released)
+
+This version identifies the repository source and application metadata. There
+is currently no `v2.0.0` Git tag or GitHub Release.
 
 ### Added
 
@@ -68,8 +112,8 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   explain a change, and hover transforms are gated to fine pointers.
 - 2.0 UI/API statuses are `todo`, `in_progress`, and `done`, while SQLite keeps
   the 1.0 physical values for backward compatibility.
-- Apple `completedAt` is derived from `updated_at` while a task is done because
-  shared schema v2 intentionally has no independent completion timestamp.
+- At the original schema-v2 baseline, Apple derived `completedAt` from
+  `updated_at`; schema v3 now stores an independent `completed_at` value.
 
 ### Known limitations
 
@@ -79,8 +123,8 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   signing configuration.
 - The optional Catalyst UI-automation target can hang before the runner connects
   under the current Xcode 27 beta host. It is excluded from the shared scheme's
-  default Test action; the default 25-test suite and package launch/database
-  smoke checks are repeatable and pass.
+  default Test action. Current source contains 32 stable unit tests; the older
+  2026-08-07 package contains 25 per platform and is not current-SHA evidence.
 - WinUI source and Core tests are ready, but the self-contained x64 directory
   must be produced and launch-verified on Windows because the Windows App SDK
   XAML compiler has native Windows dependencies.
@@ -102,6 +146,5 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 - OS credential-store integration for opt-in website credential filling.
 - Personal filesystem paths removed from public documentation.
 
-[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...v2.0.0
+[Unreleased]: https://github.com/qianmuyan001/assignment-app/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/qianmuyan001/assignment-app/releases/tag/v1.0.0

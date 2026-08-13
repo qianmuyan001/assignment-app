@@ -1,5 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media;
+using AssignmentNative.Core;
 using CoreAssignmentCandidate = AssignmentNative.Core.AssignmentCandidate;
 using CoreAssignmentItem = AssignmentNative.Core.AssignmentItem;
 
@@ -16,9 +17,7 @@ public sealed class AssignmentItem : CoreAssignmentItem
 
     public string PriorityDisplay => char.ToUpperInvariant(Priority[0]) + Priority[1..];
 
-    public string DueDisplay => DueDate is null
-        ? "No due date"
-        : DueDate.Value.ToLocalTime().ToString("ddd, MMM d · h:mm tt");
+    public string DueDisplay => TaskDueDisplayFormatter.Format(this);
 
     public string SourceDisplay => string.IsNullOrWhiteSpace(SourceName)
         ? "Manual"
@@ -42,6 +41,7 @@ public sealed class AssignmentItem : CoreAssignmentItem
     public static AssignmentItem FromCore(CoreAssignmentItem item) => new()
     {
         Id = item.Id,
+        Uuid = item.Uuid,
         CourseName = item.CourseName,
         Title = item.Title,
         DueDate = item.DueDate,
@@ -54,7 +54,16 @@ public sealed class AssignmentItem : CoreAssignmentItem
         SourceFile = item.SourceFile,
         SourceUrl = item.SourceUrl,
         CreatedAt = item.CreatedAt,
-        UpdatedAt = item.UpdatedAt
+        UpdatedAt = item.UpdatedAt,
+        CourseId = item.CourseId,
+        ProjectId = item.ProjectId,
+        CompletedAt = item.CompletedAt,
+        ProgressPercent = item.ProgressPercent,
+        AllDay = item.AllDay,
+        TimezoneId = item.TimezoneId,
+        DeletedAt = item.DeletedAt,
+        StoredDueDateText = item.StoredDueDateText,
+        StoredDueDateValue = item.StoredDueDateValue
     };
 }
 

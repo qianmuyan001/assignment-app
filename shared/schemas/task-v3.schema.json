@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assignment-app.local/schemas/task-v3.schema.json",
+  "title": "Assignment App Task v3",
+  "type": "object",
+  "required": [
+    "id", "uuid", "course_id", "project_id", "course_name", "title",
+    "due_date", "description", "link", "status", "priority",
+    "completed_at", "progress_percent", "all_day", "timezone_id",
+    "created_at", "updated_at", "deleted_at"
+  ],
+  "properties": {
+    "id": { "type": "integer", "minimum": 1 },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[45][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "course_id": { "type": ["integer", "null"], "minimum": 1 },
+    "project_id": { "type": ["integer", "null"], "minimum": 1 },
+    "course_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "due_date": {
+      "description": "Local wall time. Existing v2 text is preserved without conversion.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]{1,6})?)?$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "description": { "type": ["string", "null"] },
+    "link": { "type": ["string", "null"], "maxLength": 1000 },
+    "status": { "enum": ["todo", "in_progress", "done"] },
+    "priority": { "enum": ["low", "medium", "high"], "default": "medium" },
+    "source_name": { "type": ["string", "null"], "maxLength": 255 },
+    "source_type": { "type": ["string", "null"], "maxLength": 80 },
+    "source_file": { "type": ["string", "null"], "maxLength": 1000 },
+    "source_url": { "type": ["string", "null"], "maxLength": 1000 },
+    "completed_at": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+    "progress_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "all_day": { "type": "boolean" },
+    "timezone_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^(UTC|[A-Za-z_+-]+(/[A-Za-z0-9_+.-]+)+)$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "created_at": { "type": "string", "minLength": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
+    "deleted_at": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+        },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "done" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "progress_percent": { "const": 100 },
+          "completed_at": { "type": "string", "minLength": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "progress_percent": { "maximum": 99 },
+          "completed_at": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "all_day": { "const": true } }, "required": ["all_day"] },
+      "then": { "properties": { "due_date": { "type": "string" } } }
+    }
+  ],
+  "additionalProperties": false,
+  "x-sqlite-storage": {
+    "table": "assignments",
+    "databaseVersion": 3,
+    "legacyIdRetained": true,
+    "statusMapping": {
+      "todo": "not_started",
+      "in_progress": "in_progress",
+      "done": "completed"
+    }
+  }
+}

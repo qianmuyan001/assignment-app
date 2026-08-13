@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assignment-app.local/schemas/database-v3.json",
+  "title": "Assignment App database contract v3",
+  "database_version": 3,
+  "sqlite_user_version": 3,
+  "migration_source_version": 2,
+  "task_table": "assignments",
+  "task_identity": {
+    "legacy_primary_key": "id",
+    "stable_key": "uuid",
+    "migrated_uuid": "UUID v5(database_identity.instance_uuid, 'task:' + decimal id)",
+    "new_uuid": "UUID v4"
+  },
+  "course_identity": {
+    "migration_merge_rule": "Only byte-for-byte equal v2 course_name values merge",
+    "migrated_uuid": "UUID v5(database_identity.instance_uuid, 'course:' + exact stored course_name)",
+    "new_uuid": "UUID v4"
+  },
+  "database_lineage": {
+    "table": "database_identity",
+    "production_instance_uuid": "One random UUID v4 created in the v3 migration transaction",
+    "copy_rule": "Database backups and copies retain the same instance UUID",
+    "independent_database_rule": "Independent databases must use different instance UUIDs",
+    "immutability": "The singleton row and instance UUID cannot be updated or deleted"
+  },
+  "canonical_statuses": ["todo", "in_progress", "done"],
+  "stored_task_statuses": ["not_started", "in_progress", "completed"],
+  "status_to_storage": {
+    "todo": "not_started",
+    "in_progress": "in_progress",
+    "done": "completed"
+  },
+  "priorities": ["low", "medium", "high"],
+  "time_contract": {
+    "due_date": "Optional local wall time; migration preserves the exact v2 value",
+    "timezone_id": "Null for migrated v2 rows; IANA zone for newly zoned deadlines",
+    "audit_timestamps": "New writes use ISO-8601 UTC with Z",
+    "all_day": "Boolean integer; an all-day task must have due_date"
+  },
+  "tables": {
+    "database_identity": {
+      "fields": ["singleton", "instance_uuid", "created_at"],
+      "row_contract": "Exactly one row with singleton=1 and a canonical UUID v4"
+    },
+    "assignments": {
+      "primary_key": "id",
+      "stable_key": "uuid",
+      "preserved_v2_columns": [
+        "id", "course_name", "title", "due_date", "description", "link",
+        "status", "priority", "source_name", "source_type", "source_file",
+        "source_url", "created_at", "updated_at"
+      ],
+      "v3_columns": [
+        "uuid", "course_id", "project_id", "completed_at",
+        "progress_percent", "all_day", "timezone_id", "deleted_at"
+      ],
+      "foreign_keys": {
+        "course_id": "courses.id ON DELETE SET NULL",
+        "project_id": "projects.id ON DELETE SET NULL"
+      },
+      "migration_defaults": {
+        "project_id": null,
+        "all_day": false,
+        "timezone_id": null,
+        "deleted_at": null,
+        "done_progress_percent": 100,
+        "other_progress_percent": 0,
+        "done_completed_at": "exact v2 updated_at",
+        "other_completed_at": null
+      },
+      "physical_uuid_nullability": "nullable after additive ALTER; insert/update triggers enforce logical non-null"
+    },
+    "courses": {
+      "fields": [
+        "id", "uuid", "name", "normalized_name", "color_hex", "teacher",
+        "semester", "is_archived", "created_at", "updated_at", "deleted_at"
+      ]
+    },
+    "projects": {
+      "fields": [
+        "id", "uuid", "course_id", "name", "description", "status",
+        "created_at", "updated_at", "deleted_at"
+      ],
+      "statuses": ["active", "on_hold", "completed", "archived"]
+    },
+    "tags": {
+      "fields": [
+        "id", "uuid", "name", "normalized_name", "color_hex",
+        "created_at", "updated_at", "deleted_at"
+      ]
+    },
+    "task_tags": {
+      "fields": [
+        "id", "uuid", "assignment_id", "tag_id",
+        "created_at", "updated_at", "deleted_at"
+      ],
+      "active_pair_unique": true
+    },
+    "subtasks": {
+      "fields": [
+        "id", "uuid", "assignment_id", "title", "status", "sort_order",
+        "completed_at", "created_at", "updated_at", "deleted_at"
+      ],
+      "stored_statuses": ["not_started", "in_progress", "completed"]
+    },
+    "attachments": {
+      "fields": [
+        "id", "uuid", "assignment_id", "file_name", "relative_path",
+        "mime_type", "byte_size", "sha256", "created_at", "updated_at",
+        "deleted_at"
+      ],
+      "file_payload_in_database": false,
+      "path_format": "immutable lowercase ASCII key: attachments/<attachment uuid>",
+      "path_unique_for_full_history": true,
+      "original_file_name_storage": "file_name metadata only"
+    },
+    "reminders": {
+      "fields": [
+        "id", "uuid", "assignment_id", "trigger_at_utc", "lead_minutes",
+        "repeat_rule", "is_enabled", "last_scheduled_at", "created_at",
+        "updated_at", "deleted_at"
+      ],
+      "repeat_rule_format": "RFC 5545 RRULE without DTSTART, or null"
+    }
+  },
+  "soft_delete": {
+    "active_row": "deleted_at IS NULL",
+    "hard_delete": "reserved for explicit purge after attachment cleanup"
+  },
+  "identity_immutability": "Every entity UUID is immutable after insert; UUID v5 is migration-only for assignments and courses",
+  "migration_safety": {
+    "assignments_strategy": "additive ALTER only; preserve unknown columns, indexes, and triggers",
+    "caller_must_backup_with": "SQLite Online Backup API",
+    "caller_must_own_transaction": true,
+    "caller_must_restore_on_failure": true
+  }
+}

@@ -69,6 +69,7 @@ public static class TaskPriorities
 public class AssignmentItem
 {
     public long Id { get; init; }
+    public string Uuid { get; init; } = "";
     public string CourseName { get; init; } = "";
     public string Title { get; init; } = "";
     public DateTimeOffset? DueDate { get; init; }
@@ -82,6 +83,15 @@ public class AssignmentItem
     public string? SourceUrl { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
+    public long? CourseId { get; init; }
+    public long? ProjectId { get; init; }
+    public DateTimeOffset? CompletedAt { get; init; }
+    public int ProgressPercent { get; init; }
+    public bool AllDay { get; init; }
+    public string? TimezoneId { get; init; }
+    public DateTimeOffset? DeletedAt { get; init; }
+    public string? StoredDueDateText { get; init; }
+    public DateTimeOffset? StoredDueDateValue { get; init; }
 }
 
 public sealed class AssignmentDraft
@@ -97,6 +107,13 @@ public sealed class AssignmentDraft
     public string? SourceType { get; set; } = "manual";
     public string? SourceFile { get; set; }
     public string? SourceUrl { get; set; }
+    public long? CourseId { get; set; }
+    public long? ProjectId { get; set; }
+    public int? ProgressPercent { get; set; }
+    public bool AllDay { get; set; }
+    public string? TimezoneId { get; set; }
+    public string? StoredDueDateText { get; set; }
+    public DateTimeOffset? StoredDueDateValue { get; set; }
 
     public static AssignmentDraft From(AssignmentItem item)
     {
@@ -113,7 +130,14 @@ public sealed class AssignmentDraft
             SourceName = item.SourceName,
             SourceType = item.SourceType,
             SourceFile = item.SourceFile,
-            SourceUrl = item.SourceUrl
+            SourceUrl = item.SourceUrl,
+            CourseId = item.CourseId,
+            ProjectId = item.ProjectId,
+            ProgressPercent = item.ProgressPercent,
+            AllDay = item.AllDay,
+            TimezoneId = item.TimezoneId,
+            StoredDueDateText = item.StoredDueDateText,
+            StoredDueDateValue = item.StoredDueDateValue
         };
     }
 }

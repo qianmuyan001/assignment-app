@@ -1,19 +1,24 @@
 # Assignment Schedule App
 
-[![Latest release](https://img.shields.io/github/v/release/qianmuyan001/assignment-app?display_name=tag)](https://github.com/qianmuyan001/assignment-app/releases/latest)
+[![Latest published release](https://img.shields.io/github/v/release/qianmuyan001/assignment-app?display_name=tag&label=published)](https://github.com/qianmuyan001/assignment-app/releases/latest)
 
 This project has a FastAPI backend, a SQLite database, a web client, and active
 native Apple and Windows clients for managing school assignments. The retired
 Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 
-Current version: **2.0.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. Versions follow [Semantic Versioning](https://semver.org/): fixes increment the patch number, backward-compatible features increment the minor number, and breaking changes increment the major number.
+Current source version: **2.0.0**. The repository has not created a `v2.0.0`
+tag or GitHub Release; the badge above therefore still represents the latest
+published version. See [CHANGELOG.md](CHANGELOG.md) for source history. Versions
+follow [Semantic Versioning](https://semver.org/).
 
 ## Assignment App 2.0 preview
 
-The repository now contains the shared 2.0 task contract, a versioned SQLite v2
+The repository now contains the shared 2.0 task contract, a versioned SQLite v3
 migration, and independent Apple and Windows implementations of the first 2.0
-task-management workflow. Both clients use the same task fields, status and
-priority mappings, date-list rules, fixtures, and acceptance cases.
+task-management workflow and Phase 1 task-organization data layer. Both clients
+use the same task fields, status and priority mappings, UUID lineage, courses,
+projects, tags, subtasks, attachment metadata, reminders, date-list rules,
+fixtures, and acceptance cases.
 
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
@@ -30,8 +35,10 @@ Shared rules and disposable migration tests:
 python3 -m unittest discover -s shared/tests -v
 ```
 
-Apple iPad Simulator and Mac Catalyst builds require the installed full Xcode
-beta and an available iPad simulator UUID:
+Apple iPad Simulator and Mac Catalyst builds currently require Xcode 27 because
+the project was authored in that format; its guarded Liquid Glass path also
+uses the iOS 26 SDK. Local verification uses the installed Xcode 27 beta, while
+CI uses GitHub's arm64 `xcode-27` public-preview runner:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
@@ -44,8 +51,10 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
 ./native/apple/package-catalyst.sh
 ```
 
-The packaging script writes an ad-hoc-signed Debug app, ZIP, logs, and build
-metadata to a new timestamped directory under `artifacts/apple/`.
+The packaging script writes an ad-hoc-signed Debug app, ZIP, launch/database
+smoke logs, and build metadata to a new timestamped directory under
+`artifacts/apple/`. A release-baseline run sets
+`ASSIGNMENT_REQUIRE_CLEAN_TREE=1` so its Git SHA uniquely identifies the source.
 
 Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
 .NET 8 SDK installed):
@@ -54,57 +63,8 @@ Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
 .\native\windows\publish-x64.ps1
 ```
 
-The resulting self-contained test directory is `artifacts\windows-x64`. See
-`native/windows/README.md` for prerequisites, manual commands, database
-selection, and smoke-test details.
-
-## Assignment App 2.0 preview
-
-The repository now contains the shared 2.0 task contract, a versioned SQLite v2
-migration, and independent Apple and Windows implementations of the first 2.0
-task-management workflow. Both clients use the same task fields, status and
-priority mappings, date-list rules, fixtures, and acceptance cases.
-
-Because the original iPadOS project was not present, the approved Apple
-alternative is a real SwiftUI iPadOS project at
-`native/apple/AssignmentApp2.xcodeproj`. Its single application target also
-supports Mac Catalyst. The retired pure macOS SwiftPM 1.0 client is archived at
-`legacy/macos` for historical reference. The Apple client provides task CRUD, completion/restoring,
-All/Today/This Week/Overdue/Completed views, search, filters, sorting,
-simple/professional modes, and persistent appearance settings. See
-`native/apple/README.md` for the database safety model and verification details.
-
-Shared rules and disposable migration tests:
-
-```bash
-python3 -m unittest discover -s shared/tests -v
-```
-
-Apple iPad Simulator and Mac Catalyst builds require the installed full Xcode
-beta and an available iPad simulator UUID:
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-  xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
-  -scheme AssignmentApp2 -configuration Debug \
-  -destination 'platform=iOS Simulator,id=55D6D2F6-FB7A-429C-ADFA-8BF9F8F2286F' \
-  -derivedDataPath /private/tmp/assignment-app-xcode-derived-data \
-  CODE_SIGNING_ALLOWED=NO build
-
-./native/apple/package-catalyst.sh
-```
-
-The packaging script writes an ad-hoc-signed Debug app, ZIP, logs, and build
-metadata to a new timestamped directory under `artifacts/apple/`.
-
-Windows x64 build and publish (run on Windows with Visual Studio 2022 and the
-.NET 8 SDK installed):
-
-```powershell
-.\native\windows\publish-x64.ps1
-```
-
-The resulting self-contained test directory is `artifacts\windows-x64`. See
+The resulting self-contained test directory is under a timestamped
+`artifacts\windows\x64-*\publish` directory. See
 `native/windows/README.md` for prerequisites, manual commands, database
 selection, and smoke-test details.
 
@@ -119,9 +79,14 @@ SQLite assignment schema without replacing or deleting the database.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
-| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | 2.0 Debug preview; iPad and Apple Silicon Catalyst builds verified |
+| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | 2.0 source; current-SHA CI/package verification required |
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 preview source; build and smoke-test on Windows |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 source; real Windows x64 build/launch not yet verified |
+
+Phase 1 is complete at the shared and native data/repository layer. The Apple
+and Windows course/project/tag/subtask/attachment/reminder screens are
+intentionally not present yet; those are Phase 2 work. The current local Phase 1
+verification report is [docs/phase-reports/phase-1.md](docs/phase-reports/phase-1.md).
 
 Apple 2.0:
 
@@ -130,18 +95,10 @@ open native/apple/AssignmentApp2.xcodeproj
 ./native/apple/package-catalyst.sh
 ```
 
-Legacy macOS 1.0:
-
-```bash
-cd /path/to/assignment-app
-./native/local-ai/start-macos.command
-open legacy/macos/dist/Assignments.app
-```
-
-The llama.cpp runtime is included. On first use, the start script downloads the
-default Qwen3 1.7B model into llama.cpp's local cache.
-For copying the app, use
-`legacy/macos/dist/Assignments-macOS-arm64.zip`.
+The legacy macOS 1.0 source remains under `legacy/macos`, but no legacy `.app`
+or ZIP is tracked in this checkout. Its README describes how to build it for
+historical reference. The active Apple 2.0 deliverable is the Catalyst target
+above.
 
 The retained native macOS 1.0 source connector supports two login modes:
 
@@ -157,6 +114,24 @@ items are inserted with duplicate detection.
 
 See `native/README.md`, `native/SECURITY.md`, and the platform README files for
 build and security details.
+
+## Continuous integration and evidence
+
+Three workflows define the Phase 0 gates:
+
+- `.github/workflows/shared-backend.yml`: version consistency, Python error
+  lint, 57 shared contract/migration tests, and isolated FastAPI/Web asset tests.
+- `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
+  clean-tree packaging, signature checks, and packaged-app database smoke.
+- `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,
+  and artifact upload. Interactive launch/database smoke remains a separate
+  signed-in Windows acceptance gate because hosted runners are headless.
+
+Adding a workflow is not proof that it passed. A platform is accepted only when
+the workflow or a matching local environment produces logs and an artifact whose
+`build-info.txt` records the exact Git SHA, source cleanliness, toolchain,
+architecture, test result, smoke result, and signing state. No Phase 0 workflow
+has been pushed or executed remotely from this local development branch yet.
 
 ## One-click Start
 

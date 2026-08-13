@@ -1,0 +1,164 @@
+{
+  "source_schema_version": 2,
+  "target_schema_version": 3,
+  "uuid_contract": {
+    "algorithm": "RFC 4122 UUID v5 using SHA-1 and UTF-8 name bytes",
+    "database_instance_uuid": "8c0f31e2-19a2-4c37-9b5d-4fc09f667c8d",
+    "new_records": "UUID v4",
+    "vectors": [
+      {
+        "entity": "task",
+        "legacy_key": "1",
+        "name": "task:1",
+        "expected_uuid": "b6f8937a-8325-5149-9dd7-2f0b1fe4a7ff"
+      },
+      {
+        "entity": "task",
+        "legacy_key": "41",
+        "name": "task:41",
+        "expected_uuid": "db6e7c95-5fde-5b99-8ee5-3ce314ea94d6"
+      },
+      {
+        "entity": "course",
+        "legacy_key": "Physics",
+        "name": "course:Physics",
+        "expected_uuid": "86915390-c8d1-534d-a037-24c88c9e3ae4"
+      },
+      {
+        "entity": "course",
+        "legacy_key": "physics",
+        "name": "course:physics",
+        "expected_uuid": "a0550578-1e0f-5567-b3b0-b1337c1610af"
+      },
+      {
+        "entity": "course",
+        "legacy_key": "语文 / English",
+        "name": "course:语文 / English",
+        "expected_uuid": "62a43b68-df97-57f4-9786-35ff9a5b3da8"
+      },
+      {
+        "entity": "course",
+        "legacy_key": "高等数学",
+        "name": "course:高等数学",
+        "expected_uuid": "81d3ead5-dce5-57a6-a27c-22106a018a61"
+      }
+    ]
+  },
+  "name_normalization_contract": {
+    "algorithm": "Unicode NFKC, Unicode whitespace collapse, trim, then locale-independent case fold",
+    "vectors": [
+      { "input": " Physics ", "expected": "physics" },
+      { "input": "Ｐｈｙｓｉｃｓ", "expected": "physics" },
+      { "input": "Straße", "expected": "strasse" },
+      { "input": "İ", "expected": "i̇" },
+      { "input": "ς / Σ", "expected": "σ / σ" },
+      { "input": "  语文  / \t English  ", "expected": "语文 / english" },
+      { "input": "Ångström", "expected": "ångström" }
+    ]
+  },
+  "v2_tasks": [
+    {
+      "id": 1,
+      "course_name": "Physics",
+      "title": "Wave lab",
+      "due_date": "2026-11-01 01:30:00",
+      "description": "Ambiguous DST wall time stays byte-for-byte unchanged.",
+      "link": "https://example.test/lab?a=1&b=2",
+      "status": "not_started",
+      "priority": "high",
+      "source_name": "LMS",
+      "source_type": "html",
+      "source_file": null,
+      "source_url": "https://example.test/source/1",
+      "created_at": "2026-08-01 09:00:00",
+      "updated_at": "2026-08-02 10:00:00"
+    },
+    {
+      "id": 9,
+      "course_name": "Physics",
+      "title": "Completed report ✅",
+      "due_date": "2026-08-07 12:00:00",
+      "description": "Done / 完成",
+      "link": null,
+      "status": "completed",
+      "priority": "medium",
+      "source_name": null,
+      "source_type": null,
+      "source_file": null,
+      "source_url": null,
+      "created_at": "2026-08-03 11:00:00",
+      "updated_at": "2026-08-05 15:45:30"
+    },
+    {
+      "id": 41,
+      "course_name": "语文 / English",
+      "title": "Legacy's \"special\" task 📚",
+      "due_date": null,
+      "description": "保留换行\n、Emoji 🧪 与特殊字符 <>&.",
+      "link": "https://例子.测试/?a=1&b=二",
+      "status": "in_progress",
+      "priority": "low",
+      "source_name": "导入文件",
+      "source_type": "text",
+      "source_file": "资料/作业.txt",
+      "source_url": null,
+      "created_at": "2026-08-04 08:15:00",
+      "updated_at": "2026-08-06 18:20:00"
+    },
+    {
+      "id": 73,
+      "course_name": "高等数学",
+      "title": "复习积分 & 极限 🧮",
+      "due_date": "2026-08-10 00:00:00",
+      "description": null,
+      "link": null,
+      "status": "not_started",
+      "priority": "medium",
+      "source_name": null,
+      "source_type": null,
+      "source_file": null,
+      "source_url": null,
+      "created_at": "2026-08-05 00:00:00",
+      "updated_at": "2026-08-05 00:00:00"
+    }
+  ],
+  "expected": {
+    "task_uuids": {
+      "1": "b6f8937a-8325-5149-9dd7-2f0b1fe4a7ff",
+      "9": "3588462a-cabb-551b-b492-efc68b736584",
+      "41": "db6e7c95-5fde-5b99-8ee5-3ce314ea94d6",
+      "73": "6a266058-ae29-5daf-b9eb-697b3cca48ae"
+    },
+    "courses": [
+      {
+        "name": "Physics",
+        "uuid": "86915390-c8d1-534d-a037-24c88c9e3ae4",
+        "task_ids": [1, 9]
+      },
+      {
+        "name": "语文 / English",
+        "uuid": "62a43b68-df97-57f4-9786-35ff9a5b3da8",
+        "task_ids": [41]
+      },
+      {
+        "name": "高等数学",
+        "uuid": "81d3ead5-dce5-57a6-a27c-22106a018a61",
+        "task_ids": [73]
+      }
+    ],
+    "completed": {
+      "9": {
+        "completed_at": "2026-08-05 15:45:30",
+        "progress_percent": 100
+      }
+    },
+    "not_completed_defaults": {
+      "completed_at": null,
+      "progress_percent": 0
+    },
+    "all_day": false,
+    "timezone_id": null,
+    "project_id": null,
+    "deleted_at": null
+  }
+}
