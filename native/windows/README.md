@@ -12,7 +12,11 @@ Windows App SDK, Microsoft.Data.Sqlite, and a UI-independent Core library.
 - Loading, error, empty, validation, and delete-confirmation states.
 - Persistent simple/professional display mode and system/light/dark theme.
 - Existing signed-in WebView2 source browser and local-AI review flow.
-- Versioned SQLite v2 migration with an online backup and failure recovery.
+- Versioned SQLite schema v3 migration with an online backup, transactional
+  validation, rollback verification, and in-place online-backup recovery.
+- Phase 1 Core repositories for courses, projects, tags, task-tag links,
+  subtasks, attachment metadata, reminders, stable UUIDs, soft deletion, and
+  subtask-derived task progress.
 
 The simple and professional modes read and write the same task record. Hiding
 description, priority, or source link never clears those fields.
@@ -46,16 +50,45 @@ the first 2.0 launch:
 $env:ASSIGNMENT_DB_PATH = 'C:\absolute\path\to\assignments.db'
 ```
 
-The first successful 2.0 open creates a sibling recovery backup and then sets
-`PRAGMA user_version=2`. Existing rows are retained and receive priority
-`medium`. Physical SQLite statuses remain `not_started`, `in_progress`, and
-`completed`; the Core layer exposes `todo`, `in_progress`, and `done`. Migration
-failure restores the backup and prevents normal database use.
+The first successful schema upgrade takes a bounded cross-process migration
+lock, creates a sibling recovery backup through SQLite Online Backup, and then
+runs an immediate transaction before setting `PRAGMA user_version=3`. Existing
+v1/v2 rows, integer IDs, wall-clock due text, timestamps, and Unicode are
+retained. Additive v2 extension columns are retained. The v1 compatibility
+rebuild preserves the documented v1 task payload; unknown v1 extension columns
+remain recoverable in the mandatory pre-migration backup but are not promised
+in the upgraded live schema. A database-lineage UUID scopes deterministic UUID v5
+values for migrated tasks and courses; all new records use UUID v4. Physical
+SQLite statuses remain `not_started`, `in_progress`, and `completed`; the Core
+layer exposes `todo`, `in_progress`, and `done`.
 
-Dates are stored as local wall-clock `YYYY-MM-DD HH:mm:ss` values without an
-offset. Today and week filters use the computer's current local timezone; a
-week starts Monday. Offset-bearing due dates are rejected instead of being
-silently converted.
+If migration fails, Core first verifies the transaction rollback. Any changed
+live state that cannot be matched exactly to the fingerprint captured from this
+specific failed migration attempt is preserved and automatic restore is refused,
+including a concurrent valid v3 database or a healthy newer schema. Unknown
+rollback evidence fails closed. Only a state proven to be this migration's failed
+transaction is restored with SQLite Online Backup into the existing database
+file, preserving the live inode. Recovery rechecks the destination while holding
+an SQLite `EXCLUSIVE` lock that remains held through the backup overwrite. A
+failed or unverifiable migration prevents normal database use.
+Backups are published only after their own `quick_check` succeeds and are never
+overwritten.
+
+Schema v3 stores attachment metadata only. Payload files belong under the app
+data directory using the immutable `attachments/<uuid>` relative key; no BLOB
+or untyped payload column is permitted. Soft deletion uses canonical UTC audit
+timestamps and does not erase hidden task fields.
+
+Legacy due dates remain local wall-clock `YYYY-MM-DD HH:mm:ss` values without
+an offset and are never silently shifted during migration. New audit,
+completion, reminder, and deletion timestamps use canonical UTC ISO-8601 text.
+Optional task `timezone_id` values use portable IANA syntax. Today and week
+filters use the computer's current local timezone; a week starts Monday.
+Offset-bearing legacy due dates are rejected instead of silently converted.
+
+Phase 1 adds the data contracts and repositories only. Course/project/tag,
+subtask, attachment, and reminder WinUI screens are intentionally deferred to
+Phase 2; this README does not claim those native pages exist yet.
 
 ## Prerequisites
 
@@ -77,9 +110,11 @@ From the repository root:
 dotnet run --project .\native\windows\AssignmentNative.Core.Tests\AssignmentNative.Core.Tests.csproj -c Release
 ```
 
-The harness covers CRUD, state mapping, date views, sorting, search/filtering,
-mode preservation, migration, failed-migration recovery, special characters,
-and the shared cross-platform fixture. It creates temporary databases only.
+The 30-test harness covers existing task CRUD/rules plus schema v3 migration,
+shared UUID and Unicode-normalization vectors, organization CRUD, task tags,
+derived subtask progress, safe attachment metadata, canonical recurrence,
+soft-delete restore, immutable database identity, concurrent initialization,
+and failure recovery. It creates temporary databases only.
 
 ## Build and run
 

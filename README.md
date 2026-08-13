@@ -13,10 +13,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## Assignment App 2.0 preview
 
-The repository now contains the shared 2.0 task contract, a versioned SQLite v2
+The repository now contains the shared 2.0 task contract, a versioned SQLite v3
 migration, and independent Apple and Windows implementations of the first 2.0
-task-management workflow. Both clients use the same task fields, status and
-priority mappings, date-list rules, fixtures, and acceptance cases.
+task-management workflow and Phase 1 task-organization data layer. Both clients
+use the same task fields, status and priority mappings, UUID lineage, courses,
+projects, tags, subtasks, attachment metadata, reminders, date-list rules,
+fixtures, and acceptance cases.
 
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
@@ -81,6 +83,11 @@ SQLite assignment schema without replacing or deleting the database.
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
 | Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 source; real Windows x64 build/launch not yet verified |
 
+Phase 1 is complete at the shared and native data/repository layer. The Apple
+and Windows course/project/tag/subtask/attachment/reminder screens are
+intentionally not present yet; those are Phase 2 work. The current local Phase 1
+verification report is [docs/phase-reports/phase-1.md](docs/phase-reports/phase-1.md).
+
 Apple 2.0:
 
 ```bash
@@ -113,7 +120,7 @@ build and security details.
 Three workflows define the Phase 0 gates:
 
 - `.github/workflows/shared-backend.yml`: version consistency, Python error
-  lint, 20 shared contract/migration tests, and isolated FastAPI/Web asset tests.
+  lint, 55 shared contract/migration tests, and isolated FastAPI/Web asset tests.
 - `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
   clean-tree packaging, signature checks, and packaged-app database smoke.
 - `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,

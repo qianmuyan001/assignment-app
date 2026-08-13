@@ -33,6 +33,11 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
         if let database { sqlite3_close(database) }
     }
 
+    /// Shared entry point used by both repository writes and schema validation.
+    static func canonicalRepeatRule(_ input: String?) throws -> String? {
+        try validatedRepeatRule(input)
+    }
+
     func fetchCourses(includeDeleted: Bool = false) throws -> [Course] {
         try lock.withLock {
             let database = try requireDatabase()
@@ -469,7 +474,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             sqlite3_bind_int64(statement, 2, values.assignmentID)
             SQLiteSupport.bind(values.title, to: statement, index: 3)
             SQLiteSupport.bind(values.status.storageValue, to: statement, index: 4)
-            sqlite3_bind_int(statement, 5, Int32(values.sortOrder))
+            sqlite3_bind_int64(statement, 5, Int64(values.sortOrder))
             SQLiteSupport.bind(values.status == .done ? timestamp : nil, to: statement, index: 6)
             SQLiteSupport.bind(timestamp, to: statement, index: 7)
             SQLiteSupport.bind(timestamp, to: statement, index: 8)
@@ -493,7 +498,14 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             sortOrder: subtask.sortOrder
         ))
         return try withWrite { database in
-            try Self.requireActiveAssignment(values.assignmentID, on: database)
+            let stored = try Self.fetchSubtask(id: subtask.id, on: database)
+            guard stored.uuid == subtask.uuid,
+                  stored.assignmentID == values.assignmentID else {
+                throw OrganizationRepositoryError.validation(
+                    "A subtask's UUID and parent task cannot be changed."
+                )
+            }
+            try Self.requireActiveAssignment(stored.assignmentID, on: database)
             let statement = try SQLiteSupport.prepare(
                 """
                 UPDATE subtasks
@@ -506,7 +518,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             let timestamp = DatabaseTimestamp.string(from: Date())
             SQLiteSupport.bind(values.title, to: statement, index: 1)
             SQLiteSupport.bind(values.status.storageValue, to: statement, index: 2)
-            sqlite3_bind_int(statement, 3, Int32(values.sortOrder))
+            sqlite3_bind_int64(statement, 3, Int64(values.sortOrder))
             SQLiteSupport.bind(
                 values.status == .done
                     ? DatabaseTimestamp.string(from: subtask.completedAt ?? Date())
@@ -521,7 +533,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 throw OrganizationRepositoryError.notFound("Subtask", subtask.id)
             }
             _ = try TaskProgressPersistence.recalculateParent(
-                assignmentID: values.assignmentID,
+                assignmentID: stored.assignmentID,
                 resetWhenEmpty: true,
                 timestamp: timestamp,
                 on: database
@@ -631,7 +643,15 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             sha256: attachment.sha256
         ))
         return try withWrite { database in
-            try Self.requireActiveAssignment(values.assignmentID, on: database)
+            let stored = try Self.fetchAttachment(id: attachment.id, on: database)
+            guard stored.uuid == attachment.uuid,
+                  stored.assignmentID == values.assignmentID,
+                  stored.relativePath == attachment.relativePath else {
+                throw OrganizationRepositoryError.validation(
+                    "An attachment's UUID, parent task, and storage path cannot be changed."
+                )
+            }
+            try Self.requireActiveAssignment(stored.assignmentID, on: database)
             guard attachment.relativePath
                     == (try SharedIdentity.attachmentRelativePath(for: attachment.uuid)) else {
                 throw OrganizationRepositoryError.validation(
@@ -710,7 +730,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 to: statement,
                 index: 3
             )
-            sqlite3_bind_int(statement, 4, Int32(values.leadMinutes))
+            sqlite3_bind_int64(statement, 4, Int64(values.leadMinutes))
             SQLiteSupport.bind(values.repeatRule, to: statement, index: 5)
             sqlite3_bind_int(statement, 6, values.isEnabled ? 1 : 0)
             SQLiteSupport.bind(
@@ -735,7 +755,14 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             lastScheduledAt: reminder.lastScheduledAt
         ))
         return try withWrite { database in
-            try Self.requireActiveAssignment(values.assignmentID, on: database)
+            let stored = try Self.fetchReminder(id: reminder.id, on: database)
+            guard stored.uuid == reminder.uuid,
+                  stored.assignmentID == values.assignmentID else {
+                throw OrganizationRepositoryError.validation(
+                    "A reminder's UUID and parent task cannot be changed."
+                )
+            }
+            try Self.requireActiveAssignment(stored.assignmentID, on: database)
             let statement = try SQLiteSupport.prepare(
                 """
                 UPDATE reminders
@@ -751,7 +778,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 to: statement,
                 index: 1
             )
-            sqlite3_bind_int(statement, 2, Int32(values.leadMinutes))
+            sqlite3_bind_int64(statement, 2, Int64(values.leadMinutes))
             SQLiteSupport.bind(values.repeatRule, to: statement, index: 3)
             sqlite3_bind_int(statement, 4, values.isEnabled ? 1 : 0)
             SQLiteSupport.bind(
@@ -932,7 +959,8 @@ private extension SQLiteOrganizationRepository {
 
     static func subtask(_ statement: OpaquePointer) throws -> AssignmentSubtask {
         guard let title = SQLiteSupport.text(statement, 3),
-              let statusText = SQLiteSupport.text(statement, 4) else {
+              let statusText = SQLiteSupport.text(statement, 4),
+              let sortOrder = Int(exactly: sqlite3_column_int64(statement, 5)) else {
             throw OrganizationRepositoryError.corruptData("Subtask has missing required fields.")
         }
         return AssignmentSubtask(
@@ -941,7 +969,7 @@ private extension SQLiteOrganizationRepository {
             assignmentID: sqlite3_column_int64(statement, 2),
             title: title,
             status: try AssignmentStatus(storageValue: statusText),
-            sortOrder: Int(sqlite3_column_int(statement, 5)),
+            sortOrder: sortOrder,
             completedAt: try optionalDate(statement, 6),
             createdAt: try parsedDate(statement, 7),
             updatedAt: try parsedDate(statement, 8),
@@ -971,12 +999,17 @@ private extension SQLiteOrganizationRepository {
     }
 
     static func reminder(_ statement: OpaquePointer) throws -> TaskReminder {
-        TaskReminder(
+        guard let leadMinutes = Int(exactly: sqlite3_column_int64(statement, 4)) else {
+            throw OrganizationRepositoryError.corruptData(
+                "Reminder lead_minutes cannot be represented on this platform."
+            )
+        }
+        return TaskReminder(
             id: sqlite3_column_int64(statement, 0),
             uuid: try parsedUUID(statement, 1),
             assignmentID: sqlite3_column_int64(statement, 2),
             triggerAtUTC: try parsedDate(statement, 3),
-            leadMinutes: Int(sqlite3_column_int(statement, 4)),
+            leadMinutes: leadMinutes,
             repeatRule: SQLiteSupport.text(statement, 5),
             isEnabled: sqlite3_column_int(statement, 6) == 1,
             lastScheduledAt: try optionalDate(statement, 7),
@@ -1489,6 +1522,19 @@ private extension SQLiteOrganizationRepository {
         ] {
             if let raw = parsed[key] {
                 let components = raw.split(separator: ",", omittingEmptySubsequences: false)
+                let pattern = key == "BYMONTHDAY"
+                    ? "^-?[0-9]+$"
+                    : "^[0-9]+$"
+                guard components.allSatisfy({ component in
+                    String(component).range(
+                        of: pattern,
+                        options: .regularExpression
+                    ) != nil
+                }) else {
+                    throw OrganizationRepositoryError.validation(
+                        "repeat_rule \(key) must contain ASCII integers."
+                    )
+                }
                 let numbers = components.compactMap { Int($0) }
                 guard numbers.count == components.count,
                       numbers.count == Set(numbers).count,
@@ -1505,7 +1551,10 @@ private extension SQLiteOrganizationRepository {
     static func isRealRepeatRuleUntil(_ value: String) -> Bool {
         let format: String
         switch value.count {
-        case 8 where value.allSatisfy(\.isNumber):
+        case 8 where value.range(
+            of: "^[0-9]{8}$",
+            options: .regularExpression
+        ) != nil:
             format = "yyyyMMdd"
         case 16 where value.range(
             of: "^[0-9]{8}T[0-9]{6}Z$",

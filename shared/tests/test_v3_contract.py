@@ -13,6 +13,7 @@ from shared.schema_v3 import (
     SchemaV3Error,
     attachment_storage_relative_path,
     canonical_name,
+    canonical_repeat_rule,
     create_v3_schema,
     deterministic_v3_uuid,
     is_iana_timezone_id,
@@ -230,6 +231,23 @@ class UUIDAndMetadataContractTests(unittest.TestCase):
             "folder/./file.pdf",
         ):
             self.assertFalse(is_safe_attachment_relative_path(unsafe), unsafe)
+
+    def test_repeat_rule_contract_is_strict_and_canonical(self) -> None:
+        self.assertEqual(
+            canonical_repeat_rule("freq=weekly;byday=mo,we;interval=2"),
+            "FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2",
+        )
+        self.assertIsNone(canonical_repeat_rule("  "))
+        for invalid in (
+            "DTSTART=20260812T090000Z;FREQ=DAILY",
+            "FREQ=NOPE",
+            "FREQ=DAILY;COUNT=2;UNTIL=20260814",
+            "FREQ=MONTHLY;BYMONTHDAY=0",
+            "FREQ=DAILY;COUNT=٢",
+            "FREQ=YEARLY;BYMONTH=１",
+        ):
+            with self.assertRaises(ValueError, msg=invalid):
+                canonical_repeat_rule(invalid)
 
 
 class V3MigrationContractTests(unittest.TestCase):
@@ -591,6 +609,11 @@ class V3MigrationContractTests(unittest.TestCase):
                 "normalized_name='applied physics' WHERE id=?",
                 (course_id,),
             )
+            connection.execute(
+                "UPDATE assignments SET course_name='Applied Physics' "
+                "WHERE course_id=?",
+                (course_id,),
+            )
             validate_v3_schema(connection)
             self.assertEqual(
                 connection.execute(
@@ -863,6 +886,15 @@ class FreshV3ContractTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.database_path = Path(self.temp_dir.name) / "fresh-v3.db"
 
+    @staticmethod
+    def _create_schema(connection: sqlite3.Connection) -> None:
+        connection.execute("BEGIN IMMEDIATE")
+        create_v3_schema(
+            connection,
+            database_instance_uuid=TEST_DATABASE_INSTANCE_UUID,
+        )
+        connection.commit()
+
     def test_fresh_schema_has_same_additive_assignment_shape_and_triggers(self) -> None:
         with closing(_connect(self.database_path)) as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -926,6 +958,179 @@ class FreshV3ContractTests(unittest.TestCase):
                 (task_uuid,),
             )
             validate_v3_schema(connection)
+
+    def test_validator_rejects_parent_state_that_disagrees_with_subtasks(self) -> None:
+        with closing(_connect(self.database_path)) as connection:
+            self._create_schema(connection)
+            task_uuid = new_v3_uuid()
+            connection.execute(
+                """
+                INSERT INTO assignments (
+                    uuid, course_name, title, status, priority,
+                    progress_percent, all_day, created_at, updated_at
+                ) VALUES (?, 'Math', 'Parent', 'not_started', 'medium',
+                          0, 0, ?, ?)
+                """,
+                (task_uuid, "2026-08-12T12:00:00Z", "2026-08-12T12:00:00Z"),
+            )
+            task_id = int(connection.execute("SELECT last_insert_rowid()").fetchone()[0])
+            connection.execute(
+                """
+                INSERT INTO subtasks (
+                    uuid, assignment_id, title, status, sort_order,
+                    completed_at, created_at, updated_at
+                ) VALUES (?, ?, 'Finished child', 'completed', 0, ?, ?, ?)
+                """,
+                (
+                    new_v3_uuid(),
+                    task_id,
+                    "2026-08-12T12:10:00Z",
+                    "2026-08-12T12:00:00Z",
+                    "2026-08-12T12:10:00Z",
+                ),
+            )
+            with self.assertRaisesRegex(SchemaV3Error, "active subtask state"):
+                validate_v3_schema(connection)
+
+    def test_validator_rejects_noncanonical_or_invalid_repeat_rule(self) -> None:
+        with closing(_connect(self.database_path)) as connection:
+            self._create_schema(connection)
+            task_uuid = new_v3_uuid()
+            connection.execute(
+                """
+                INSERT INTO assignments (
+                    uuid, course_name, title, status, priority,
+                    progress_percent, all_day, created_at, updated_at
+                ) VALUES (?, 'Math', 'Reminder parent', 'not_started', 'medium',
+                          0, 0, ?, ?)
+                """,
+                (task_uuid, "2026-08-12T12:00:00Z", "2026-08-12T12:00:00Z"),
+            )
+            task_id = int(connection.execute("SELECT last_insert_rowid()").fetchone()[0])
+            connection.execute(
+                """
+                INSERT INTO reminders (
+                    uuid, assignment_id, trigger_at_utc, lead_minutes,
+                    repeat_rule, is_enabled, created_at, updated_at
+                ) VALUES (?, ?, ?, 0, ?, 1, ?, ?)
+                """,
+                (
+                    new_v3_uuid(),
+                    task_id,
+                    "2026-08-13T12:00:00Z",
+                    "DTSTART=bad\nFREQ=NOPE",
+                    "2026-08-12T12:00:00Z",
+                    "2026-08-12T12:00:00Z",
+                ),
+            )
+            with self.assertRaisesRegex(SchemaV3Error, "invalid repeat_rule"):
+                validate_v3_schema(connection)
+
+    def test_validator_rejects_untyped_attachment_payload_column(self) -> None:
+        with closing(_connect(self.database_path)) as connection:
+            self._create_schema(connection)
+            connection.execute("ALTER TABLE attachments ADD COLUMN payload")
+            with self.assertRaisesRegex(SchemaV3Error, "metadata only"):
+                validate_v3_schema(connection)
+
+    def test_validator_rejects_generated_blob_attachment_payload_column(self) -> None:
+        with closing(_connect(self.database_path)) as connection:
+            self._create_schema(connection)
+            connection.execute(
+                "ALTER TABLE attachments ADD COLUMN payload BLOB "
+                "GENERATED ALWAYS AS (x'00') VIRTUAL"
+            )
+            with self.assertRaisesRegex(SchemaV3Error, "metadata only"):
+                validate_v3_schema(connection)
+
+    def test_validator_rejects_forged_organization_rows_and_relationships(self) -> None:
+        corruptions = (
+            (
+                "project status",
+                "INSERT INTO projects (uuid, name, status, created_at, updated_at) "
+                "VALUES (?, 'Bad', 'bogus', ?, ?)",
+                (new_v3_uuid(), "2026-08-12T12:00:00Z", "2026-08-12T12:00:00Z"),
+                "integrity check failed|organization contract",
+            ),
+            (
+                "course archive flag",
+                "INSERT INTO courses (uuid, name, normalized_name, is_archived, "
+                "created_at, updated_at) VALUES (?, 'Math', 'math', 2, ?, ?)",
+                (new_v3_uuid(), "2026-08-12T12:00:00Z", "2026-08-12T12:00:00Z"),
+                "integrity check failed|organization contract",
+            ),
+        )
+        for name, sql, parameters, message in corruptions:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "forged.db"
+                with closing(_connect(path)) as connection:
+                    self._create_schema(connection)
+                    connection.execute("PRAGMA ignore_check_constraints = ON")
+                    connection.execute(sql, parameters)
+                    connection.execute("PRAGMA ignore_check_constraints = OFF")
+                    with self.assertRaisesRegex(SchemaV3Error, message):
+                        validate_v3_schema(connection)
+
+    def test_validator_rejects_stale_course_and_project_relationships(self) -> None:
+        with closing(_connect(self.database_path)) as connection:
+            self._create_schema(connection)
+            timestamp = "2026-08-12T12:00:00Z"
+            connection.execute(
+                "INSERT INTO courses (uuid, name, normalized_name, created_at, updated_at) "
+                "VALUES (?, 'Math', 'math', ?, ?)",
+                (new_v3_uuid(), timestamp, timestamp),
+            )
+            course_id = int(connection.execute("SELECT last_insert_rowid()").fetchone()[0])
+            connection.execute(
+                """
+                INSERT INTO assignments (
+                    uuid, course_id, course_name, title, status, priority,
+                    progress_percent, all_day, created_at, updated_at
+                ) VALUES (?, ?, 'Old Math', 'Task', 'not_started', 'medium',
+                          0, 0, ?, ?)
+                """,
+                (new_v3_uuid(), course_id, timestamp, timestamp),
+            )
+            with self.assertRaisesRegex(SchemaV3Error, "stale course snapshot"):
+                validate_v3_schema(connection)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "project-course.db"
+            with closing(_connect(path)) as connection:
+                self._create_schema(connection)
+                timestamp = "2026-08-12T12:00:00Z"
+                for name in ("Math", "Physics"):
+                    connection.execute(
+                        "INSERT INTO courses (uuid, name, normalized_name, "
+                        "created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                        (new_v3_uuid(), name, name.lower(), timestamp, timestamp),
+                    )
+                math_id, physics_id = (
+                    int(row[0])
+                    for row in connection.execute(
+                        "SELECT id FROM courses ORDER BY id"
+                    ).fetchall()
+                )
+                connection.execute(
+                    "INSERT INTO projects (uuid, course_id, name, status, "
+                    "created_at, updated_at) VALUES (?, ?, 'Lab', 'active', ?, ?)",
+                    (new_v3_uuid(), physics_id, timestamp, timestamp),
+                )
+                project_id = int(
+                    connection.execute("SELECT last_insert_rowid()").fetchone()[0]
+                )
+                connection.execute(
+                    """
+                    INSERT INTO assignments (
+                        uuid, course_id, project_id, course_name, title, status,
+                        priority, progress_percent, all_day, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'Math', 'Task', 'not_started', 'medium',
+                              0, 0, ?, ?)
+                    """,
+                    (new_v3_uuid(), math_id, project_id, timestamp, timestamp),
+                )
+                with self.assertRaisesRegex(SchemaV3Error, "disagree on course"):
+                    validate_v3_schema(connection)
 
 
 class V3ArtifactContractTests(unittest.TestCase):

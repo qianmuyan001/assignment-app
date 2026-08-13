@@ -30,6 +30,19 @@ _IANA_TIME_ZONE = re.compile(
     r"^(?:UTC|[A-Za-z_+\-]+(?:/[A-Za-z0-9_+\-.]+)+)$"
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_RRULE_UNTIL = re.compile(r"^(?:[0-9]{8}|[0-9]{8}T[0-9]{6}Z)$")
+_RRULE_UNSIGNED_INTEGER = re.compile(r"^[0-9]+$")
+_RRULE_SIGNED_INTEGER = re.compile(r"^-?[0-9]+$")
+_RRULE_KEYS = {
+    "FREQ",
+    "INTERVAL",
+    "COUNT",
+    "UNTIL",
+    "BYDAY",
+    "BYMONTHDAY",
+    "BYMONTH",
+}
+_WEEKDAYS = {"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
 
 _V2_ASSIGNMENT_COLUMNS = (
     "id",
@@ -330,6 +343,83 @@ def is_safe_attachment_relative_path(value: object) -> bool:
     return all(part not in {"", ".", ".."} for part in path.parts)
 
 
+def canonical_repeat_rule(value: object) -> str | None:
+    """Validate and canonicalize the supported single-line RFC 5545 subset."""
+
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("repeat_rule must be text or null")
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if "\n" in cleaned or "\r" in cleaned or "DTSTART" in cleaned.upper():
+        raise ValueError("repeat_rule must be a single RRULE without DTSTART")
+    if any(character.isspace() for character in cleaned):
+        raise ValueError("repeat_rule must not contain whitespace")
+
+    parsed: dict[str, str] = {}
+    ordered: list[tuple[str, str]] = []
+    for component in cleaned.split(";"):
+        if component.count("=") != 1:
+            raise ValueError("repeat_rule components must use KEY=VALUE syntax")
+        raw_key, raw_value = component.split("=", maxsplit=1)
+        key = raw_key.upper()
+        rule_value = raw_value.upper()
+        if key not in _RRULE_KEYS:
+            raise ValueError(f"repeat_rule key {key!r} is not supported")
+        if key in parsed or not rule_value:
+            raise ValueError("repeat_rule keys must be unique and non-empty")
+        parsed[key] = rule_value
+        ordered.append((key, rule_value))
+
+    if parsed.get("FREQ") not in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
+        raise ValueError("repeat_rule requires a supported FREQ")
+    if "COUNT" in parsed and "UNTIL" in parsed:
+        raise ValueError("repeat_rule cannot combine COUNT and UNTIL")
+    for key, maximum in (("INTERVAL", 999), ("COUNT", 9999)):
+        if key in parsed and (
+            _RRULE_UNSIGNED_INTEGER.fullmatch(parsed[key]) is None
+            or not 1 <= int(parsed[key]) <= maximum
+        ):
+            raise ValueError(f"repeat_rule {key} is outside the allowed range")
+    if "UNTIL" in parsed:
+        until = parsed["UNTIL"]
+        if _RRULE_UNTIL.fullmatch(until) is None:
+            raise ValueError(
+                "repeat_rule UNTIL must be YYYYMMDD or UTC YYYYMMDDTHHMMSSZ"
+            )
+        until_format = "%Y%m%d" if len(until) == 8 else "%Y%m%dT%H%M%SZ"
+        try:
+            datetime.strptime(until, until_format)
+        except ValueError as exc:
+            raise ValueError("repeat_rule UNTIL is not a real calendar value") from exc
+    if "BYDAY" in parsed:
+        days = parsed["BYDAY"].split(",")
+        if len(days) != len(set(days)) or any(day not in _WEEKDAYS for day in days):
+            raise ValueError("repeat_rule BYDAY contains an unsupported weekday")
+    for key, minimum, maximum in (("BYMONTHDAY", -31, 31), ("BYMONTH", 1, 12)):
+        if key not in parsed:
+            continue
+        raw_values = parsed[key].split(",")
+        integer_pattern = (
+            _RRULE_SIGNED_INTEGER if key == "BYMONTHDAY" else _RRULE_UNSIGNED_INTEGER
+        )
+        if any(integer_pattern.fullmatch(item) is None for item in raw_values):
+            raise ValueError(f"repeat_rule {key} must contain ASCII integers")
+        try:
+            numbers = [int(item) for item in raw_values]
+        except ValueError as exc:
+            raise ValueError(f"repeat_rule {key} must contain integers") from exc
+        if (
+            len(numbers) != len(set(numbers))
+            or any(number == 0 or not minimum <= number <= maximum for number in numbers)
+        ):
+            raise ValueError(f"repeat_rule {key} contains an invalid value")
+
+    return ";".join(f"{key}={rule_value}" for key, rule_value in ordered)
+
+
 def attachment_storage_relative_path(attachment_uuid: str) -> str:
     """Return the immutable, case-stable payload key for an attachment row."""
 
@@ -591,10 +681,13 @@ def validate_v3_schema(connection: sqlite3.Connection) -> None:
 
     _validate_audit_timestamps(connection)
     attachment_types = {
-        str(row[2]).upper()
-        for row in connection.execute("PRAGMA table_info(attachments)").fetchall()
+        str(row[2]).strip().upper()
+        for row in connection.execute("PRAGMA table_xinfo(attachments)").fetchall()
     }
-    if any("BLOB" in column_type for column_type in attachment_types):
+    # SQLite assigns BLOB affinity both to explicit BLOB declarations and to
+    # columns with no declared type. Extension metadata is allowed, payload
+    # storage is not.
+    if any(not column_type or "BLOB" in column_type for column_type in attachment_types):
         raise SchemaV3Error("attachments must store metadata only, never BLOB columns")
     for attachment_uuid, file_name, relative_path, sha256 in connection.execute(
         "SELECT uuid, file_name, relative_path, sha256 FROM attachments"
@@ -631,14 +724,72 @@ def validate_v3_schema(connection: sqlite3.Connection) -> None:
                 f"{table} row {invalid_name[0]} has an invalid normalized_name"
             )
 
+    invalid_organization_row = connection.execute(
+        """
+        SELECT 'course', id FROM courses
+        WHERE is_archived IS NULL OR is_archived NOT IN (0, 1)
+        UNION ALL
+        SELECT 'project', id FROM projects
+        WHERE status IS NULL
+           OR status NOT IN ('active', 'on_hold', 'completed', 'archived')
+        UNION ALL
+        SELECT 'subtask', id FROM subtasks
+        WHERE status IS NULL
+           OR status NOT IN ('not_started', 'in_progress', 'completed')
+           OR sort_order IS NULL OR sort_order < 0
+           OR (status = 'completed' AND completed_at IS NULL)
+           OR (status != 'completed' AND completed_at IS NOT NULL)
+        UNION ALL
+        SELECT 'reminder', id FROM reminders
+        WHERE lead_minutes IS NULL OR lead_minutes < 0
+           OR is_enabled IS NULL OR is_enabled NOT IN (0, 1)
+        UNION ALL
+        SELECT 'attachment', id FROM attachments
+        WHERE byte_size IS NULL OR byte_size < 0
+        LIMIT 1
+        """
+    ).fetchone()
+    if invalid_organization_row is not None:
+        raise SchemaV3Error(
+            f"{invalid_organization_row[0]} row {invalid_organization_row[1]} "
+            "violates the v3 organization contract"
+        )
+
+    invalid_course_snapshot = connection.execute(
+        """
+        SELECT a.id FROM assignments AS a
+        JOIN courses AS c ON c.id = a.course_id
+        WHERE a.course_name IS NULL OR a.course_name != c.name
+        LIMIT 1
+        """
+    ).fetchone()
+    if invalid_course_snapshot is not None:
+        raise SchemaV3Error(
+            f"assignment {invalid_course_snapshot[0]} has a stale course snapshot"
+        )
+
+    invalid_project_course = connection.execute(
+        """
+        SELECT a.id FROM assignments AS a
+        JOIN projects AS p ON p.id = a.project_id
+        WHERE p.course_id IS NOT NULL
+          AND (a.course_id IS NULL OR a.course_id != p.course_id)
+        LIMIT 1
+        """
+    ).fetchone()
+    if invalid_project_course is not None:
+        raise SchemaV3Error(
+            f"assignment {invalid_project_course[0]} and its project disagree on course"
+        )
+
     for timezone_id in connection.execute(
         "SELECT timezone_id FROM assignments WHERE timezone_id IS NOT NULL"
     ).fetchall():
         if not is_iana_timezone_id(timezone_id[0]):
             raise SchemaV3Error(f"invalid IANA timezone identifier: {timezone_id[0]!r}")
 
-    for reminder_id, trigger_at, last_scheduled_at in connection.execute(
-        "SELECT id, trigger_at_utc, last_scheduled_at FROM reminders"
+    for reminder_id, trigger_at, last_scheduled_at, repeat_rule in connection.execute(
+        "SELECT id, trigger_at_utc, last_scheduled_at, repeat_rule FROM reminders"
     ).fetchall():
         if not is_utc_audit_timestamp(trigger_at):
             raise SchemaV3Error(
@@ -649,6 +800,14 @@ def validate_v3_schema(connection: sqlite3.Connection) -> None:
         ):
             raise SchemaV3Error(
                 f"reminder {reminder_id} last_scheduled_at is not canonical UTC"
+            )
+        try:
+            canonical_rule = canonical_repeat_rule(repeat_rule)
+        except ValueError as exc:
+            raise SchemaV3Error(f"reminder {reminder_id} has invalid repeat_rule") from exc
+        if canonical_rule != repeat_rule:
+            raise SchemaV3Error(
+                f"reminder {reminder_id} repeat_rule is not stored canonically"
             )
 
     invalid_tasks = connection.execute(
@@ -670,6 +829,33 @@ def validate_v3_schema(connection: sqlite3.Connection) -> None:
     ).fetchone()
     if invalid_tasks is not None:
         raise SchemaV3Error(f"assignment {invalid_tasks[0]} violates progress semantics")
+
+    for task_id, status, progress, total, completed, in_progress in connection.execute(
+        """
+        SELECT a.id, a.status, a.progress_percent,
+               COUNT(s.id),
+               SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN s.status = 'in_progress' THEN 1 ELSE 0 END)
+        FROM assignments AS a
+        JOIN subtasks AS s
+          ON s.assignment_id = a.id AND s.deleted_at IS NULL
+        GROUP BY a.id, a.status, a.progress_percent
+        """
+    ).fetchall():
+        total_count = int(total)
+        completed_count = int(completed or 0)
+        in_progress_count = int(in_progress or 0)
+        expected_progress = completed_count * 100 // total_count
+        if completed_count == total_count:
+            expected_status = "completed"
+        elif completed_count > 0 or in_progress_count > 0:
+            expected_status = "in_progress"
+        else:
+            expected_status = "not_started"
+        if str(status) != expected_status or int(progress) != expected_progress:
+            raise SchemaV3Error(
+                f"assignment {task_id} does not match its active subtask state"
+            )
 
 
 def _validate_audit_timestamps(connection: sqlite3.Connection) -> None:

@@ -24,6 +24,12 @@ python3 -m unittest discover -s shared/tests -v
 These tests create temporary databases only. Do not point them at a user or
 repository database.
 
+The current suite contains 57 tests. Schema v3 validation includes database
+lineage and UUID contracts, exact index/trigger/foreign-key shapes, active
+subtask-derived parent state, course/project relationship invariants, canonical
+recurrence rules, organization scalar semantics, and attachment metadata-only
+affinity checks, including hidden/generated columns.
+
 Phase 0 also provides isolated HTTP/API tests:
 
 ```bash

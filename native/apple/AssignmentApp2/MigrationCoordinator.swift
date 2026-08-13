@@ -8,6 +8,7 @@ enum MigrationCoordinator {
         at databaseURL: URL,
         migrationFailureInjector: (() throws -> Void)? = nil,
         postCommitValidationFailureInjector: (() throws -> Void)? = nil,
+        postRollbackFailureInjector: (() throws -> Void)? = nil,
         databaseInstanceUUID: UUID? = nil
     ) throws -> MigrationResult {
         SQLiteAssignmentRepository.preconditionSafeTestDatabaseURL(databaseURL)
@@ -16,6 +17,7 @@ enum MigrationCoordinator {
                 at: databaseURL,
                 migrationFailureInjector: migrationFailureInjector,
                 postCommitValidationFailureInjector: postCommitValidationFailureInjector,
+                postRollbackFailureInjector: postRollbackFailureInjector,
                 databaseInstanceUUID: databaseInstanceUUID
             )
         }
@@ -31,20 +33,24 @@ private extension MigrationCoordinator {
         let isFresh: Bool
     }
 
-    struct DatabaseSnapshot {
+    struct DatabaseSnapshot: Equatable {
         let storedVersion: Int32
         let fingerprint: String
     }
 
     struct CommittedOutcome {
         let result: MigrationResult
-        let originalSnapshot: DatabaseSnapshot?
+        /// Logical state produced by this coordinator while it still owned the
+        /// SQLite write transaction. After COMMIT it is evidence for error
+        /// classification only; it must never authorize a non-atomic restore.
+        let candidateSnapshot: DatabaseSnapshot
     }
 
     static func prepareWhileLocked(
         at databaseURL: URL,
         migrationFailureInjector: (() throws -> Void)?,
         postCommitValidationFailureInjector: (() throws -> Void)?,
+        postRollbackFailureInjector: (() throws -> Void)?,
         databaseInstanceUUID: UUID?
     ) throws -> MigrationResult {
         var writer: OpaquePointer? = try SQLiteSupport.open(databaseURL)
@@ -66,6 +72,7 @@ private extension MigrationCoordinator {
 
             if state.sourceVersion == SQLiteSchemaV3.databaseVersion {
                 try SQLiteSchemaV3.validate(on: activeWriter)
+                let candidateSnapshot = try snapshot(on: activeWriter)
                 try SQLiteSupport.execute("COMMIT", on: activeWriter)
                 transactionActive = false
                 committedOutcome = .init(
@@ -76,7 +83,7 @@ private extension MigrationCoordinator {
                         backupURL: nil,
                         strategy: .none
                     ),
-                    originalSnapshot: nil
+                    candidateSnapshot: candidateSnapshot
                 )
             } else {
                 if !state.isFresh {
@@ -129,6 +136,7 @@ private extension MigrationCoordinator {
                 }
 
                 try SQLiteSchemaV3.validate(on: activeWriter)
+                let candidateSnapshot = try snapshot(on: activeWriter)
                 try SQLiteSupport.execute("COMMIT", on: activeWriter)
                 transactionActive = false
                 committedOutcome = .init(
@@ -139,13 +147,18 @@ private extension MigrationCoordinator {
                         backupURL: backupURL,
                         strategy: strategy
                     ),
-                    originalSnapshot: originalSnapshot
+                    candidateSnapshot: candidateSnapshot
                 )
             }
         } catch {
             let transactionError = error
+            var rollbackError: Error?
             if transactionActive, let writer {
-                try? SQLiteSupport.execute("ROLLBACK", on: writer)
+                do {
+                    try SQLiteSupport.execute("ROLLBACK", on: writer)
+                } catch {
+                    rollbackError = error
+                }
                 transactionActive = false
             }
             if let activeWriter = writer {
@@ -159,23 +172,42 @@ private extension MigrationCoordinator {
                         + transactionError.localizedDescription
                 )
             }
+
+            // Exercise the real cross-process boundary in tests: SQLite's lock
+            // has been released and the migration connection is closed, while
+            // an independent writer may legitimately commit.
             do {
-                _ = try ensureOriginalSnapshot(
-                    originalSnapshot,
-                    backupURL: backupURL,
-                    databaseURL: databaseURL
-                )
-            } catch let restoreError {
+                try postRollbackFailureInjector?()
+            } catch {
                 throw DatabaseMigrationError(
-                    "Migration failed and automatic restore verification failed. "
-                        + "The online backup remains at \(backupURL.path). "
-                        + "Restore error: \(restoreError.localizedDescription)",
+                    "Migration failed and the post-rollback verification hook failed. The live "
+                        + "database was preserved and the online backup remains at "
+                        + "\(backupURL.path). Hook error: \(error.localizedDescription)",
+                    backupURL: backupURL
+                )
+            }
+
+            do {
+                try verifyTransactionRollback(
+                    originalSnapshot: originalSnapshot,
+                    backupURL: backupURL,
+                    databaseURL: databaseURL,
+                    rollbackError: rollbackError
+                )
+            } catch let recoveryError as DatabaseMigrationError {
+                throw recoveryError
+            } catch let verificationError {
+                throw DatabaseMigrationError(
+                    "Migration failed and rollback verification failed. The live database was "
+                        + "preserved to avoid overwriting a possible external commit. The online "
+                        + "backup remains at \(backupURL.path). Verification error: "
+                        + verificationError.localizedDescription,
                     backupURL: backupURL
                 )
             }
             throw DatabaseMigrationError(
-                "Database migration failed; the original database was preserved or restored "
-                    + "and verified against \(backupURL.lastPathComponent). Cause: "
+                "Database migration failed; SQLite rolled back the transaction and the original "
+                    + "database snapshot was verified. Cause: "
                     + transactionError.localizedDescription,
                 backupURL: backupURL
             )
@@ -189,38 +221,39 @@ private extension MigrationCoordinator {
             throw DatabaseMigrationError("Migration committed without a recorded result.")
         }
 
-        // Post-commit phase. This has no access to the transaction connection.
-        // If a committed migration fails validation, restoration uses a new
-        // connection and the Online Backup API, never rollback or file replace.
+        // Post-commit phase. SQLite's write lock is no longer held. Even when
+        // the live fingerprint still equals our candidate, a later Online
+        // Backup restore would have a TOCTOU window in which an external writer
+        // could commit and then be overwritten. This phase is read-only and
+        // fails closed.
         do {
             try postCommitValidationFailureInjector?()
             try validateCommittedV3(at: databaseURL)
         } catch {
-            guard let backupURL = committedOutcome.result.backupURL,
-                  let snapshot = committedOutcome.originalSnapshot else {
+            guard let backupURL = committedOutcome.result.backupURL else {
                 throw DatabaseMigrationError(
-                    "Committed database failed post-commit validation: "
+                    "Committed database failed post-commit validation. The live database was "
+                        + "preserved and writes remain disabled for this startup. Cause: "
                         + error.localizedDescription
                 )
             }
-            do {
-                _ = try ensureOriginalSnapshot(
-                    snapshot,
-                    backupURL: backupURL,
-                    databaseURL: databaseURL,
-                    forceRestore: true
-                )
-            } catch let restoreError {
-                throw DatabaseMigrationError(
-                    "Committed migration failed validation and original restoration failed. "
-                        + "The online backup remains at \(backupURL.path). Restore error: "
-                        + restoreError.localizedDescription,
-                    backupURL: backupURL
-                )
-            }
+            let matchesCandidate = (try? validatedSnapshot(
+                at: databaseURL,
+                expectedStoredVersion: committedOutcome.candidateSnapshot.storedVersion,
+                expectedFingerprint: committedOutcome.candidateSnapshot.fingerprint
+            )) != nil
             throw DatabaseMigrationError(
-                "Committed migration failed post-commit validation; the original database "
-                    + "was restored in place and verified. Cause: \(error.localizedDescription)",
+                matchesCandidate
+                    ? "Committed migration failed post-commit validation. The exact committed "
+                        + "candidate was preserved; automatic restore was not attempted because "
+                        + "SQLite's write lock had already been released. Writes remain disabled "
+                        + "for this startup and the online backup remains at \(backupURL.path). "
+                        + "Cause: \(error.localizedDescription)"
+                    : "Committed migration failed post-commit validation and the live database "
+                        + "no longer matches this attempt's committed candidate. A possible "
+                        + "external change was preserved; writes remain disabled for this startup "
+                        + "and the online backup remains at \(backupURL.path). Cause: "
+                        + error.localizedDescription,
                 backupURL: backupURL
             )
         }
@@ -335,31 +368,6 @@ private extension MigrationCoordinator {
         }
     }
 
-    static func restoreOnlineBackup(from backupURL: URL, to databaseURL: URL) throws {
-        let source = try SQLiteSupport.open(
-            backupURL,
-            flags: SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
-        )
-        defer { sqlite3_close(source) }
-        try SQLiteSupport.configure(source, writable: false)
-
-        let destination = try SQLiteSupport.open(
-            databaseURL,
-            flags: SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
-        )
-        defer { sqlite3_close(destination) }
-        try SQLiteSupport.configure(destination)
-        let journalMode = try SQLiteSupport.scalarText("PRAGMA journal_mode", on: destination)?
-            .lowercased()
-        try SQLiteSupport.onlineBackup(from: source, to: destination)
-        guard try SQLiteSupport.scalarText("PRAGMA journal_mode", on: destination)?
-            .lowercased() == journalMode else {
-            throw DatabaseMigrationError(
-                "Live Online Backup restoration changed the destination journal mode."
-            )
-        }
-    }
-
     static func validateCommittedV3(at databaseURL: URL) throws {
         let validation = try SQLiteSupport.open(
             databaseURL,
@@ -370,28 +378,60 @@ private extension MigrationCoordinator {
         try SQLiteSchemaV3.validate(on: validation)
     }
 
-    static func ensureOriginalSnapshot(
-        _ snapshot: DatabaseSnapshot,
+    /// Verification after ROLLBACK is deliberately read-only. Once ROLLBACK
+    /// releases SQLite's lock, even an exact fingerprint cannot safely authorize
+    /// a later restore: another process could commit between check and write.
+    static func verifyTransactionRollback(
+        originalSnapshot: DatabaseSnapshot,
         backupURL: URL,
         databaseURL: URL,
-        forceRestore: Bool = false
-    ) throws -> Bool {
-        if !forceRestore,
-           (try? validatedSnapshot(
-               at: databaseURL,
-               expectedStoredVersion: snapshot.storedVersion,
-               expectedFingerprint: snapshot.fingerprint
-           )) != nil {
-            return false
+        rollbackError: Error?
+    ) throws {
+        let live: DatabaseSnapshot
+        do {
+            live = try validatedSnapshot(
+                at: databaseURL,
+                expectedStoredVersion: originalSnapshot.storedVersion
+            )
+        } catch {
+            throw DatabaseMigrationError(
+                "Migration failed after rollback, and the live database could not be verified "
+                    + "as a healthy original-version snapshot. It was preserved because SQLite's "
+                    + "lock had already been released; writes remain disabled for this startup. "
+                    + "The online backup remains at \(backupURL.path). Verification error: "
+                    + error.localizedDescription,
+                backupURL: backupURL
+            )
         }
 
-        try restoreOnlineBackup(from: backupURL, to: databaseURL)
-        _ = try validatedSnapshot(
-            at: databaseURL,
-            expectedStoredVersion: snapshot.storedVersion,
-            expectedFingerprint: snapshot.fingerprint
+        guard live.fingerprint == originalSnapshot.fingerprint else {
+            throw DatabaseMigrationError(
+                "Migration failed after rollback, but the live database contains a healthy "
+                    + "external change. It was preserved to avoid losing that commit; no "
+                    + "post-lock restore was attempted and writes remain disabled for "
+                    + "this startup. The online backup remains at \(backupURL.path).",
+                backupURL: backupURL
+            )
+        }
+
+        if let rollbackError {
+            throw DatabaseMigrationError(
+                "SQLite reported a rollback error even though the original database snapshot "
+                    + "was verified. The live database was preserved and writes remain disabled "
+                    + "for this startup. The online backup remains at \(backupURL.path). "
+                    + "Rollback error: \(rollbackError.localizedDescription)",
+                backupURL: backupURL
+            )
+        }
+    }
+
+    static func snapshot(on database: OpaquePointer) throws -> DatabaseSnapshot {
+        .init(
+            storedVersion: Int32(
+                try SQLiteSupport.scalarInt("PRAGMA user_version", on: database)
+            ),
+            fingerprint: try DatabaseLogicalFingerprint.capture(on: database)
         )
-        return true
     }
 
     @discardableResult

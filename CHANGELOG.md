@@ -6,6 +6,34 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Added
+
+- Added the shared SQLite schema v3 contract and additive v1/v2-to-v3 migration
+  for stable UUIDs, database lineage, courses, projects, tags, task-tag links,
+  subtasks, attachment metadata, reminders, completion timestamps, real task
+  progress, all-day dates, time zones, and soft deletion.
+- Added Phase 1 repositories and API endpoints for Backend, iPadOS/Mac Catalyst,
+  and Windows Core. User-facing native organization screens remain Phase 2.
+- Added 57 shared contract tests, 44 Apple unit tests per platform, 30 Windows
+  Core tests, and cross-language schema validation fixtures.
+
+### Fixed
+
+- Hardened migration concurrency and recovery around SQLite Online Backup,
+  `BEGIN IMMEDIATE`, cross-process locks, exact rollback verification, full
+  logical fingerprints, integrity checks, foreign-key checks, and immutable
+  database lineage. After SQLite releases its write lock, an unexpected live
+  change is preserved and startup fails closed instead of overwriting a
+  possible external commit with an older backup.
+- Made active subtasks the authoritative source of parent task progress and
+  status, with atomic parent commands and soft-delete/restore behavior.
+- Preserved legacy local wall-time text through migrations, device/timezone-only
+  edits, ambiguous times, and daylight-saving gaps; offset-bearing values are
+  rejected rather than shifted.
+- Unified the supported RFC 5545 recurrence subset across Python, Swift, and C#,
+  including ASCII-only integer syntax, and reject untyped, explicit BLOB, or
+  generated BLOB-affinity attachment columns.
+
 ### Changed
 
 - Unified root, Apple, and Windows source versions at 2.0.0 while explicitly
@@ -84,8 +112,8 @@ is currently no `v2.0.0` Git tag or GitHub Release.
   explain a change, and hover transforms are gated to fine pointers.
 - 2.0 UI/API statuses are `todo`, `in_progress`, and `done`, while SQLite keeps
   the 1.0 physical values for backward compatibility.
-- Apple `completedAt` is derived from `updated_at` while a task is done because
-  shared schema v2 intentionally has no independent completion timestamp.
+- At the original schema-v2 baseline, Apple derived `completedAt` from
+  `updated_at`; schema v3 now stores an independent `completed_at` value.
 
 ### Known limitations
 

@@ -102,11 +102,13 @@ def migrate_database(
     database_path: str | Path,
     *,
     migration_hook: Callable[[sqlite3.Connection], None] | None = None,
+    after_rollback_hook: Callable[[Path], None] | None = None,
 ) -> MigrationResult:
     """Upgrade one SQLite database without touching any other database.
 
-    ``migration_hook`` is an internal test seam used to prove rollback and
-    backup restoration. Production callers must leave it unset.
+    ``migration_hook`` and ``after_rollback_hook`` are internal test seams used
+    to prove rollback and concurrent-writer safety. Production callers must
+    leave both unset.
     """
 
     path = Path(database_path).expanduser().resolve()
@@ -120,6 +122,7 @@ def migrate_database(
             return _migrate_database_while_locked(
                 path,
                 migration_hook=migration_hook,
+                after_rollback_hook=after_rollback_hook,
             )
     finally:
         if uses_global_engine:
@@ -130,6 +133,7 @@ def _migrate_database_while_locked(
     path: Path,
     *,
     migration_hook: Callable[[sqlite3.Connection], None] | None,
+    after_rollback_hook: Callable[[Path], None] | None,
 ) -> MigrationResult:
     connection = _connect(path)
     backup_path: Path | None = None
@@ -204,27 +208,27 @@ def _migrate_database_while_locked(
         )
     except Exception as exc:
         connection.rollback()
+        if after_rollback_hook is not None:
+            after_rollback_hook(path)
         if backup_path is not None and backup_fingerprint is not None:
             try:
-                restored_from_backup = _verify_rollback_or_restore_in_place(
+                _verify_exact_transaction_rollback(
                     connection,
-                    backup_path,
                     expected_version=raw_version,
                     expected_fingerprint=backup_fingerprint,
                 )
-            except Exception as restore_exc:
+            except Exception as verification_exc:
                 raise DatabaseMigrationError(
-                    "Database migration failed and automatic restoration also failed. "
-                    f"The consistent backup is preserved at {backup_path}."
-                ) from restore_exc
-            recovery = (
-                "was restored in place with SQLite Online Backup"
-                if restored_from_backup
-                else "was restored and verified unchanged after transaction rollback"
-            )
+                    "Database migration failed and the transaction rollback no longer "
+                    "matches the pre-migration snapshot. The live database was "
+                    "preserved without overwrite because another process may have "
+                    "committed valid data. Startup remains blocked; the consistent "
+                    f"recovery backup is preserved at {backup_path}."
+                ) from verification_exc
             raise DatabaseMigrationError(
                 "Database migration failed; the complete original payload "
-                f"{recovery}. The recovery backup is preserved at {backup_path}."
+                "was restored and verified unchanged after transaction rollback. "
+                f"The recovery backup is preserved at {backup_path}."
             ) from exc
         if isinstance(exc, DatabaseMigrationError):
             raise
@@ -297,17 +301,19 @@ def _backup_database_while_locked(
     return backup_path, backup_fingerprint
 
 
-def _verify_rollback_or_restore_in_place(
+def _verify_exact_transaction_rollback(
     destination: sqlite3.Connection,
-    backup_path: Path,
     *,
     expected_version: int,
     expected_fingerprint: str,
-) -> bool:
-    """Keep the original inode when rollback worked; otherwise restore in place.
+) -> None:
+    """Require an exact rollback without overwriting a possibly newer live DB.
 
-    Returns ``True`` only when an online-backup restore was necessary. No main
-    database file or target WAL/SHM sidecar is replaced or unlinked.
+    SQLite cannot atomically hold a destination transaction while applying its
+    Online Backup API. Restoring after releasing the SQLite write lock would
+    therefore create a time-of-check/time-of-use window in which a valid write
+    from an older client could be erased. A mismatch is deliberately fail-closed:
+    startup stays blocked and the verified standalone backup remains available.
     """
 
     if _database_matches_snapshot(
@@ -315,23 +321,10 @@ def _verify_rollback_or_restore_in_place(
         expected_version=expected_version,
         expected_fingerprint=expected_fingerprint,
     ):
-        return False
-
-    source = _connect(backup_path, read_only=True)
-    try:
-        source.backup(destination)
-        destination.commit()
-    finally:
-        source.close()
-    if not _database_matches_snapshot(
-        destination,
-        expected_version=expected_version,
-        expected_fingerprint=expected_fingerprint,
-    ):
-        raise DatabaseMigrationError(
-            "In-place SQLite Online Backup restoration did not reproduce the snapshot."
-        )
-    return True
+        return
+    raise DatabaseMigrationError(
+        "Rollback snapshot mismatch; automatic overwrite was intentionally refused."
+    )
 
 
 def _database_matches_snapshot(

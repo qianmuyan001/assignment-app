@@ -194,8 +194,12 @@ struct Assignment: Identifiable, Hashable {
     var timeZoneIdentifier: String?
     var deletedAt: Date?
     /// Original SQLite wall-time text. Reused only when it still represents
-    /// the unchanged `dueDate` in the effective timezone.
+    /// the unchanged `dueDate` loaded by the repository.
     var storedDueDateText: String?
+    /// Parsed baseline paired with `storedDueDateText`. This is intentionally
+    /// not persisted; it prevents a timezone-only edit or a device timezone
+    /// change from rewriting legacy wall-time text.
+    var storedDueDateValue: Date?
 
     init(
         id: Int64,
@@ -220,7 +224,8 @@ struct Assignment: Identifiable, Hashable {
         allDay: Bool = false,
         timeZoneIdentifier: String? = nil,
         deletedAt: Date? = nil,
-        storedDueDateText: String? = nil
+        storedDueDateText: String? = nil,
+        storedDueDateValue: Date? = nil
     ) {
         self.id = id
         self.uuid = uuid
@@ -245,6 +250,7 @@ struct Assignment: Identifiable, Hashable {
         self.timeZoneIdentifier = timeZoneIdentifier
         self.deletedAt = deletedAt
         self.storedDueDateText = storedDueDateText
+        self.storedDueDateValue = storedDueDateValue
     }
 }
 
@@ -441,8 +447,9 @@ enum LocalWallTime {
         return date
     }
 
-    /// v1 SQLAlchemy databases may include fractional seconds. The migration
-    /// accepts that one legacy representation and rewrites it to canonical v2.
+    /// v1 SQLAlchemy databases may include fractional seconds, and historical
+    /// local wall times may fall inside a daylight-saving gap. Both forms stay
+    /// readable so an unrelated edit can preserve the stored text verbatim.
     static func legacyDate(
         from value: String,
         timeZone: TimeZone = .current
@@ -451,20 +458,98 @@ enum LocalWallTime {
             return canonical
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.range(of: legacyFractionPattern, options: .regularExpression) != nil else {
+        let isCanonical = trimmed.range(
+            of: canonicalPattern,
+            options: .regularExpression
+        ) != nil
+        let isLegacyFraction = trimmed.range(
+            of: legacyFractionPattern,
+            options: .regularExpression
+        ) != nil
+        guard isCanonical || isLegacyFraction else {
             if containsOffset(in: trimmed) {
                 throw AssignmentDataError.offsetBearingLocalWallTime(trimmed)
             }
             throw AssignmentDataError.invalidLocalWallTime(trimmed)
         }
-        let normalized = trimmed.replacingOccurrences(of: "T", with: " ")
-        guard let date = formatter(
-            format: "yyyy-MM-dd HH:mm:ss.SSSSSS",
-            timeZone: timeZone
-        ).date(from: normalized) else {
+        guard let date = compatibilityDate(from: trimmed, timeZone: timeZone) else {
             throw AssignmentDataError.invalidLocalWallTime(trimmed)
         }
         return date
+    }
+
+    private static func compatibilityDate(
+        from value: String,
+        timeZone: TimeZone
+    ) -> Date? {
+        let normalized = value.replacingOccurrences(of: "T", with: " ")
+        let parts = normalized.split(separator: " ", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+        let dateParts = parts[0].split(separator: "-", omittingEmptySubsequences: false)
+        let timeAndFraction = parts[1].split(
+            separator: ".",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        )
+        let timeParts = timeAndFraction[0].split(
+            separator: ":",
+            omittingEmptySubsequences: false
+        )
+        guard dateParts.count == 3, (2...3).contains(timeParts.count),
+              let year = Int(dateParts[0]),
+              let month = Int(dateParts[1]),
+              let day = Int(dateParts[2]),
+              let hour = Int(timeParts[0]),
+              let minute = Int(timeParts[1]),
+              let second = timeParts.count == 3 ? Int(timeParts[2]) : 0 else {
+            return nil
+        }
+
+        var validation = Calendar(identifier: .gregorian)
+        validation.timeZone = TimeZone(secondsFromGMT: 0)!
+        let fields: Set<Calendar.Component> = [
+            .year, .month, .day, .hour, .minute, .second,
+        ]
+        var components = DateComponents(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second
+        )
+        guard let validationDate = validation.date(from: components),
+              validation.dateComponents(fields, from: validationDate) == components else {
+            return nil
+        }
+
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = timeZone
+        components.calendar = local
+        components.timeZone = timeZone
+        let dayStartComponents = DateComponents(year: year, month: month, day: day)
+        guard let dayStart = local.date(from: dayStartComponents),
+              let localDate = local.nextDate(
+                  after: dayStart.addingTimeInterval(-1),
+                  matching: DateComponents(hour: hour, minute: minute, second: second),
+                  matchingPolicy: .nextTimePreservingSmallerComponents,
+                  repeatedTimePolicy: .first,
+                  direction: .forward
+              ) else {
+            return nil
+        }
+        guard local.dateComponents([.year, .month, .day], from: localDate)
+            == DateComponents(year: year, month: month, day: day) else {
+            return nil
+        }
+        guard timeAndFraction.count == 2 else { return localDate }
+        let rawFraction = String(timeAndFraction[1])
+        guard !rawFraction.isEmpty,
+              rawFraction.allSatisfy(\.isNumber),
+              let fraction = Double("0.\(rawFraction)") else {
+            return nil
+        }
+        return localDate.addingTimeInterval(fraction)
     }
 
     private static func formatter(format: String, timeZone: TimeZone) -> DateFormatter {

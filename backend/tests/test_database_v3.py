@@ -14,12 +14,25 @@ from uuid import UUID
 
 
 _MODULE_ROOT_ENV = "ASSIGNMENT_BACKEND_TEST_ROOT"
-_existing_module_root = os.environ.get(_MODULE_ROOT_ENV)
-_MODULE_ROOT = Path(
-    _existing_module_root
-    or tempfile.mkdtemp(prefix="assignment-database-v3-tests-")
-)
-_MODULE_OWNS_ROOT = _existing_module_root is None
+_is_spawn_worker = multiprocessing.current_process().name != "MainProcess"
+if _is_spawn_worker:
+    _inherited_module_root = os.environ.get(_MODULE_ROOT_ENV)
+    if _inherited_module_root is None:
+        raise RuntimeError("Spawned database tests require their parent temp root")
+    _MODULE_ROOT = Path(_inherited_module_root).resolve()
+    _temp_root = Path(tempfile.gettempdir()).resolve()
+    if (
+        _MODULE_ROOT.parent != _temp_root
+        or not _MODULE_ROOT.name.startswith("assignment-database-v3-tests-")
+    ):
+        raise RuntimeError("Spawned database tests rejected a non-temporary root")
+    _MODULE_OWNS_ROOT = False
+else:
+    # Ignore caller-provided paths in the primary test process. Every run owns
+    # a newly-created system temporary directory; spawn workers inherit only
+    # that validated path.
+    _MODULE_ROOT = Path(tempfile.mkdtemp(prefix="assignment-database-v3-tests-")).resolve()
+    _MODULE_OWNS_ROOT = True
 os.environ[_MODULE_ROOT_ENV] = str(_MODULE_ROOT)
 os.environ["ASSIGNMENT_DB_PATH"] = str(_MODULE_ROOT / "global.db")
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -328,8 +341,47 @@ class BackendDatabaseV3Tests(unittest.TestCase):
             self.assertEqual(version, 2)
             self.assertEqual(notes[-1], (3, "after recovery"))
 
-    def test_committed_partial_migration_restores_in_place_without_inode_swap(self) -> None:
-        path = self.root / "forced-restore.db"
+    def test_rollback_preserves_a_healthy_concurrent_write_without_overwrite(self) -> None:
+        path = self.root / "concurrent-write.db"
+        _create_v2_database(path)
+        original_dump = _logical_dump(path)
+        inode_before = path.stat().st_ino
+
+        def fail_after_v3(connection: sqlite3.Connection) -> None:
+            connection.execute(
+                "UPDATE extension_data SET note = 'rolled back' WHERE id = 1"
+            )
+            raise RuntimeError("force rollback before external write")
+
+        def write_after_rollback(database_path: Path) -> None:
+            with closing(sqlite3.connect(database_path)) as writer:
+                writer.execute(
+                    "INSERT INTO extension_data (id, note) VALUES (2, 'newer valid write')"
+                )
+                writer.commit()
+
+        with self.assertRaises(DatabaseMigrationError) as raised:
+            migrate_database(
+                path,
+                migration_hook=fail_after_v3,
+                after_rollback_hook=write_after_rollback,
+            )
+        self.assertIn("preserved without overwrite", str(raised.exception))
+        self.assertEqual(path.stat().st_ino, inode_before)
+        with closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT note FROM extension_data WHERE id = 2"
+                ).fetchone()[0],
+                "newer valid write",
+            )
+        backups = list(self.root.glob("concurrent-write.db.v2-to-v3.*.bak"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(_logical_dump(backups[0]), original_dump)
+
+    def test_unsafe_external_commit_blocks_startup_without_overwrite(self) -> None:
+        path = self.root / "unsafe-commit.db"
         _create_v2_database(path)
         original_dump = _logical_dump(path)
         inode_before = path.stat().st_ino
@@ -340,9 +392,12 @@ class BackendDatabaseV3Tests(unittest.TestCase):
 
         with self.assertRaises(DatabaseMigrationError) as raised:
             migrate_database(path, migration_hook=commit_partial_schema)
-        self.assertIn("restored in place with SQLite Online Backup", str(raised.exception))
+        self.assertIn("preserved without overwrite", str(raised.exception))
         self.assertEqual(path.stat().st_ino, inode_before)
-        self.assertEqual(_logical_dump(path), original_dump)
+        self.assertNotEqual(_logical_dump(path), original_dump)
+        backups = list(self.root.glob("unsafe-commit.db.v2-to-v3.*.bak"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(_logical_dump(backups[0]), original_dump)
 
     def test_cross_process_lock_rechecks_version_before_second_backup(self) -> None:
         path = self.root / "concurrent.db"

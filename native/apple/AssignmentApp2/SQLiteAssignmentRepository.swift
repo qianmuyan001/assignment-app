@@ -263,6 +263,7 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
                     try Self.storedDueDateText(
                         date: draft.dueDate,
                         originalText: assignment.storedDueDateText,
+                        originalDate: assignment.storedDueDateValue,
                         timeZone: effectiveTimeZone
                     ),
                     to: statement,
@@ -501,15 +502,11 @@ private extension SQLiteAssignmentRepository {
     static func storedDueDateText(
         date: Date?,
         originalText: String?,
+        originalDate: Date?,
         timeZone: TimeZone
     ) throws -> String? {
         guard let date else { return nil }
-        if let originalText,
-           let originalDate = try? LocalWallTime.legacyDate(
-               from: originalText,
-               timeZone: timeZone
-           ),
-           originalDate == date {
+        if let originalText, originalDate == date {
             return originalText
         }
         return LocalWallTime.string(from: date, timeZone: timeZone)
@@ -619,14 +616,15 @@ private extension SQLiteAssignmentRepository {
             let timeZoneIdentifier = text(statement, 20)
             let timeZone = try validatedTimeZone(identifier: timeZoneIdentifier)
             let storedDueDateText = text(statement, 4)
+            let parsedDueDate = try storedDueDateText.map {
+                try LocalWallTime.legacyDate(from: $0, timeZone: timeZone)
+            }
             return Assignment(
                 id: sqlite3_column_int64(statement, 0),
                 uuid: uuid,
                 courseName: courseName,
                 title: title,
-                dueDate: try storedDueDateText.map {
-                    try LocalWallTime.legacyDate(from: $0, timeZone: timeZone)
-                },
+                dueDate: parsedDueDate,
                 assignmentDescription: text(statement, 5),
                 link: text(statement, 6),
                 status: try AssignmentStatus(storageValue: storedStatus),
@@ -646,7 +644,8 @@ private extension SQLiteAssignmentRepository {
                 allDay: sqlite3_column_int(statement, 19) == 1,
                 timeZoneIdentifier: timeZoneIdentifier,
                 deletedAt: try text(statement, 21).map { try DatabaseTimestamp.date(from: $0) },
-                storedDueDateText: storedDueDateText
+                storedDueDateText: storedDueDateText,
+                storedDueDateValue: parsedDueDate
             )
         } catch let error as AssignmentRepositoryError {
             throw error

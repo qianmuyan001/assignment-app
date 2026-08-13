@@ -9,6 +9,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
 {
     private readonly CoreAssignmentItem? _existing;
     private readonly bool _professionalMode;
+    private readonly TaskDueControlState _loadedDueState;
 
     public AssignmentDraft? Result { get; private set; }
 
@@ -27,6 +28,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
             : Visibility.Collapsed;
 
         Populate(existing);
+        _loadedDueState = ReadDueControlState();
     }
 
     private void Populate(CoreAssignmentItem? item)
@@ -47,7 +49,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
 
         if (item.DueDate is { } dueDate)
         {
-            var localDue = dueDate.ToLocalTime();
+            var localDue = TimeZoneInfo.ConvertTime(dueDate, EffectiveTimeZone);
             HasDueDateBox.IsChecked = true;
             DueDatePicker.SelectedDate = localDue.Date;
             DueTimePicker.Time = localDue.TimeOfDay;
@@ -83,48 +85,63 @@ public sealed partial class TaskEditorDialog : ContentDialog
             return;
         }
 
-        var link = _professionalMode ? Clean(LinkBox.Text) : _existing?.Link;
-        if (link is not null &&
-            (!Uri.TryCreate(link, UriKind.Absolute, out var uri) ||
-             uri.Scheme is not ("http" or "https")))
+        string? link;
+        try
         {
-            ValidationText.Text = "Source link must be a complete http or https URL.";
+            link = TaskLinkEditorPolicy.Resolve(_existing, _professionalMode, LinkBox.Text);
+        }
+        catch (ArgumentException error)
+        {
+            ValidationText.Text = error.Message;
             ValidationText.Visibility = Visibility.Visible;
             args.Cancel = true;
             return;
         }
 
-        Result = new AssignmentDraft
+        DateTimeOffset? dueDate;
+        try
         {
-            CourseName = course,
-            Title = title,
-            DueDate = ReadDueDate(),
-            Status = SelectedTag(StatusBox, TaskStatuses.Todo),
-            Description = _professionalMode
-                ? Clean(DescriptionBox.Text)
-                : _existing?.Description,
-            Priority = _professionalMode
+            dueDate = ReadDueDate();
+        }
+        catch (ArgumentException error)
+        {
+            ValidationText.Text = error.Message;
+            ValidationText.Visibility = Visibility.Visible;
+            args.Cancel = true;
+            return;
+        }
+
+        Result = TaskEditorDraftProjection.Apply(
+            _existing,
+            course,
+            title,
+            dueDate,
+            SelectedTag(StatusBox, TaskStatuses.Todo),
+            _professionalMode ? Clean(DescriptionBox.Text) : _existing?.Description,
+            _professionalMode
                 ? SelectedTag(PriorityBox, TaskPriorities.Medium)
                 : _existing?.Priority ?? TaskPriorities.Medium,
-            Link = link,
-            SourceName = _existing?.SourceName,
-            SourceType = _existing?.SourceType,
-            SourceFile = _existing?.SourceFile,
-            SourceUrl = _existing?.SourceUrl
-        };
+            link);
     }
 
     private DateTimeOffset? ReadDueDate()
     {
-        if (HasDueDateBox.IsChecked != true || DueDatePicker.SelectedDate is not { } selected)
-        {
-            return null;
-        }
-
-        var localDate = selected.Date + DueTimePicker.Time;
-        var unspecified = DateTime.SpecifyKind(localDate, DateTimeKind.Unspecified);
-        return new DateTimeOffset(unspecified, TimeZoneInfo.Local.GetUtcOffset(unspecified));
+        return TaskDueEditorProjection.Resolve(
+            _existing,
+            _loadedDueState,
+            ReadDueControlState(),
+            EffectiveTimeZone);
     }
+
+    private TaskDueControlState ReadDueControlState() => new(
+        HasDueDateBox.IsChecked == true,
+        DueDatePicker.SelectedDate is { } selected
+            ? DateOnly.FromDateTime(selected.Date)
+            : null,
+        DueTimePicker.Time);
+
+    private TimeZoneInfo EffectiveTimeZone =>
+        LocalWallTime.ResolveTimeZone(_existing?.TimezoneId);
 
     private static string SelectedTag(ComboBox box, string fallback) =>
         (box.SelectedItem as ComboBoxItem)?.Tag as string ?? fallback;

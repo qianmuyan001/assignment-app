@@ -159,6 +159,7 @@ struct SchemaV3RepositoryTests {
             ("Ｐｈｙｓｉｃｓ", "physics"),
             ("Straße", "strasse"),
             ("İ", "i̇"),
+            ("ς / Σ", "σ / σ"),
             ("  语文  / \t English  ", "语文 / english"),
             ("Ångström", "ångström"),
         ]
@@ -269,6 +270,54 @@ struct SchemaV3RepositoryTests {
         }
     }
 
+    @Test("Rollback verification preserves a healthy external write after lock release")
+    func rollbackExternalWriteIsPreserved() throws {
+        let temporary = try V3TemporaryDatabase(fileName: "rollback-external-v2.db")
+        defer { temporary.cleanup() }
+        try createV2Fixture(at: temporary.databaseURL)
+
+        var migrationError: DatabaseMigrationError?
+        do {
+            _ = try MigrationCoordinator.prepareDatabase(
+                at: temporary.databaseURL,
+                migrationFailureInjector: {
+                    throw OrganizationRepositoryError.validation("transaction fault")
+                },
+                postRollbackFailureInjector: {
+                    let external = try SQLiteSupport.open(temporary.databaseURL)
+                    defer { sqlite3_close(external) }
+                    try SQLiteSupport.configure(external)
+                    try SQLiteSupport.execute(
+                        """
+                        UPDATE assignments
+                        SET title = 'External write after rollback',
+                            updated_at = '2026-08-12 21:30:00'
+                        WHERE id = 1
+                        """,
+                        on: external
+                    )
+                }
+            )
+        } catch let error as DatabaseMigrationError {
+            migrationError = error
+        }
+
+        let error = try #require(migrationError)
+        #expect(error.errorDescription?.contains("healthy external change") == true)
+        #expect(error.errorDescription?.contains("preserved") == true)
+        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 2)
+        #expect(try v3ScalarText(
+            at: temporary.databaseURL,
+            "SELECT title FROM assignments WHERE id = 1"
+        ) == "External write after rollback")
+        let backupURL = try #require(error.backupURL)
+        #expect(try v3ScalarInt(at: backupURL, "PRAGMA user_version") == 2)
+        #expect(try v3ScalarText(
+            at: backupURL,
+            "SELECT title FROM assignments WHERE id = 1"
+        ) != "External write after rollback")
+    }
+
     @Test("Organization CRUD uses v4 UUIDs, metadata-only attachments, and soft delete")
     func organizationCRUD() throws {
         let temporary = try V3TemporaryDatabase()
@@ -294,11 +343,12 @@ struct SchemaV3RepositoryTests {
         ))
         let tag = try repository.createTag(.init(name: "实验 🧪", colorHex: "#3366AA"))
         let link = try repository.attachTag(tag.id, to: task.id)
+        let largeSQLiteInteger = Int(Int32.max) + 1
         let subtask = try repository.createSubtask(.init(
             assignmentID: task.id,
             title: "整理数据",
             status: .done,
-            sortOrder: 2
+            sortOrder: largeSQLiteInteger
         ))
         let attachment = try repository.createAttachmentMetadata(.init(
             assignmentID: task.id,
@@ -310,7 +360,7 @@ struct SchemaV3RepositoryTests {
         let reminder = try repository.createReminder(.init(
             assignmentID: task.id,
             triggerAtUTC: Date(timeIntervalSince1970: 1_800_000_000),
-            leadMinutes: 30,
+            leadMinutes: largeSQLiteInteger,
             repeatRule: nil,
             isEnabled: true
         ))
@@ -320,9 +370,11 @@ struct SchemaV3RepositoryTests {
         #expect(link.uuid.versionNumber == 4)
         #expect(subtask.uuid.versionNumber == 4)
         #expect(subtask.completedAt != nil)
+        #expect(subtask.sortOrder == largeSQLiteInteger)
         #expect(attachment.uuid.versionNumber == 4)
         #expect(attachment.relativePath == "attachments/\(attachment.uuid.canonicalString)")
         #expect(reminder.uuid.versionNumber == 4)
+        #expect(reminder.leadMinutes == largeSQLiteInteger)
         #expect(try v3ScalarInt(
             at: temporary.databaseURL,
             "SELECT COUNT(*) FROM pragma_table_info('attachments') WHERE upper(type) LIKE '%BLOB%'"
@@ -371,8 +423,8 @@ struct SchemaV3RepositoryTests {
         #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
     }
 
-    @Test("Post-commit validation failure restores v2 in place while WAL reader stays usable")
-    func postCommitFailureUsesSafeWALRestore() throws {
+    @Test("Post-commit failure preserves the committed candidate after lock release")
+    func postCommitFailurePreservesCommittedCandidate() throws {
         let temporary = try V3TemporaryDatabase(fileName: "post-commit-v2.db")
         defer { temporary.cleanup() }
         try createV2Fixture(at: temporary.databaseURL)
@@ -396,25 +448,64 @@ struct SchemaV3RepositoryTests {
             migrationError = error
         }
         #expect(migrationError != nil)
-        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 2)
+        #expect(migrationError?.errorDescription?.contains("exact committed candidate") == true)
+        #expect(migrationError?.errorDescription?.contains("restore was not attempted") == true)
+        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
         #expect(try v3ScalarText(at: temporary.databaseURL, "PRAGMA journal_mode") == "wal")
 
+        let backupURL = try #require(migrationError?.backupURL)
+        #expect(try v3ScalarInt(at: backupURL, "PRAGMA user_version") == 2)
+
         try SQLiteSupport.execute("COMMIT", on: oldConnection)
-        try SQLiteSupport.execute(
-            """
-            INSERT INTO assignments (
-                id, course_name, title, status, priority, created_at, updated_at
-            ) VALUES (
-                101, 'Reader', 'Still writable', 'not_started', 'medium',
-                '2026-08-11 00:00:00', '2026-08-11 00:00:00'
-            )
-            """,
+        #expect(try SQLiteSupport.scalarInt("PRAGMA user_version", on: oldConnection) == 3)
+        #expect(try SQLiteSupport.scalarInt(
+            "SELECT COUNT(*) FROM assignments",
             on: oldConnection
-        )
-        #expect(try v3ScalarInt(
+        ) > 0)
+    }
+
+    @Test("Post-commit recovery preserves an external write instead of restoring over it")
+    func postCommitExternalWriteIsPreserved() throws {
+        let temporary = try V3TemporaryDatabase(fileName: "post-commit-external-v2.db")
+        defer { temporary.cleanup() }
+        try createV2Fixture(at: temporary.databaseURL)
+
+        var migrationError: DatabaseMigrationError?
+        do {
+            _ = try MigrationCoordinator.prepareDatabase(
+                at: temporary.databaseURL,
+                postCommitValidationFailureInjector: {
+                    let external = try SQLiteSupport.open(temporary.databaseURL)
+                    defer { sqlite3_close(external) }
+                    try SQLiteSupport.configure(external)
+                    try SQLiteSupport.execute(
+                        """
+                        UPDATE assignments
+                        SET title = 'External writer preserved',
+                            updated_at = '2026-08-12T21:00:00.000Z'
+                        WHERE id = 1
+                        """,
+                        on: external
+                    )
+                    throw OrganizationRepositoryError.validation(
+                        "post-commit fault after external write"
+                    )
+                }
+            )
+        } catch let error as DatabaseMigrationError {
+            migrationError = error
+        }
+
+        let error = try #require(migrationError)
+        #expect(error.errorDescription?.contains("external change") == true)
+        #expect(error.errorDescription?.contains("preserved") == true)
+        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
+        #expect(try v3ScalarText(
             at: temporary.databaseURL,
-            "SELECT COUNT(*) FROM assignments WHERE id = 101"
-        ) == 1)
+            "SELECT title FROM assignments WHERE id = 1"
+        ) == "External writer preserved")
+        let backupURL = try #require(error.backupURL)
+        #expect(try v3ScalarInt(at: backupURL, "PRAGMA user_version") == 2)
     }
 
     @Test("Fingerprint supports WITHOUT ROWID and includes sqlite_sequence")
@@ -525,6 +616,156 @@ struct SchemaV3RepositoryTests {
         #expect(predicateRejected)
     }
 
+    @Test("Schema validation rejects derived-state, RRULE, and attachment affinity drift")
+    func strictOrganizationRowValidation() throws {
+        let stateDatabase = try V3TemporaryDatabase(fileName: "invalid-parent-state.db")
+        defer { stateDatabase.cleanup() }
+        let stateTasks = try SQLiteAssignmentRepository(databaseURL: stateDatabase.databaseURL)
+        let stateOrganization = try SQLiteOrganizationRepository(
+            databaseURL: stateDatabase.databaseURL
+        )
+        let parent = try stateTasks.create(.init(courseName: "Math", title: "Parent"))
+        _ = try stateOrganization.createSubtask(.init(
+            assignmentID: parent.id,
+            title: "Done child",
+            status: .done
+        ))
+        try v3WithSQLite(at: stateDatabase.databaseURL) {
+            try SQLiteSupport.execute(
+                """
+                UPDATE assignments
+                SET status = 'not_started', progress_percent = 0, completed_at = NULL
+                WHERE id = \(parent.id)
+                """,
+                on: $0
+            )
+        }
+        var parentStateRejected = false
+        do {
+            try v3WithSQLite(at: stateDatabase.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV3.validate(on: $0)
+            }
+        } catch {
+            parentStateRejected = true
+        }
+        #expect(parentStateRejected)
+
+        let reminderDatabase = try V3TemporaryDatabase(fileName: "invalid-rrule.db")
+        defer { reminderDatabase.cleanup() }
+        let reminderTasks = try SQLiteAssignmentRepository(
+            databaseURL: reminderDatabase.databaseURL
+        )
+        let reminderOrganization = try SQLiteOrganizationRepository(
+            databaseURL: reminderDatabase.databaseURL
+        )
+        let reminderParent = try reminderTasks.create(.init(
+            courseName: "Math",
+            title: "Reminder parent"
+        ))
+        let reminder = try reminderOrganization.createReminder(.init(
+            assignmentID: reminderParent.id,
+            triggerAtUTC: Date(timeIntervalSince1970: 1_800_000_000),
+            repeatRule: "FREQ=DAILY"
+        ))
+        try v3WithSQLite(at: reminderDatabase.databaseURL) {
+            try SQLiteSupport.execute(
+                "UPDATE reminders SET repeat_rule = 'DTSTART=bad' WHERE id = \(reminder.id)",
+                on: $0
+            )
+        }
+        var repeatRuleRejected = false
+        do {
+            try v3WithSQLite(at: reminderDatabase.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV3.validate(on: $0)
+            }
+        } catch {
+            repeatRuleRejected = true
+        }
+        #expect(repeatRuleRejected)
+
+        let attachmentDatabase = try V3TemporaryDatabase(fileName: "invalid-blob.db")
+        defer { attachmentDatabase.cleanup() }
+        do { _ = try SQLiteAssignmentRepository(databaseURL: attachmentDatabase.databaseURL) }
+        try v3WithSQLite(at: attachmentDatabase.databaseURL) {
+            try SQLiteSupport.execute(
+                "ALTER TABLE attachments ADD COLUMN payload BLOB "
+                    + "GENERATED ALWAYS AS (x'00') VIRTUAL",
+                on: $0
+            )
+        }
+        var attachmentAffinityRejected = false
+        do {
+            try v3WithSQLite(at: attachmentDatabase.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV3.validate(on: $0)
+            }
+        } catch {
+            attachmentAffinityRejected = true
+        }
+        #expect(attachmentAffinityRejected)
+
+        let relationshipDatabase = try V3TemporaryDatabase(
+            fileName: "invalid-course-snapshot.db"
+        )
+        defer { relationshipDatabase.cleanup() }
+        let relationshipTasks = try SQLiteAssignmentRepository(
+            databaseURL: relationshipDatabase.databaseURL
+        )
+        let relationshipOrganization = try SQLiteOrganizationRepository(
+            databaseURL: relationshipDatabase.databaseURL
+        )
+        let linkedCourse = try relationshipOrganization.createCourse(.init(name: "Math"))
+        let linkedTask = try relationshipTasks.create(.init(
+            courseName: linkedCourse.name,
+            title: "Linked task"
+        ))
+        try v3WithSQLite(at: relationshipDatabase.databaseURL) {
+            try SQLiteSupport.execute(
+                "UPDATE courses SET name = 'Applied Math' WHERE id = \(linkedCourse.id)",
+                on: $0
+            )
+        }
+        var staleSnapshotRejected = false
+        do {
+            try v3WithSQLite(at: relationshipDatabase.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV3.validate(on: $0)
+            }
+        } catch {
+            staleSnapshotRejected = true
+        }
+        #expect(staleSnapshotRejected)
+        #expect(linkedTask.courseName == "Math")
+
+        let scalarDatabase = try V3TemporaryDatabase(fileName: "invalid-scalar.db")
+        defer { scalarDatabase.cleanup() }
+        do { _ = try SQLiteAssignmentRepository(databaseURL: scalarDatabase.databaseURL) }
+        try v3WithSQLite(at: scalarDatabase.databaseURL) {
+            try SQLiteSupport.execute("PRAGMA ignore_check_constraints = ON", on: $0)
+            try SQLiteSupport.execute(
+                """
+                INSERT INTO projects (uuid, name, status, created_at, updated_at)
+                VALUES ('c3bbd89e-6fd7-4a71-98b2-a5f903ed0e21', 'Bad', 'bogus',
+                        '2026-08-12T12:00:00Z', '2026-08-12T12:00:00Z')
+                """,
+                on: $0
+            )
+            try SQLiteSupport.execute("PRAGMA ignore_check_constraints = OFF", on: $0)
+        }
+        var scalarRejected = false
+        do {
+            try v3WithSQLite(at: scalarDatabase.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV3.validate(on: $0)
+            }
+        } catch {
+            scalarRejected = true
+        }
+        #expect(scalarRejected)
+    }
+
     @Test("Subtasks atomically derive parent progress and status commands cascade")
     func subtaskProgressMatrix() throws {
         let temporary = try V3TemporaryDatabase(fileName: "subtask-matrix.db")
@@ -551,12 +792,48 @@ struct SchemaV3RepositoryTests {
         #expect(parent.progressPercent == 50)
         #expect(parent.completedAt == nil)
 
+        let otherTask = try tasks.create(.init(courseName: "Math", title: "Other parent"))
+        let forgedParent = AssignmentSubtask(
+            id: first.id,
+            uuid: first.uuid,
+            assignmentID: otherTask.id,
+            title: "Forged parent",
+            status: .todo,
+            sortOrder: first.sortOrder,
+            completedAt: nil,
+            createdAt: first.createdAt,
+            updatedAt: first.updatedAt,
+            deletedAt: nil
+        )
+        var forgedParentRejected = false
+        do { _ = try organization.updateSubtask(forgedParent) }
+        catch { forgedParentRejected = true }
+        #expect(forgedParentRejected)
+        let unchangedParent = try #require(try tasks.fetchAll().first { $0.id == task.id })
+        #expect(unchangedParent.status == .inProgress)
+        #expect(unchangedParent.progressPercent == 50)
+        let unchangedOther = try #require(try tasks.fetchAll().first { $0.id == otherTask.id })
+        #expect(unchangedOther.status == .todo)
+        #expect(unchangedOther.progressPercent == 0)
+
         parent = try tasks.updateStatus(id: task.id, status: .done)
         #expect(parent.status == .done)
         #expect(parent.progressPercent == 100)
         #expect(try organization.fetchSubtasks(assignmentID: task.id).allSatisfy {
             $0.status == .done && $0.completedAt != nil
         })
+
+        parent = try tasks.updateStatus(id: task.id, status: .inProgress)
+        let reopened = try organization.fetchSubtasks(assignmentID: task.id)
+        #expect(parent.status == .inProgress)
+        #expect(parent.progressPercent == 50)
+        #expect(reopened.first?.status == .done)
+        #expect(reopened.last?.status == .inProgress)
+        #expect(reopened.last?.completedAt == nil)
+
+        parent = try tasks.updateStatus(id: task.id, status: .done)
+        #expect(parent.status == .done)
+        #expect(parent.progressPercent == 100)
 
         parent = try tasks.updateStatus(id: task.id, status: .todo)
         #expect(parent.status == .todo)
@@ -597,6 +874,49 @@ struct SchemaV3RepositoryTests {
             repeatRule: "freq=weekly;byday=mo,we;count=3"
         ))
         #expect(reminder.repeatRule == "FREQ=WEEKLY;BYDAY=MO,WE;COUNT=3")
+
+        let attachment = try organization.createAttachmentMetadata(.init(
+            assignmentID: upper.id,
+            fileName: "notes.txt",
+            mimeType: "text/plain",
+            byteSize: 4,
+            sha256: String(repeating: "a", count: 64)
+        ))
+        let forgedAttachment = AttachmentMetadata(
+            id: attachment.id,
+            uuid: attachment.uuid,
+            assignmentID: lower.id,
+            fileName: attachment.fileName,
+            relativePath: attachment.relativePath,
+            mimeType: attachment.mimeType,
+            byteSize: attachment.byteSize,
+            sha256: attachment.sha256,
+            createdAt: attachment.createdAt,
+            updatedAt: attachment.updatedAt,
+            deletedAt: nil
+        )
+        var forgedAttachmentRejected = false
+        do { _ = try organization.updateAttachmentMetadata(forgedAttachment) }
+        catch { forgedAttachmentRejected = true }
+        #expect(forgedAttachmentRejected)
+
+        let forgedReminder = TaskReminder(
+            id: reminder.id,
+            uuid: reminder.uuid,
+            assignmentID: lower.id,
+            triggerAtUTC: reminder.triggerAtUTC,
+            leadMinutes: reminder.leadMinutes,
+            repeatRule: reminder.repeatRule,
+            isEnabled: reminder.isEnabled,
+            lastScheduledAt: reminder.lastScheduledAt,
+            createdAt: reminder.createdAt,
+            updatedAt: reminder.updatedAt,
+            deletedAt: nil
+        )
+        var forgedReminderRejected = false
+        do { _ = try organization.updateReminder(forgedReminder) }
+        catch { forgedReminderRejected = true }
+        #expect(forgedReminderRejected)
 
         let tag = try organization.createTag(.init(name: "Exam"))
         _ = try organization.attachTag(tag.id, to: upper.id)
@@ -668,6 +988,27 @@ struct SchemaV3RepositoryTests {
             "SELECT due_date FROM assignments WHERE id = 1"
         ) == "2026-11-01T01:30:00.123456")
 
+        try v3WithSQLite(at: temporary.databaseURL) {
+            try SQLiteSupport.execute(
+                """
+                UPDATE assignments
+                SET due_date = '2026-03-08 02:30:00',
+                    timezone_id = 'America/Los_Angeles'
+                WHERE id = 9
+                """,
+                on: $0
+            )
+        }
+        var gapTask = try #require(try tasks.fetchAll().first { $0.id == 9 })
+        #expect(gapTask.dueDate != nil)
+        gapTask.title = "Timezone-only edit"
+        gapTask.timeZoneIdentifier = "America/New_York"
+        _ = try tasks.update(gapTask)
+        #expect(try v3ScalarText(
+            at: temporary.databaseURL,
+            "SELECT due_date FROM assignments WHERE id = 9"
+        ) == "2026-03-08 02:30:00")
+
         task.timeZoneIdentifier = "Mars/Olympus"
         var timezoneRejected = false
         do { _ = try tasks.update(task) }
@@ -682,6 +1023,10 @@ struct SchemaV3RepositoryTests {
             "FREQ=DAILY;UNTIL=20260230",
             "FREQ=HOURLY",
             "DTSTART=20260101;FREQ=DAILY",
+            "FREQ=DAILY;COUNT=٢",
+            "FREQ=YEARLY;BYMONTH=１",
+            "FREQ=MONTHLY;BYMONTHDAY=+1",
+            "FREQ=YEARLY;BYMONTH=+1",
         ] {
             var rejected = false
             do {

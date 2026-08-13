@@ -1292,6 +1292,93 @@ private extension SQLiteSchemaV3 {
             throw DatabaseMigrationError("An assignment violates v3 progress semantics.")
         }
 
+        let invalidOrganizationRow = try SQLiteSupport.scalarInt(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT id FROM courses
+                WHERE is_archived IS NULL OR is_archived NOT IN (0, 1)
+                UNION ALL
+                SELECT id FROM projects
+                WHERE status IS NULL
+                   OR status NOT IN ('active', 'on_hold', 'completed', 'archived')
+                UNION ALL
+                SELECT id FROM subtasks
+                WHERE status IS NULL
+                   OR status NOT IN ('not_started', 'in_progress', 'completed')
+                   OR sort_order IS NULL OR sort_order < 0
+                   OR (status = 'completed' AND completed_at IS NULL)
+                   OR (status != 'completed' AND completed_at IS NOT NULL)
+                UNION ALL
+                SELECT id FROM reminders
+                WHERE lead_minutes IS NULL OR lead_minutes < 0
+                   OR is_enabled IS NULL OR is_enabled NOT IN (0, 1)
+                UNION ALL
+                SELECT id FROM attachments
+                WHERE byte_size IS NULL OR byte_size < 0
+            )
+            """,
+            on: database
+        )
+        guard invalidOrganizationRow == 0 else {
+            throw DatabaseMigrationError("An organization row violates the v3 contract.")
+        }
+
+        let staleCourseSnapshots = try SQLiteSupport.scalarInt(
+            """
+            SELECT COUNT(*) FROM assignments AS a
+            JOIN courses AS c ON c.id = a.course_id
+            WHERE a.course_name IS NULL OR a.course_name != c.name
+            """,
+            on: database
+        )
+        guard staleCourseSnapshots == 0 else {
+            throw DatabaseMigrationError("An assignment has a stale course snapshot.")
+        }
+
+        let mismatchedProjectCourses = try SQLiteSupport.scalarInt(
+            """
+            SELECT COUNT(*) FROM assignments AS a
+            JOIN projects AS p ON p.id = a.project_id
+            WHERE p.course_id IS NOT NULL
+              AND (a.course_id IS NULL OR a.course_id != p.course_id)
+            """,
+            on: database
+        )
+        guard mismatchedProjectCourses == 0 else {
+            throw DatabaseMigrationError(
+                "An assignment and its project disagree on course."
+            )
+        }
+
+        let inconsistentSubtaskParents = try SQLiteSupport.scalarInt(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT a.id
+                FROM assignments AS a
+                JOIN subtasks AS s
+                  ON s.assignment_id = a.id AND s.deleted_at IS NULL
+                GROUP BY a.id, a.status, a.progress_percent
+                HAVING a.progress_percent !=
+                           CAST(SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END)
+                                * 100 / COUNT(s.id) AS INTEGER)
+                    OR a.status != CASE
+                        WHEN SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END)
+                             = COUNT(s.id) THEN 'completed'
+                        WHEN SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) > 0
+                          OR SUM(CASE WHEN s.status = 'in_progress' THEN 1 ELSE 0 END) > 0
+                            THEN 'in_progress'
+                        ELSE 'not_started'
+                    END
+            )
+            """,
+            on: database
+        )
+        guard inconsistentSubtaskParents == 0 else {
+            throw DatabaseMigrationError(
+                "An assignment does not match its active subtask state."
+            )
+        }
+
         for table in requiredColumns.keys where table != "database_identity" {
             let statement = try SQLiteSupport.prepare(
                 "SELECT id, uuid, created_at, updated_at, deleted_at FROM \(table)",
@@ -1352,10 +1439,10 @@ private extension SQLiteSchemaV3 {
 
         let completionDates = try SQLiteSupport.prepare(
             """
-            SELECT 'assignments', id, completed_at FROM assignments
+            SELECT 'assignments', id, uuid, completed_at FROM assignments
             WHERE completed_at IS NOT NULL
             UNION ALL
-            SELECT 'subtasks', id, completed_at FROM subtasks
+            SELECT 'subtasks', id, uuid, completed_at FROM subtasks
             WHERE completed_at IS NOT NULL
             """,
             on: database
@@ -1365,7 +1452,14 @@ private extension SQLiteSchemaV3 {
         while completionResult == SQLITE_ROW {
             let table = SQLiteSupport.text(completionDates, 0) ?? "row"
             let id = sqlite3_column_int64(completionDates, 1)
-            guard isCanonicalUTC(SQLiteSupport.text(completionDates, 2)) else {
+            guard let uuidText = SQLiteSupport.text(completionDates, 2),
+                  let uuid = UUID(uuidString: uuidText) else {
+                throw DatabaseMigrationError(
+                    "\(table) row \(id) has an invalid UUID."
+                )
+            }
+            guard uuid.versionNumber != 4 ||
+                    isCanonicalUTC(SQLiteSupport.text(completionDates, 3)) else {
                 throw DatabaseMigrationError(
                     "\(table) row \(id) has a noncanonical completed_at timestamp."
                 )
@@ -1373,6 +1467,27 @@ private extension SQLiteSchemaV3 {
             completionResult = sqlite3_step(completionDates)
         }
         guard completionResult == SQLITE_DONE else {
+            throw DatabaseMigrationError(String(cString: sqlite3_errmsg(database)))
+        }
+
+        let attachmentColumns = try SQLiteSupport.prepare(
+            "PRAGMA table_xinfo(attachments)",
+            on: database
+        )
+        defer { sqlite3_finalize(attachmentColumns) }
+        var attachmentColumnResult = sqlite3_step(attachmentColumns)
+        while attachmentColumnResult == SQLITE_ROW {
+            let declaredType = SQLiteSupport.text(attachmentColumns, 2)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased() ?? ""
+            guard !declaredType.isEmpty, !declaredType.contains("BLOB") else {
+                throw DatabaseMigrationError(
+                    "Attachments must store metadata only, never BLOB-affinity columns."
+                )
+            }
+            attachmentColumnResult = sqlite3_step(attachmentColumns)
+        }
+        guard attachmentColumnResult == SQLITE_DONE else {
             throw DatabaseMigrationError(String(cString: sqlite3_errmsg(database)))
         }
 
@@ -1414,7 +1529,7 @@ private extension SQLiteSchemaV3 {
         }
 
         let reminders = try SQLiteSupport.prepare(
-            "SELECT id, trigger_at_utc, last_scheduled_at FROM reminders",
+            "SELECT id, trigger_at_utc, last_scheduled_at, repeat_rule FROM reminders",
             on: database
         )
         defer { sqlite3_finalize(reminders) }
@@ -1425,6 +1540,19 @@ private extension SQLiteSchemaV3 {
                   SQLiteSupport.text(reminders, 2) == nil
                     || isCanonicalUTC(SQLiteSupport.text(reminders, 2)) else {
                 throw DatabaseMigrationError("Reminder \(id) has a noncanonical UTC timestamp.")
+            }
+            let storedRepeatRule = SQLiteSupport.text(reminders, 3)
+            do {
+                guard try SQLiteOrganizationRepository.canonicalRepeatRule(storedRepeatRule)
+                        == storedRepeatRule else {
+                    throw DatabaseMigrationError(
+                        "Reminder \(id) repeat_rule is not stored canonically."
+                    )
+                }
+            } catch let error as DatabaseMigrationError {
+                throw error
+            } catch {
+                throw DatabaseMigrationError("Reminder \(id) has an invalid repeat_rule.")
             }
             reminderResult = sqlite3_step(reminders)
         }

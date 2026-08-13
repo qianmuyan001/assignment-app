@@ -687,6 +687,9 @@ class BackendApiTests(unittest.TestCase):
             "FREQ=DAILY;COUNT=2;UNTIL=20261201",
             "FREQ=MONTHLY;UNTIL=20261340",
             "FREQ=WEEKLY;BYDAY=MO,XX",
+            "FREQ=DAILY;COUNT=٢",
+            "FREQ=YEARLY;BYMONTH=１",
+            "FREQ=MONTHLY;BYMONTHDAY=+1",
         )
         for rule in invalid_rules:
             rule_status, _ = self.request(

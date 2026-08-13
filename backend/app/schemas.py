@@ -14,7 +14,11 @@ from pydantic import (
     model_validator,
 )
 
-from shared.schema_v3 import is_iana_timezone_id, is_utc_audit_timestamp
+from shared.schema_v3 import (
+    canonical_repeat_rule,
+    is_iana_timezone_id,
+    is_utc_audit_timestamp,
+)
 
 
 AssignmentStatus = Literal["todo", "in_progress", "done"]
@@ -30,17 +34,6 @@ _STATUS_TO_UI = {
 }
 _HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_RRULE_UNTIL = re.compile(r"^(?:[0-9]{8}|[0-9]{8}T[0-9]{6}Z)$")
-_RRULE_KEYS = {
-    "FREQ",
-    "INTERVAL",
-    "COUNT",
-    "UNTIL",
-    "BYDAY",
-    "BYMONTHDAY",
-    "BYMONTH",
-}
-_WEEKDAYS = {"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
 
 
 def normalize_status(value: object) -> object:
@@ -122,62 +115,7 @@ def _validate_timezone(value: str | None) -> str | None:
 
 
 def _validate_repeat_rule(value: str | None) -> str | None:
-    cleaned = _clean_optional(value)
-    if cleaned is None:
-        return None
-    if "\n" in cleaned or "\r" in cleaned or "DTSTART" in cleaned.upper():
-        raise ValueError("repeat_rule must be a single RRULE without DTSTART")
-    if any(character.isspace() for character in cleaned):
-        raise ValueError("repeat_rule must not contain whitespace")
-
-    parsed: dict[str, str] = {}
-    ordered: list[tuple[str, str]] = []
-    for component in cleaned.split(";"):
-        if component.count("=") != 1:
-            raise ValueError("repeat_rule components must use KEY=VALUE syntax")
-        raw_key, raw_value = component.split("=", maxsplit=1)
-        key = raw_key.upper()
-        rule_value = raw_value.upper()
-        if key not in _RRULE_KEYS:
-            raise ValueError(f"repeat_rule key {key!r} is not supported")
-        if key in parsed or not rule_value:
-            raise ValueError("repeat_rule keys must be unique and non-empty")
-        parsed[key] = rule_value
-        ordered.append((key, rule_value))
-
-    if parsed.get("FREQ") not in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
-        raise ValueError("repeat_rule requires a supported FREQ")
-    if "COUNT" in parsed and "UNTIL" in parsed:
-        raise ValueError("repeat_rule cannot combine COUNT and UNTIL")
-    for key, maximum in (("INTERVAL", 999), ("COUNT", 9999)):
-        if key in parsed:
-            if not parsed[key].isdigit() or not 1 <= int(parsed[key]) <= maximum:
-                raise ValueError(f"repeat_rule {key} is outside the allowed range")
-    if "UNTIL" in parsed and _RRULE_UNTIL.fullmatch(parsed["UNTIL"]) is None:
-        raise ValueError("repeat_rule UNTIL must be YYYYMMDD or UTC YYYYMMDDTHHMMSSZ")
-    if "UNTIL" in parsed:
-        until_format = "%Y%m%d" if len(parsed["UNTIL"]) == 8 else "%Y%m%dT%H%M%SZ"
-        try:
-            datetime.strptime(parsed["UNTIL"], until_format)
-        except ValueError as exc:
-            raise ValueError("repeat_rule UNTIL is not a real calendar value") from exc
-    if "BYDAY" in parsed:
-        days = parsed["BYDAY"].split(",")
-        if len(days) != len(set(days)) or any(day not in _WEEKDAYS for day in days):
-            raise ValueError("repeat_rule BYDAY contains an unsupported weekday")
-    for key, minimum, maximum in (("BYMONTHDAY", -31, 31), ("BYMONTH", 1, 12)):
-        if key in parsed:
-            raw_values = parsed[key].split(",")
-            try:
-                numbers = [int(item) for item in raw_values]
-            except ValueError as exc:
-                raise ValueError(f"repeat_rule {key} must contain integers") from exc
-            if (
-                len(numbers) != len(set(numbers))
-                or any(number == 0 or not minimum <= number <= maximum for number in numbers)
-            ):
-                raise ValueError(f"repeat_rule {key} contains an invalid value")
-    return ";".join(f"{key}={rule_value}" for key, rule_value in ordered)
+    return canonical_repeat_rule(value)
 
 
 class AssignmentBase(BaseModel):

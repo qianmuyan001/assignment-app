@@ -30,9 +30,7 @@ public sealed class TaskRowViewModel
         _ => "To do"
     };
 
-    public string DueDisplay => _item.DueDate is null
-        ? "No due date"
-        : _item.DueDate.Value.ToLocalTime().ToString("ddd, MMM d · h:mm tt");
+    public string DueDisplay => TaskDueDisplayFormatter.Format(_item);
 
     public string DescriptionDisplay => string.IsNullOrWhiteSpace(_item.Description)
         ? "No description"

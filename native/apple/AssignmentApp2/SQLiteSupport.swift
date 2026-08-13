@@ -393,6 +393,30 @@ enum TaskProgressPersistence {
                 SQLiteSupport.bind(timestamp, to: statement, index: 1)
                 sqlite3_bind_int64(statement, 2, assignmentID)
                 try SQLiteSupport.checkDone(statement, on: database)
+
+                // A completed parent has no not-started child to advance. Reopen
+                // the last ordered completed subtask so the requested parent
+                // state can be derived as in progress instead of snapping back
+                // to done. This mirrors the shared/backend command semantics.
+                if sqlite3_changes(database) == 0 {
+                    let completed = try SQLiteSupport.prepare(
+                        """
+                        UPDATE subtasks
+                        SET status = 'in_progress', completed_at = NULL, updated_at = ?
+                        WHERE id = (
+                            SELECT id FROM subtasks
+                            WHERE assignment_id = ? AND deleted_at IS NULL
+                              AND status = 'completed'
+                            ORDER BY sort_order DESC, id DESC LIMIT 1
+                        )
+                        """,
+                        on: database
+                    )
+                    defer { sqlite3_finalize(completed) }
+                    SQLiteSupport.bind(timestamp, to: completed, index: 1)
+                    sqlite3_bind_int64(completed, 2, assignmentID)
+                    try SQLiteSupport.checkDone(completed, on: database)
+                }
             }
         }
         guard let state = try recalculateParent(

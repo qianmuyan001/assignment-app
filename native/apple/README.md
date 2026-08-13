@@ -162,6 +162,20 @@ SQLite pointer. A failed migration is
 thrown to the view model, so no partially migrated database can be opened for
 writes. The independent backup is retained for manual recovery.
 
+The final Phase 1 local regression on 2026-08-12 passed 44/44 unit tests on Mac
+Catalyst and 44/44 on the iPad Simulator, plus 3/3 iPad UI smoke tests. All test
+databases for the final runs were created under `/private/tmp`:
+
+```text
+/private/tmp/assignment-app-phase1-catalyst-final6-20260812.xcresult
+/private/tmp/assignment-app-phase1-ipad-final6-20260812.xcresult
+/private/tmp/assignment-app-phase1-ui-smoke-final4-20260812.xcresult
+```
+
+These XCResult bundles are local test evidence, not a signed or notarized
+Phase 1 application package. The existing repository package predates schema
+v3 and remains Phase 0 evidence only.
+
 The shared 2.0 contract is in `shared/`:
 
 - UI statuses `todo`, `in_progress`, and `done` are stored as the compatible

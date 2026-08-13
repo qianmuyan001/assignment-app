@@ -51,6 +51,7 @@
       { "input": "Ｐｈｙｓｉｃｓ", "expected": "physics" },
       { "input": "Straße", "expected": "strasse" },
       { "input": "İ", "expected": "i̇" },
+      { "input": "ς / Σ", "expected": "σ / σ" },
       { "input": "  语文  / \t English  ", "expected": "语文 / english" },
       { "input": "Ångström", "expected": "ångström" }
     ]

@@ -863,7 +863,7 @@ struct SQLiteRepositoryTests {
         )
     }
 
-    @Test("Injected migration failure throws, restores v1, and leaves the backup recoverable")
+    @Test("Injected migration failure rolls back v1 and leaves the backup recoverable")
     func failedMigrationRestoresOriginal() throws {
         let temporary = try TemporaryDatabase(fileName: "legacy.db")
         defer { temporary.cleanup() }
@@ -889,7 +889,7 @@ struct SQLiteRepositoryTests {
         let restoredColumns = try tableColumns(at: temporary.databaseURL)
         #expect(injectorRan)
         #expect(migrationError != nil)
-        #expect(migrationError?.errorDescription?.contains("restored") == true)
+        #expect(migrationError?.errorDescription?.contains("rolled back") == true)
         #expect(try scalarInt(at: temporary.databaseURL, sql: "PRAGMA user_version") == 0)
         #expect(!restoredColumns.contains("priority"))
         #expect(
