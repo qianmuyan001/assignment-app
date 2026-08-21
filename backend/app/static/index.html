@@ -31,6 +31,10 @@
             Add Assignment
           </button>
 
+          <button id="open-org-button" type="button" class="secondary-button header-manage-button">
+            Manage Organization
+          </button>
+
           <div class="command-strip" aria-label="Assignment summary">
             <div class="strip-item">
               <span class="strip-value" id="total-count">0</span>
@@ -134,6 +138,13 @@
 
       <form id="assignment-form" class="assignment-form">
         <label>
+          Existing Course
+          <select id="course-picker" name="course_picker">
+            <option value="">— type a new course —</option>
+          </select>
+        </label>
+
+        <label>
           Course Name
           <input id="course-name" name="course_name" type="text" required />
         </label>
@@ -172,11 +183,71 @@
           <input id="source-url" name="source_url" type="url" />
         </label>
 
+        <label>
+          Project
+          <select id="project-picker" name="project_id">
+            <option value="">— no project —</option>
+          </select>
+        </label>
+
+        <fieldset class="tag-fieldset">
+          <legend>Tags</legend>
+          <div id="tag-checkboxes" class="tag-options"></div>
+        </fieldset>
+
         <button type="submit" class="primary-button">
           <span class="button-icon" aria-hidden="true">+</span>
           Add Assignment
         </button>
       </form>
+    </dialog>
+
+    <dialog id="org-dialog" class="org-dialog glass-panel" aria-labelledby="org-dialog-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Organize</p>
+          <h2 id="org-dialog-title">Manage Organization</h2>
+        </div>
+        <button id="close-org-button" type="button" class="secondary-button icon-button" aria-label="Close organization manager" title="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="org-tabs" role="tablist" aria-label="Organization sections">
+        <button type="button" class="org-tab is-active" data-org-tab="courses" role="tab">Courses</button>
+        <button type="button" class="org-tab" data-org-tab="projects" role="tab">Projects</button>
+        <button type="button" class="org-tab" data-org-tab="tags" role="tab">Tags</button>
+      </div>
+
+      <section class="org-panel" data-org-panel="courses">
+        <form id="org-course-form" class="org-add-form">
+          <input id="org-course-name" name="name" type="text" placeholder="New course name" required />
+          <input id="org-course-teacher" name="teacher" type="text" placeholder="Teacher (optional)" />
+          <input id="org-course-color" name="color_hex" type="text" placeholder="#36e286" pattern="#[0-9A-Fa-f]{6}" maxlength="7" />
+          <button type="submit" class="primary-button">Add Course</button>
+        </form>
+        <ul id="org-course-list" class="org-list"></ul>
+      </section>
+
+      <section class="org-panel" data-org-panel="projects" hidden>
+        <form id="org-project-form" class="org-add-form">
+          <input id="org-project-name" name="name" type="text" placeholder="New project name" required />
+          <select id="org-project-course" name="course_id">
+            <option value="">— no course —</option>
+          </select>
+          <button type="submit" class="primary-button">Add Project</button>
+        </form>
+        <ul id="org-project-list" class="org-list"></ul>
+      </section>
+
+      <section class="org-panel" data-org-panel="tags" hidden>
+        <form id="org-tag-form" class="org-add-form">
+          <input id="org-tag-name" name="name" type="text" placeholder="New tag name" required />
+          <input id="org-tag-color" name="color_hex" type="text" placeholder="#62d7f7" pattern="#[0-9A-Fa-f]{6}" maxlength="7" />
+          <button type="submit" class="primary-button">Add Tag</button>
+        </form>
+        <ul id="org-tag-list" class="org-list"></ul>
+      </section>
     </dialog>
 
     <script src="/static/script.js"></script>

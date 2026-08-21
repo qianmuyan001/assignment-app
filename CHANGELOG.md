@@ -16,6 +16,23 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   and Windows Core. User-facing native organization screens remain Phase 2.
 - Added 57 shared contract tests, 46 Apple unit tests on Catalyst, 47 Windows
   Core tests, and cross-language schema validation fixtures.
+- Phase 2 — task-organization & reminder UI across all three platforms, built as a
+  UI layer over the merged Phase 1 schema-v3 data layer (no schema changes):
+  - Web: static client wired to the organization REST surface (courses, projects,
+    tags, subtasks, attachments, reminders) and the assignment detail panel.
+  - Apple (SwiftUI): `OrganizationManagerView` for course/project/tag CRUD;
+    `TaskEditorView` extended with pro-mode course/project/tag pickers and
+    subtask/reminder/attachment sections; `AssignmentViewModel` owns the
+    organization repository and reconciles tags; `AssignmentDraft` carries
+    `courseID`/`projectID`/`tagIDs`; `SQLiteAssignmentRepository.create` now binds
+    `project_id`.
+  - Windows (WinUI 3): `TaskEditorDialog` extended with pro-mode course/project/tag
+    pickers and subtask/reminder/attachment sections (child editing for existing
+    assignments), `OrganizationManagerWindow` for course/project/tag CRUD, and
+    `MainWindow` opens it and reconciles tags after save.
+  - All platforms persist `course_id`/`project_id` through the Phase 1
+    repositories; tags reconcile through the task-tag link table; subtask-driven
+    parent progress/status remains derived.
 
 ### Fixed
 

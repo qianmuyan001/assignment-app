@@ -14,20 +14,29 @@ final class AssignmentViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
     @Published private(set) var databaseLocation = ""
+    @Published private(set) var organizationCourses: [Course] = []
+    @Published private(set) var organizationProjects: [AssignmentProject] = []
+    @Published private(set) var organizationTags: [AssignmentTag] = []
 
     private let repository: AssignmentRepository?
+    let organizationRepository: OrganizationRepository?
 
     init(repository: AssignmentRepository? = nil) {
         if let repository {
             self.repository = repository
             databaseLocation = repository.databaseURL.path
+            if let sqlite = repository as? SQLiteAssignmentRepository {
+                organizationRepository = try? SQLiteOrganizationRepository(databaseURL: sqlite.databaseURL)
+            }
         } else {
             do {
                 let liveRepository = try SQLiteAssignmentRepository()
                 self.repository = liveRepository
                 databaseLocation = liveRepository.databaseURL.path
+                organizationRepository = try? SQLiteOrganizationRepository(databaseURL: liveRepository.databaseURL)
             } catch {
                 self.repository = nil
+                organizationRepository = nil
                 errorMessage = error.localizedDescription
             }
         }
@@ -83,6 +92,18 @@ final class AssignmentViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+        reloadOrganization()
+    }
+
+    func reloadOrganization() {
+        guard let orgRepo = organizationRepository else { return }
+        do {
+            organizationCourses = try orgRepo.fetchCourses(includeDeleted: false)
+            organizationProjects = try orgRepo.fetchProjects(includeDeleted: false)
+            organizationTags = try orgRepo.fetchTags(includeDeleted: false)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     @discardableResult
@@ -133,7 +154,39 @@ final class AssignmentViewModel: ObservableObject {
         edited.sourceType = draft.sourceType.nilIfBlank
         edited.sourceFile = draft.sourceFile.nilIfBlank
         edited.sourceURL = draft.sourceURL.nilIfBlank
+        edited.projectID = draft.projectID
         update(edited)
+    }
+
+    /// Links the professional-only organization records (project + tags) after
+    /// an assignment has been created or updated. Course is resolved by name in
+    /// the assignment repository; here we reconcile the remaining links.
+    func applyOrganization(assignmentID: Int64, draft: AssignmentDraft) {
+        guard let orgRepo = organizationRepository else { return }
+
+        if let current = assignments.first(where: { $0.id == assignmentID }),
+           current.projectID != draft.projectID {
+            var edited = current
+            edited.projectID = draft.projectID
+            update(edited)
+        }
+
+        do {
+            let existingLinks = try orgRepo.fetchTaskTags(
+                assignmentID: assignmentID,
+                includeDeleted: false
+            ).map(\.tagID)
+            let desired = Set(draft.tagIDs)
+            let current = Set(existingLinks)
+            for tagID in desired.subtracting(current) {
+                _ = try orgRepo.attachTag(tagID, to: assignmentID)
+            }
+            for tagID in current.subtracting(desired) {
+                try orgRepo.detachTag(tagID, from: assignmentID)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func delete(_ assignment: Assignment) {

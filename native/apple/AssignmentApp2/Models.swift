@@ -267,6 +267,14 @@ struct AssignmentDraft: Equatable {
     var sourceType: String
     var sourceFile: String
     var sourceURL: String
+    /// Resolved course identity when the user picks an existing course. The
+    /// assignment repository still resolves `course_id` by `courseName`, so this
+    /// is kept in sync with `courseName` and is purely a convenience for the UI.
+    var courseID: Int64?
+    /// Professional-only project link. Persisted on the assignment row.
+    var projectID: Int64?
+    /// Professional-only tag links attached to this assignment.
+    var tagIDs: [Int64]
 
     init(
         courseName: String = "",
@@ -279,7 +287,10 @@ struct AssignmentDraft: Equatable {
         sourceName: String = "",
         sourceType: String = "",
         sourceFile: String = "",
-        sourceURL: String = ""
+        sourceURL: String = "",
+        courseID: Int64? = nil,
+        projectID: Int64? = nil,
+        tagIDs: [Int64] = []
     ) {
         self.courseName = courseName
         self.title = title
@@ -292,6 +303,9 @@ struct AssignmentDraft: Equatable {
         self.sourceType = sourceType
         self.sourceFile = sourceFile
         self.sourceURL = sourceURL
+        self.courseID = courseID
+        self.projectID = projectID
+        self.tagIDs = tagIDs
     }
 
     init(assignment: Assignment) {
@@ -306,7 +320,10 @@ struct AssignmentDraft: Equatable {
             sourceName: assignment.sourceName ?? "",
             sourceType: assignment.sourceType ?? "",
             sourceFile: assignment.sourceFile ?? "",
-            sourceURL: assignment.sourceURL ?? ""
+            sourceURL: assignment.sourceURL ?? "",
+            courseID: assignment.courseID,
+            projectID: assignment.projectID,
+            tagIDs: []
         )
     }
 

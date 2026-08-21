@@ -138,7 +138,7 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
                         priority, source_name, source_type, source_file, source_url,
                         created_at, updated_at, course_id, project_id, completed_at,
                         progress_percent, all_day, timezone_id, deleted_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 0, NULL, NULL)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL)
                     """,
                     on: database
                 )
@@ -164,8 +164,13 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
                 Self.bind(timestamp, to: statement, index: 13)
                 Self.bind(timestamp, to: statement, index: 14)
                 sqlite3_bind_int64(statement, 15, courseID)
-                Self.bind(draft.status == .done ? timestamp : nil, to: statement, index: 16)
-                sqlite3_bind_int(statement, 17, draft.status == .done ? 100 : 0)
+                if let projectID = draft.projectID {
+                    sqlite3_bind_int64(statement, 16, projectID)
+                } else {
+                    sqlite3_bind_null(statement, 16)
+                }
+                Self.bind(draft.status == .done ? timestamp : nil, to: statement, index: 17)
+                sqlite3_bind_int(statement, 18, draft.status == .done ? 100 : 0)
                 guard sqlite3_step(statement) == SQLITE_DONE else {
                     throw AssignmentRepositoryError.execute(Self.message(from: database))
                 }

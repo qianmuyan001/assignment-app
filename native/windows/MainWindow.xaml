@@ -76,13 +76,18 @@
                                    TextWrapping="Wrap"/>
                         <TextBlock x:Name="AssignmentCount" Opacity="0.62"/>
                     </StackPanel>
-                    <Button x:Name="AddAssignmentButton"
-                            Grid.Column="1"
-                            Content="Add assignment"
-                            Click="AddAssignment_Click"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Padding="14,8"
-                            IsEnabled="False"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="AddAssignmentButton"
+                                Content="Add assignment"
+                                Click="AddAssignment_Click"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Padding="14,8"
+                                IsEnabled="False"/>
+                        <Button x:Name="ManageOrganizationButton"
+                                Content="Courses &amp; tags"
+                                Click="ManageOrganization_Click"
+                                Padding="14,8"/>
+                    </StackPanel>
                 </Grid>
 
                 <InfoBar x:Name="ErrorBar"
