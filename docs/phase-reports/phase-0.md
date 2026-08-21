@@ -143,7 +143,7 @@ unchanged.
   `079d779e11c2923cd2b03e1a7ea8b5d08ca622a1`
 - Working tree before edits: clean (matches `origin/main`).
 - After this phase's doc edits, a local commit was made (no push, no tag, no PR,
-  no release). The new HEAD SHA is recorded by `git rev-parse HEAD` at commit time.
+  no release). New HEAD after this phase: `336fafcfe499a75cb8657f425da9756defe288d8`.
 - Remote inspected: `https://github.com/qianmuyan001/assignment-app.git`
 - Published tags: only `v1.0.0`. **No `v2.0.0` tag or GitHub Release was created**
   (per rule #6 / Phase 0 instruction).
