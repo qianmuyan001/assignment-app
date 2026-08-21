@@ -123,8 +123,10 @@ is currently no `v2.0.0` Git tag or GitHub Release.
   signing configuration.
 - The optional Catalyst UI-automation target can hang before the runner connects
   under the current Xcode 27 beta host. It is excluded from the shared scheme's
-  default Test action. Current source contains 32 stable unit tests; the older
-  2026-08-07 package contains 25 per platform and is not current-SHA evidence.
+  default Test action. Current source contains 46 stable unit tests (32 in the
+  task contract suite and 14 in the schema-v3 repository suite); the separate iPad
+  UI smoke target adds 3 tests and may be excluded. The older 2026-08-07 package
+  contained 25 per platform and is not current-SHA evidence.
 - WinUI source and Core tests are ready, but the self-contained x64 directory
   must be produced and launch-verified on Windows because the Windows App SDK
   XAML compiler has native Windows dependencies.
