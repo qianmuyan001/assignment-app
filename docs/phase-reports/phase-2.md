@@ -1,5 +1,9 @@
 # Phase 2 — Task organization & reminder UI
 
+> Historical implementation report from 2026-08-21. Its environment, test
+> counts, and verification status are snapshots, not the current acceptance
+> result. See [Phase 2.5 closeout](phase-2-5.md) for the 2026-08-31 live rerun.
+
 Date: 2026-08-21
 Author: WorkBuddy (高级工程师执行)
 Scope: Phase 2 only. Implements the user-facing organization & reminder screens

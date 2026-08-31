@@ -17,6 +17,15 @@ Windows App SDK, Microsoft.Data.Sqlite, and a UI-independent Core library.
 - Phase 1 Core repositories for courses, projects, tags, task-tag links,
   subtasks, attachment metadata, reminders, stable UUIDs, soft deletion, and
   subtask-derived task progress.
+- Phase 2 WinUI organization management and professional task-editor sections
+  for courses, projects, tags, subtasks, attachments, and reminders.
+- Phase 2.5 managed attachment import/open/export/delete with real SHA-256,
+  atomic staging, database/file rollback, missing-file reporting, and orphan
+  cleanup.
+- Phase 2.5 Windows App SDK notification status, reminder-time editing,
+  schedule/reschedule, cancellation, disable, and startup reconciliation.
+  Notification service or permission failures are surfaced without blocking
+  task CRUD, and transient adapter failures can be retried.
 
 The simple and professional modes read and write the same task record. Hiding
 description, priority, or source link never clears those fields.
@@ -74,10 +83,14 @@ failed or unverifiable migration prevents normal database use.
 Backups are published only after their own `quick_check` succeeds and are never
 overwritten.
 
-Schema v3 stores attachment metadata only. Payload files belong under the app
-data directory using the immutable `attachments/<uuid>` relative key; no BLOB
-or untyped payload column is permitted. Soft deletion uses canonical UTC audit
-timestamps and does not erase hidden task fields.
+Schema v3 stores attachment metadata only. `AttachmentFileStore` keeps payload
+bytes under the app data directory using the immutable
+`attachments/<uuid>` relative key; no BLOB or untyped payload column is
+permitted. It rejects unsafe paths and reparse points, stages copies and
+deletes, calculates SHA-256 from the real file, rolls back payload changes when
+the metadata transaction fails, and reconciles interrupted operations and
+orphans at startup. Soft deletion uses canonical UTC audit timestamps and does
+not erase hidden task fields.
 
 Legacy due dates remain local wall-clock `YYYY-MM-DD HH:mm:ss` values without
 an offset and are never silently shifted during migration. New audit,
@@ -86,9 +99,17 @@ Optional task `timezone_id` values use portable IANA syntax. Today and week
 filters use the computer's current local timezone; a week starts Monday.
 Offset-bearing legacy due dates are rejected instead of silently converted.
 
-Phase 1 adds the data contracts and repositories only. Course/project/tag,
-subtask, attachment, and reminder WinUI screens are intentionally deferred to
-Phase 2; this README does not claim those native pages exist yet.
+The WinUI source includes course/project/tag management, task association,
+subtask status editing, attachment actions, and reminder add/enable/disable/
+delete. `WindowsNotificationScheduler` uses Windows App SDK app notifications;
+task completion/deletion and reminder changes reconcile the scheduled requests.
+Editing a task title or deadline replaces the notification content while
+preserving the reminder's exact stored UTC trigger. Schema v3 does not define a
+deadline-relative reminder, so changing the deadline does not silently move an
+independently selected reminder time; that rule belongs to the later Phase 3A
+assignment-reminder feature. Schema v3 recurrence text remains valid data, but
+the native adapter currently schedules only the first occurrence, so no new
+recurrence editor is exposed.
 
 ## Prerequisites
 
@@ -110,11 +131,15 @@ From the repository root:
 dotnet run --project .\native\windows\AssignmentNative.Core.Tests\AssignmentNative.Core.Tests.csproj -c Release
 ```
 
-The 47-test harness covers existing task CRUD/rules plus schema v3 migration,
+The 48-test harness covers existing task CRUD/rules plus schema v3 migration,
 shared UUID and Unicode-normalization vectors, organization CRUD, task tags,
 derived subtask progress, safe attachment metadata, canonical recurrence,
 soft-delete restore, immutable database identity, concurrent initialization,
-and failure recovery. It creates temporary databases only.
+failure recovery, and real attachment-payload lifecycle/rollback/reconciliation,
+including reparse-point rejection when the host permits symbolic-link creation.
+It creates temporary databases only. All 48 passed on the local macOS host with
+`.NET 10` rolling forward the `net8.0` Core target; this validates Core only,
+not WinUI compilation or launch.
 
 ## Build and run
 
@@ -170,7 +195,12 @@ x64 acceptance gate; macOS builds are never accepted as WinUI proof.
 
 ## macOS host limitation
 
-The Core library and its tests can run on macOS. A complete WinUI build cannot:
+The Core library and its tests can run on macOS. The notification adapter can
+also be C#-compiled in isolation with Windows resource generation disabled, but
+that does not validate WinUI or notification delivery. A complete WinUI build cannot:
 the Windows App SDK invokes a Windows XAML compiler executable/build task. Run
 the build and publish commands above on Windows x64 to produce and launch-verify
-the deliverable.
+the deliverable. At the Phase 2.5 closeout no real Windows x64 host or signed-in
+desktop session was available, so WinUI restore/build/publish/launch and UI
+interaction remain **未验证**. A successful restore on macOS and a Windows-only
+XAML compiler failure are not reported as Windows build evidence.

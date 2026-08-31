@@ -1,6 +1,7 @@
-import CryptoKit
 import Foundation
+import QuickLook
 import SwiftUI
+import UniformTypeIdentifiers
 
 
 struct TaskEditorView: View {
@@ -36,10 +37,10 @@ struct TaskEditorView: View {
     @State private var newSubtaskTitle = ""
     @State private var newReminderDate = Date().addingTimeInterval(60 * 60)
     @State private var newReminderLead = 0
-    @State private var newReminderRule = ""
     @State private var newReminderEnabled = true
     @State private var isShowingImporter = false
     @State private var childErrorMessage: String?
+    @State private var previewURL: URL?
 
     init(
         assignment: Assignment? = nil,
@@ -201,6 +202,7 @@ struct TaskEditorView: View {
                             ForEach(reminders) { reminder in
                                 ReminderRow(
                                     reminder: reminder,
+                                    onToggle: { Task { await toggleReminder(reminder) } },
                                     onDelete: { Task { await removeReminder(reminder) } }
                                 )
                             }
@@ -211,8 +213,6 @@ struct TaskEditorView: View {
                                     selection: $newReminderDate
                                 )
                                 Stepper("Lead: \(newReminderLead) min", value: $newReminderLead, in: 0...10080)
-                                TextField("Repeat rule (optional)", text: $newReminderRule)
-                                    .textInputAutocapitalization(.never)
                                 Toggle("Enabled", isOn: $newReminderEnabled)
                                 Button {
                                     Task { await addReminder() }
@@ -225,8 +225,21 @@ struct TaskEditorView: View {
 
                         Section("Attachments") {
                             ForEach(attachments) { attachment in
+                                let payloadURL = try? attachmentFileStore?.presentationURL(
+                                    for: attachment
+                                )
                                 AttachmentRow(
                                     attachment: attachment,
+                                    payloadURL: payloadURL ?? nil,
+                                    onOpen: {
+                                        guard let payloadURL = payloadURL ?? nil else {
+                                            childErrorMessage = AttachmentFileStoreError
+                                                .payloadMissing(attachment.fileName)
+                                                .localizedDescription
+                                            return
+                                        }
+                                        previewURL = payloadURL
+                                    },
                                     onDelete: { Task { await removeAttachment(attachment) } }
                                 )
                             }
@@ -316,6 +329,7 @@ struct TaskEditorView: View {
             ) { result in
                 Task { await importAttachment(result) }
             }
+            .quickLookPreview($previewURL)
             .task {
                 if canEditChildren, let id = assignment?.id {
                     await loadChildren(assignmentID: id)
@@ -330,6 +344,10 @@ struct TaskEditorView: View {
         }
         let filtered = projects.filter { $0.courseID == courseID }
         return filtered.isEmpty ? projects : filtered
+    }
+
+    private var attachmentFileStore: AttachmentFileStore? {
+        organizationRepository.map { AttachmentFileStore(databaseURL: $0.databaseURL) }
     }
 
     private func toggleTag(_ id: Int64) {
@@ -400,6 +418,14 @@ struct TaskEditorView: View {
             subtasks = try repository.fetchSubtasks(assignmentID: assignmentID, includeDeleted: false)
             reminders = try repository.fetchReminders(assignmentID: assignmentID, includeDeleted: false)
             attachments = try repository.fetchAttachments(assignmentID: assignmentID, includeDeleted: false)
+            if let attachmentFileStore {
+                let allActive = try repository.fetchAllAttachments(includeDeleted: false)
+                let result = try attachmentFileStore.reconcile(activeAttachments: allActive)
+                if !result.missingPayloadNames.isEmpty {
+                    childErrorMessage = "Some attachment files are missing: "
+                        + result.missingPayloadNames.joined(separator: ", ")
+                }
+            }
         } catch {
             childErrorMessage = error.localizedDescription
         }
@@ -461,12 +487,30 @@ struct TaskEditorView: View {
                 assignmentID: id,
                 triggerAtUTC: newReminderDate,
                 leadMinutes: newReminderLead,
-                repeatRule: newReminderRule.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+                repeatRule: nil,
                 isEnabled: newReminderEnabled
             )
             let created = try repository.createReminder(draft)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 reminders.append(created)
+            }
+            if let assignment {
+                do {
+                    let status = try await AssignmentNotificationScheduler.shared.schedule(
+                        reminder: created,
+                        assignment: assignment
+                    )
+                    if status.canSchedule {
+                        var audited = created
+                        audited.lastScheduledAt = Date()
+                        let saved = try repository.updateReminder(audited)
+                        if let index = reminders.firstIndex(where: { $0.id == saved.id }) {
+                            reminders[index] = saved
+                        }
+                    }
+                } catch {
+                    childErrorMessage = "The reminder was saved, but its system notification could not be scheduled: \(error.localizedDescription)"
+                }
             }
         } catch {
             childErrorMessage = error.localizedDescription
@@ -477,6 +521,7 @@ struct TaskEditorView: View {
         guard let repository = organizationRepository else { return }
         do {
             try repository.deleteReminder(id: reminder.id)
+            await AssignmentNotificationScheduler.shared.cancel(reminder: reminder)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 reminders.removeAll { $0.id == reminder.id }
             }
@@ -485,8 +530,36 @@ struct TaskEditorView: View {
         }
     }
 
+    private func toggleReminder(_ reminder: TaskReminder) async {
+        guard let repository = organizationRepository else { return }
+        do {
+            var changed = reminder
+            changed.isEnabled.toggle()
+            changed.lastScheduledAt = nil
+            var updated = try repository.updateReminder(changed)
+            if updated.isEnabled, let assignment {
+                let status = try await AssignmentNotificationScheduler.shared.schedule(
+                    reminder: updated,
+                    assignment: assignment
+                )
+                if status.canSchedule {
+                    updated.lastScheduledAt = Date()
+                    updated = try repository.updateReminder(updated)
+                }
+            } else {
+                await AssignmentNotificationScheduler.shared.cancel(reminder: updated)
+            }
+            if let index = reminders.firstIndex(where: { $0.id == updated.id }) {
+                reminders[index] = updated
+            }
+        } catch {
+            childErrorMessage = "The reminder could not be updated: \(error.localizedDescription)"
+        }
+    }
+
     private func importAttachment(_ result: Result<[URL], Error>) async {
         guard let repository = organizationRepository,
+              let attachmentFileStore,
               let id = assignment?.id else { return }
         switch result {
         case .failure(let error):
@@ -496,18 +569,14 @@ struct TaskEditorView: View {
             do {
                 let secured = url.startAccessingSecurityScopedResource()
                 defer { if secured { url.stopAccessingSecurityScopedResource() } }
-                let data = try Data(contentsOf: url)
-                let digest = CryptoKit.SHA256.hash(data: data)
-                    .compactMap { String(format: "%02x", $0) }
-                    .joined()
-                let draft = AttachmentMetadataDraft(
+                let mimeType = try url.resourceValues(forKeys: [.contentTypeKey])
+                    .contentType?.preferredMIMEType
+                let created = try attachmentFileStore.importFile(
+                    from: url,
                     assignmentID: id,
-                    fileName: url.lastPathComponent,
-                    mimeType: nil,
-                    byteSize: Int64(data.count),
-                    sha256: digest
+                    mimeType: mimeType,
+                    repository: repository
                 )
-                let created = try repository.createAttachmentMetadata(draft)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                     attachments.append(created)
                 }
@@ -518,9 +587,13 @@ struct TaskEditorView: View {
     }
 
     private func removeAttachment(_ attachment: AttachmentMetadata) async {
-        guard let repository = organizationRepository else { return }
+        guard let repository = organizationRepository,
+              let attachmentFileStore else { return }
         do {
-            try repository.deleteAttachmentMetadata(id: attachment.id)
+            try attachmentFileStore.deleteFileAndMetadata(
+                attachment,
+                repository: repository
+            )
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 attachments.removeAll { $0.id == attachment.id }
             }
@@ -599,6 +672,7 @@ private struct SubtaskRow: View {
 
 private struct ReminderRow: View {
     let reminder: TaskReminder
+    let onToggle: () -> Void
     let onDelete: () -> Void
 
     private static let formatter: DateFormatter = {
@@ -621,6 +695,9 @@ private struct ReminderRow: View {
                 }
             }
             Spacer()
+            Button(reminder.isEnabled ? "Disable" : "Enable", action: onToggle)
+                .buttonStyle(.borderless)
+                .frame(minWidth: 44, minHeight: 44)
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .foregroundStyle(.red)
@@ -634,14 +711,16 @@ private struct ReminderRow: View {
 
 private struct AttachmentRow: View {
     let attachment: AttachmentMetadata
+    let payloadURL: URL?
+    let onOpen: () -> Void
     let onDelete: () -> Void
 
     static let byteFormatter = ByteCountFormatter()
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.fill")
-                .foregroundStyle(.secondary)
+            Image(systemName: payloadURL == nil ? "doc.badge.ellipsis" : "doc.fill")
+                .foregroundStyle(payloadURL == nil ? .orange : .secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(attachment.fileName)
                     .lineLimit(1)
@@ -650,6 +729,19 @@ private struct AttachmentRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button("Open", systemImage: "eye", action: onOpen)
+                .labelStyle(.iconOnly)
+                .disabled(payloadURL == nil)
+                .help(payloadURL == nil ? "Attachment file is missing" : "Preview attachment")
+                .frame(minWidth: 44, minHeight: 44)
+            if let payloadURL {
+                ShareLink(item: payloadURL) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Export \(attachment.fileName)")
+                .help("Export attachment")
+                .frame(minWidth: 44, minHeight: 44)
+            }
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .foregroundStyle(.red)

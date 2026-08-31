@@ -132,15 +132,19 @@ class BackendApiTests(unittest.TestCase):
         *,
         json_body: dict[str, Any] | None = None,
         query: dict[str, str] | None = None,
+        raw_body: bytes | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> tuple[int, Any]:
         url = f"{cls.base_url}{path}"
         if query:
             url = f"{url}?{urllib.parse.urlencode(query)}"
-        data = None
+        data = raw_body
         headers: dict[str, str] = {}
         if json_body is not None:
             data = json.dumps(json_body, ensure_ascii=False).encode("utf-8")
             headers["Content-Type"] = "application/json; charset=utf-8"
+        if extra_headers:
+            headers.update(extra_headers)
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
@@ -424,7 +428,109 @@ class BackendApiTests(unittest.TestCase):
         self.assertEqual(stored[0], f"attachments/{attachment['uuid']}")
         self.assertIsNotNone(stored[1])
 
-    def test_06_parent_state_is_derived_from_active_subtasks(self) -> None:
+    def test_06_attachment_file_lifecycle_uses_managed_storage(self) -> None:
+        _, task = self.request(
+            "POST",
+            "/assignments",
+            json_body={"course_name": "Art", "title": "Portfolio 🎨"},
+        )
+        payload = "中英文, emoji 🧪, and <special> data".encode()
+        upload_status, attachment = self.request(
+            "POST",
+            f"/assignments/{task['id']}/attachments/file",
+            raw_body=payload,
+            extra_headers={
+                "Content-Type": "application/octet-stream",
+                "X-Attachment-Name": urllib.parse.quote("作品 final.txt"),
+                "X-Attachment-Mime": "text/plain; charset=utf-8",
+            },
+        )
+        self.assertEqual(upload_status, 201)
+        self.assertTrue(attachment["payload_available"])
+        self.assertEqual(attachment["byte_size"], len(payload))
+        self.assertEqual(attachment["sha256"], hashlib.sha256(payload).hexdigest())
+
+        managed_path = _TEST_ROOT / attachment["relative_path"]
+        self.assertEqual(managed_path.read_bytes(), payload)
+        staging = _TEST_ROOT / ".attachment-staging"
+        tombstone = staging / f"{attachment['uuid']}.deleted"
+        managed_path.replace(tombstone)
+        partial = staging / "interrupted.partial"
+        partial.write_bytes(b"partial")
+        from backend.app.services.attachment_store import AttachmentStore
+
+        removed, missing = AttachmentStore(_TEST_DATABASE).reconcile(
+            {attachment["uuid"]}
+        )
+        self.assertEqual((removed, missing), (0, []))
+        self.assertEqual(managed_path.read_bytes(), payload)
+        self.assertFalse(tombstone.exists())
+        self.assertFalse(partial.exists())
+
+        orphan = _TEST_ROOT / "attachments" / "2f6a7a92-a9a5-4eb0-9dd6-e8cde97c8ac8"
+        orphan.write_bytes(b"orphan")
+        removed, missing = AttachmentStore(_TEST_DATABASE).reconcile(
+            {attachment["uuid"]}
+        )
+        self.assertEqual((removed, missing), (1, []))
+        self.assertFalse(orphan.exists())
+        read_status, read_payload = self.request(
+            "GET",
+            f"/assignments/{task['id']}/attachments/{attachment['id']}/file",
+        )
+        self.assertEqual(read_status, 200)
+        self.assertEqual(read_payload, payload.decode())
+
+        unsafe_status, _ = self.request(
+            "POST",
+            f"/assignments/{task['id']}/attachments/file",
+            raw_body=b"unsafe",
+            extra_headers={
+                "Content-Type": "application/octet-stream",
+                "X-Attachment-Name": urllib.parse.quote("../escape.txt"),
+            },
+        )
+        self.assertEqual(unsafe_status, 400)
+        self.assertEqual(
+            sorted(path.name for path in (_TEST_ROOT / "attachments").iterdir()),
+            [attachment["uuid"]],
+        )
+
+        html_status, html_attachment = self.request(
+            "POST",
+            f"/assignments/{task['id']}/attachments/file",
+            raw_body=b"<script>document.body.textContent='unsafe'</script>",
+            extra_headers={
+                "Content-Type": "application/octet-stream",
+                "X-Attachment-Name": urllib.parse.quote("unsafe.html"),
+                "X-Attachment-Mime": "text/html",
+            },
+        )
+        self.assertEqual(html_status, 201)
+        with urllib.request.urlopen(
+            f"{self.base_url}/assignments/{task['id']}/attachments/"
+            f"{html_attachment['id']}/file"
+        ) as response:
+            self.assertIn("attachment", response.headers["Content-Disposition"])
+            self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+            self.assertEqual(
+                response.headers["Content-Security-Policy"],
+                "sandbox; default-src 'none'",
+            )
+        html_delete_status, _ = self.request(
+            "DELETE",
+            f"/assignments/{task['id']}/attachments/{html_attachment['id']}",
+        )
+        self.assertEqual(html_delete_status, 204)
+
+        delete_status, _ = self.request(
+            "DELETE",
+            f"/assignments/{task['id']}/attachments/{attachment['id']}",
+        )
+        self.assertEqual(delete_status, 204)
+        self.assertFalse(managed_path.exists())
+
+    def test_07_parent_state_is_derived_from_active_subtasks(self) -> None:
         _, task = self.request(
             "POST",
             "/assignments",

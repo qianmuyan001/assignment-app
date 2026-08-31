@@ -94,7 +94,10 @@ public sealed partial class MainWindow : Window
                 ? $"Schema version {_database.SchemaVersion} · migration backup: {backupPath}"
                 : $"Schema version {_database.SchemaVersion}";
             AddAssignmentButton.IsEnabled = true;
+            await ReconcileAttachmentFilesAsync(_database);
             await ReloadAssignmentsAsync(showLoading: false);
+            ReconcileNotifications();
+            NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
         }
         catch (Exception error)
         {
@@ -376,7 +379,8 @@ public sealed partial class MainWindow : Window
             assignment,
             IsProfessionalMode,
             _database.Organization,
-            OwnerHandle)
+            OwnerHandle,
+            notificationReconcile: ReconcileNotifications)
         {
             XamlRoot = Content.XamlRoot
         };
@@ -437,6 +441,7 @@ public sealed partial class MainWindow : Window
             await Task.Run(() => change(database));
             ErrorBar.IsOpen = false;
             await ReloadAssignmentsAsync(showLoading: false);
+            ReconcileNotifications();
         }
         catch (Exception error)
         {
@@ -446,6 +451,48 @@ public sealed partial class MainWindow : Window
         {
             SetLoading(false);
             ApplyFilter();
+        }
+    }
+
+    private async void OpenNotificationSettings_Click(object sender, RoutedEventArgs e)
+    {
+        await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:notifications"));
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+    }
+
+    private void RefreshNotificationStatus_Click(object sender, RoutedEventArgs e)
+    {
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+        ReconcileNotifications();
+    }
+
+    private void ReconcileNotifications()
+    {
+        if (_database is not null)
+            WindowsNotificationScheduler.Shared.Reconcile(_database);
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+    }
+
+    private async Task ReconcileAttachmentFilesAsync(AssignmentDatabase database)
+    {
+        try
+        {
+            var result = await Task.Run(() =>
+                new AttachmentFileStore(database.DatabasePath).Reconcile(
+                    database.Organization.FetchAllAttachments()));
+            if (result.MissingPayloadNames.Count > 0)
+            {
+                ShowError(
+                    "Some attachment files are missing from local storage: " +
+                    string.Join(", ", result.MissingPayloadNames));
+            }
+        }
+        catch (Exception error)
+        {
+            ShowError(
+                "Attachment files could not be reconciled. Tasks remain available, " +
+                "but attachment cleanup needs attention.",
+                error);
         }
     }
 

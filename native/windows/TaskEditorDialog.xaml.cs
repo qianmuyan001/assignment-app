@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Security.Cryptography;
 using AssignmentNative.Core;
+using AssignmentNative.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.System;
 using WinRT;
 using WinRT.Interop;
 using CoreAssignmentItem = AssignmentNative.Core.AssignmentItem;
@@ -24,7 +25,9 @@ public sealed partial class TaskEditorDialog : ContentDialog
     private readonly bool _professionalMode;
     private readonly ITaskOrganizationRepository _organization;
     private readonly IntPtr _ownerHandle;
+    private readonly Action? _notificationReconcile;
     private readonly TaskDueControlState _loadedDueState;
+    private readonly AttachmentFileStore _attachmentStore;
 
     private IReadOnlyList<CourseItem> _courses = Array.Empty<CourseItem>();
     private IReadOnlyList<ProjectItem> _projects = Array.Empty<ProjectItem>();
@@ -43,13 +46,16 @@ public sealed partial class TaskEditorDialog : ContentDialog
         CoreAssignmentItem? existing,
         bool professionalMode,
         ITaskOrganizationRepository organization,
-        IntPtr ownerHandle = default)
+        IntPtr ownerHandle = default,
+        Action? notificationReconcile = null)
     {
         InitializeComponent();
         _existing = existing;
         _professionalMode = professionalMode;
         _organization = organization;
         _ownerHandle = ownerHandle;
+        _notificationReconcile = notificationReconcile;
+        _attachmentStore = new AttachmentFileStore(organization.DatabasePath);
 
         Title = existing is null ? "Add assignment" : "Edit assignment";
         ProfessionalFields.Visibility = professionalMode
@@ -233,6 +239,14 @@ public sealed partial class TaskEditorDialog : ContentDialog
         RenderSubtasks(_organization.FetchSubtasks(assignmentId));
         RenderReminders(_organization.FetchReminders(assignmentId));
         RenderAttachments(_organization.FetchAttachments(assignmentId));
+        var reconciliation = _attachmentStore.Reconcile(
+            _organization.FetchAllAttachments());
+        if (reconciliation.MissingPayloadNames.Count > 0)
+        {
+            ShowNotice(
+                "Some attachment files are missing: " +
+                string.Join(", ", reconciliation.MissingPayloadNames));
+        }
     }
 
     private void RenderSubtasks(IReadOnlyList<SubtaskItem> subtasks)
@@ -261,6 +275,8 @@ public sealed partial class TaskEditorDialog : ContentDialog
                 Tag = subtask,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            AutomationProperties.SetName(check, $"Mark {subtask.Title} complete");
+            AutomationProperties.SetName(remove, $"Remove subtask {subtask.Title}");
             remove.Click += RemoveSubtask_Click;
 
             SubtasksList.Children.Add(BuildRow(check, title, remove));
@@ -284,8 +300,36 @@ public sealed partial class TaskEditorDialog : ContentDialog
                 Tag = reminder,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            var edit = new Button
+            {
+                Content = "Edit time",
+                Tag = reminder,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var toggle = new Button
+            {
+                Content = reminder.IsEnabled ? "Disable" : "Enable",
+                Tag = reminder,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            AutomationProperties.SetName(edit, $"Edit reminder {FormatReminder(reminder)}");
+            AutomationProperties.SetName(
+                toggle,
+                $"{toggle.Content} reminder {FormatReminder(reminder)}");
+            AutomationProperties.SetName(remove, $"Remove reminder {FormatReminder(reminder)}");
+            edit.Click += EditReminder_Click;
+            toggle.Click += ToggleReminder_Click;
             remove.Click += RemoveReminder_Click;
-            RemindersList.Children.Add(BuildRow(label, remove));
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            actions.Children.Add(edit);
+            actions.Children.Add(toggle);
+            actions.Children.Add(remove);
+            RemindersList.Children.Add(BuildRow(label, actions));
         }
     }
 
@@ -294,20 +338,42 @@ public sealed partial class TaskEditorDialog : ContentDialog
         AttachmentsList.Children.Clear();
         foreach (var attachment in attachments)
         {
+            var payloadAvailable = true;
+            try { _ = _attachmentStore.PayloadPath(attachment); }
+            catch (IOException) { payloadAvailable = false; }
+            catch (UnauthorizedAccessException) { payloadAvailable = false; }
             var label = new TextBlock
             {
-                Text = $"{attachment.FileName} ({attachment.ByteSize} bytes)",
+                Text = payloadAvailable
+                    ? $"{attachment.FileName} ({attachment.ByteSize} bytes)"
+                    : $"{attachment.FileName} — local file missing or unsafe",
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             };
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var open = new Button { Content = "Open", Tag = attachment, IsEnabled = payloadAvailable };
+            open.Click += OpenAttachment_Click;
+            var export = new Button { Content = "Export", Tag = attachment, IsEnabled = payloadAvailable };
+            export.Click += ExportAttachment_Click;
             var remove = new Button
             {
                 Content = "Remove",
                 Tag = attachment,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            AutomationProperties.SetName(open, $"Open attachment {attachment.FileName}");
+            AutomationProperties.SetName(export, $"Export attachment {attachment.FileName}");
+            AutomationProperties.SetName(remove, $"Remove attachment {attachment.FileName}");
             remove.Click += RemoveAttachment_Click;
-            AttachmentsList.Children.Add(BuildRow(label, remove));
+            actions.Children.Add(open);
+            actions.Children.Add(export);
+            actions.Children.Add(remove);
+            AttachmentsList.Children.Add(BuildRow(label, actions));
         }
     }
 
@@ -372,7 +438,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
     private void ProjectPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_populating) return;
-        _selectedProjectId = CoursePickerBox.SelectedItem is ComboBoxItem item && item.Tag is long id
+        _selectedProjectId = ProjectPickerBox.SelectedItem is ComboBoxItem item && item.Tag is long id
             ? id
             : null;
     }
@@ -418,6 +484,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
             _organization.CreateSubtask(new SubtaskDraft(_existing.Id, title, TaskStatuses.Todo, sortOrder));
             NewSubtaskBox.Text = "";
             RenderSubtasks(_organization.FetchSubtasks(_existing.Id));
+            ReconcileNotificationsAfterChildChange();
         }
         catch (Exception error)
         {
@@ -433,6 +500,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
         {
             _organization.UpdateSubtask(subtask with { Status = status });
             RenderSubtasks(_organization.FetchSubtasks(_existing.Id));
+            ReconcileNotificationsAfterChildChange();
         }
         catch (Exception error)
         {
@@ -447,6 +515,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
         {
             _organization.DeleteSubtask(subtask.Id);
             RenderSubtasks(_organization.FetchSubtasks(_existing.Id));
+            ReconcileNotificationsAfterChildChange();
         }
         catch (Exception error)
         {
@@ -461,12 +530,18 @@ public sealed partial class TaskEditorDialog : ContentDialog
         var trigger = new DateTimeOffset(local);
         try
         {
-            _organization.CreateReminder(new ReminderDraft(
+            var reminder = _organization.CreateReminder(new ReminderDraft(
                 _existing.Id,
                 trigger,
                 leadMinutes: 0,
                 repeatRule: null,
                 isEnabled: true));
+            if (!WindowsNotificationScheduler.Shared.Schedule(reminder, _existing))
+            {
+                ShowNotice(
+                    "The reminder was saved, but Windows did not schedule the notification. " +
+                    WindowsNotificationScheduler.Shared.Status);
+            }
             RenderReminders(_organization.FetchReminders(_existing.Id));
         }
         catch (Exception error)
@@ -481,11 +556,136 @@ public sealed partial class TaskEditorDialog : ContentDialog
         try
         {
             _organization.DeleteReminder(reminder.Id);
+            if (!WindowsNotificationScheduler.Shared.Cancel(reminder))
+            {
+                ShowNotice(
+                    "The reminder was removed, but its Windows notification could not be verified. " +
+                    WindowsNotificationScheduler.Shared.Status);
+            }
             RenderReminders(_organization.FetchReminders(_existing.Id));
         }
         catch (Exception error)
         {
             ShowNotice($"The reminder could not be removed: {error.Message}");
+        }
+    }
+
+    private void EditReminder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ReminderItem reminder } editButton || _existing is null) return;
+        var local = reminder.TriggerAtUtc.ToLocalTime();
+        var datePicker = new DatePicker
+        {
+            Header = "Date",
+            SelectedDate = local.Date,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        var timePicker = new TimePicker
+        {
+            Header = "Time",
+            Time = local.TimeOfDay,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        AutomationProperties.SetName(datePicker, "Reminder date");
+        AutomationProperties.SetName(timePicker, "Reminder time");
+        var save = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        var cancel = new Button { Content = "Cancel" };
+        AutomationProperties.SetName(save, "Save reminder time");
+        AutomationProperties.SetName(cancel, "Cancel reminder time edit");
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        actions.Children.Add(cancel);
+        actions.Children.Add(save);
+        var fields = new StackPanel { Spacing = 8, MinWidth = 280 };
+        fields.Children.Add(datePicker);
+        fields.Children.Add(timePicker);
+        fields.Children.Add(actions);
+        var flyout = new Flyout
+        {
+            Content = fields
+        };
+        AutomationProperties.SetName(fields, "Edit reminder time");
+        cancel.Click += (_, _) => flyout.Hide();
+        save.Click += (_, _) =>
+        {
+            if (datePicker.SelectedDate is not { } date) return;
+            try
+            {
+                var trigger = new DateTimeOffset(date.Date.Add(timePicker.Time));
+                var updated = _organization.UpdateReminder(
+                    reminder.Id,
+                    new ReminderDraft(
+                        reminder.AssignmentId,
+                        trigger,
+                        reminder.LeadMinutes,
+                        reminder.RepeatRule,
+                        reminder.IsEnabled,
+                        null));
+                var notificationUpdated = updated.IsEnabled
+                    ? WindowsNotificationScheduler.Shared.Schedule(updated, _existing)
+                    : WindowsNotificationScheduler.Shared.Cancel(updated);
+                if (!notificationUpdated)
+                {
+                    ShowNotice(
+                        "The reminder time was saved, but Windows notification state could not be verified. " +
+                        WindowsNotificationScheduler.Shared.Status);
+                }
+                RenderReminders(_organization.FetchReminders(_existing.Id));
+                flyout.Hide();
+            }
+            catch (Exception error)
+            {
+                ShowNotice($"The reminder could not be updated: {error.Message}");
+            }
+        };
+        flyout.ShowAt(editButton);
+    }
+
+    private void ToggleReminder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ReminderItem reminder } || _existing is null) return;
+        try
+        {
+            var updated = _organization.UpdateReminder(
+                reminder.Id,
+                new ReminderDraft(
+                    reminder.AssignmentId,
+                    reminder.TriggerAtUtc,
+                    reminder.LeadMinutes,
+                    reminder.RepeatRule,
+                    !reminder.IsEnabled,
+                    null));
+            var notificationUpdated = updated.IsEnabled
+                ? WindowsNotificationScheduler.Shared.Schedule(updated, _existing)
+                : WindowsNotificationScheduler.Shared.Cancel(updated);
+            if (!notificationUpdated)
+            {
+                ShowNotice(
+                    "The reminder was updated, but Windows notification state could not be verified. " +
+                    WindowsNotificationScheduler.Shared.Status);
+            }
+            RenderReminders(_organization.FetchReminders(_existing.Id));
+        }
+        catch (Exception error)
+        {
+            ShowNotice($"The reminder could not be updated: {error.Message}");
+        }
+    }
+
+    private void ReconcileNotificationsAfterChildChange()
+    {
+        try
+        {
+            _notificationReconcile?.Invoke();
+        }
+        catch
+        {
+            ShowNotice(
+                "The task was updated, but Windows notifications could not be refreshed.");
         }
     }
 
@@ -516,16 +716,11 @@ public sealed partial class TaskEditorDialog : ContentDialog
 
         try
         {
-            var buffer = await FileIO.ReadBufferAsync(file);
-            var bytes = buffer.ToArray();
-            using var sha = SHA256.Create();
-            var digest = string.Concat(sha.ComputeHash(bytes).Select(b => b.ToString("x2")));
-            _organization.CreateAttachment(new AttachmentMetadataDraft(
+            _attachmentStore.Import(
+                file.Path,
                 _existing.Id,
-                file.Name,
                 file.ContentType,
-                bytes.LongLength,
-                digest));
+                _organization);
             RenderAttachments(_organization.FetchAttachments(_existing.Id));
         }
         catch (Exception error)
@@ -539,12 +734,63 @@ public sealed partial class TaskEditorDialog : ContentDialog
         if (sender is not Button { Tag: AttachmentMetadataItem attachment } || _existing is null) return;
         try
         {
-            _organization.DeleteAttachment(attachment.Id);
+            _attachmentStore.Delete(attachment, _organization);
             RenderAttachments(_organization.FetchAttachments(_existing.Id));
         }
         catch (Exception error)
         {
             ShowNotice($"The attachment could not be removed: {error.Message}");
+        }
+    }
+
+    private async void OpenAttachment_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: AttachmentMetadataItem attachment }) return;
+        try
+        {
+            var file = await StorageFile.GetFileFromPathAsync(
+                _attachmentStore.PayloadPath(attachment));
+            if (!await Launcher.LaunchFileAsync(file))
+                ShowNotice("Windows could not find an app to open this attachment.");
+        }
+        catch (Exception error)
+        {
+            ShowNotice($"The attachment could not be opened: {error.Message}");
+        }
+    }
+
+    private async void ExportAttachment_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: AttachmentMetadataItem attachment }) return;
+        var extension = Path.GetExtension(attachment.FileName);
+        try
+        {
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                var folderPicker = new FolderPicker();
+                folderPicker.FileTypeFilter.Add("*");
+                if (_ownerHandle != IntPtr.Zero)
+                    InitializeWithWindow.Initialize(folderPicker, _ownerHandle);
+                var folder = await folderPicker.PickSingleFolderAsync();
+                if (folder is null) return;
+                var destination = await folder.CreateFileAsync(
+                    attachment.FileName,
+                    CreationCollisionOption.GenerateUniqueName);
+                File.Copy(_attachmentStore.PayloadPath(attachment), destination.Path, overwrite: true);
+                return;
+            }
+
+            var picker = new FileSavePicker { SuggestedFileName = attachment.FileName };
+            picker.FileTypeChoices.Add("Attachment", [extension]);
+            if (_ownerHandle != IntPtr.Zero)
+                InitializeWithWindow.Initialize(picker, _ownerHandle);
+            var destination = await picker.PickSaveFileAsync();
+            if (destination is null) return;
+            File.Copy(_attachmentStore.PayloadPath(attachment), destination.Path, overwrite: true);
+        }
+        catch (Exception error)
+        {
+            ShowNotice($"The attachment could not be exported: {error.Message}");
         }
     }
 
@@ -638,16 +884,13 @@ public sealed partial class TaskEditorDialog : ContentDialog
     private TimeZoneInfo EffectiveTimeZone =>
         LocalWallTime.ResolveTimeZone(_existing?.TimezoneId);
 
-    private async void ShowNotice(string message)
+    private void ShowNotice(string message)
     {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "Assignment",
-            Content = message,
-            CloseButtonText = "OK"
-        };
-        await dialog.ShowAsync();
+        ValidationText.Text = message;
+        ValidationText.Visibility = Visibility.Visible;
+        AutomationProperties.SetLiveSetting(
+            ValidationText,
+            AutomationLiveSetting.Assertive);
     }
 
     private static string SelectedTag(ComboBox box, string fallback) =>

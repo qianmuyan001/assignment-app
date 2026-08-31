@@ -279,6 +279,9 @@ struct ContentView: View {
             databaseLocation: viewModel.databaseLocation.isEmpty
                 ? "Unavailable"
                 : viewModel.databaseLocation,
+            notificationAuthorization: viewModel.notificationAuthorization,
+            onRequestNotifications: viewModel.requestNotificationAuthorization,
+            onRefreshNotifications: viewModel.refreshNotificationAuthorization,
             onReload: viewModel.reload
         )
     }
@@ -347,7 +350,7 @@ struct ContentView: View {
         let assignment = presentation.assignment
         let initialTagIDs: [Int64] = assignment.flatMap { target in
             viewModel.organizationRepository.flatMap { repo in
-                (try? repo.fetchTaskTags(assignmentID: target.id, includeDeleted: false))?
+                (try? repo.fetchTagLinks(assignmentID: target.id, includeDeleted: false))?
                     .map(\.tagID)
             }
         } ?? []

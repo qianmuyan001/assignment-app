@@ -7,6 +7,7 @@ namespace AssignmentNative.Core;
 
 public interface ITaskOrganizationRepository
 {
+    string DatabasePath { get; }
     IReadOnlyList<CourseItem> FetchCourses(bool includeDeleted = false);
     CourseItem CreateCourse(CourseDraft draft);
     CourseItem UpdateCourse(long id, CourseDraft draft);
@@ -35,6 +36,7 @@ public interface ITaskOrganizationRepository
     SubtaskItem RestoreSubtask(long id);
 
     IReadOnlyList<AttachmentMetadataItem> FetchAttachments(long assignmentId, bool includeDeleted = false);
+    IReadOnlyList<AttachmentMetadataItem> FetchAllAttachments(bool includeDeleted = false);
     AttachmentMetadataItem CreateAttachment(AttachmentMetadataDraft draft);
     AttachmentMetadataItem UpdateAttachment(long id, AttachmentMetadataDraft draft);
     void DeleteAttachment(long id);
@@ -403,9 +405,19 @@ public sealed partial class TaskOrganizationRepository : ITaskOrganizationReposi
         var result = new List<AttachmentMetadataItem>(); while (reader.Read()) result.Add(ReadAttachment(reader)); return result;
     }
 
+    public IReadOnlyList<AttachmentMetadataItem> FetchAllAttachments(bool includeDeleted = false)
+    {
+        using var connection = Open(); using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT id,uuid,assignment_id,file_name,relative_path,mime_type,byte_size,sha256,created_at,updated_at,deleted_at FROM attachments " +
+            (includeDeleted ? "" : "WHERE deleted_at IS NULL ") + "ORDER BY id";
+        using var reader = command.ExecuteReader();
+        var result = new List<AttachmentMetadataItem>(); while (reader.Read()) result.Add(ReadAttachment(reader)); return result;
+    }
+
     public AttachmentMetadataItem CreateAttachment(AttachmentMetadataDraft draft)
     {
-        var value = ValidateAttachment(draft); var uuid = SchemaV3Contract.NewUuid();
+        var value = ValidateAttachment(draft); var uuid = value.Uuid ?? SchemaV3Contract.NewUuid();
         var id = Write((connection, transaction) =>
         {
             RequireActiveAssignment(connection, transaction, value.AssignmentId); var now = SchemaV3Contract.CanonicalUtcNow();
@@ -618,6 +630,7 @@ public sealed partial class TaskOrganizationRepository : ITaskOrganizationReposi
         var file = draft.FileName; var fileLength = file.EnumerateRunes().Count(); if (draft.AssignmentId < 1 || draft.ByteSize < 0 || fileLength is < 1 or > 255 || file is "." or ".." || file.IndexOfAny(['\0', '/', '\\']) >= 0)
             throw new ArgumentException("Attachment metadata is invalid.");
         var digest = draft.Sha256.Trim(); if (!ShaRegex().IsMatch(digest)) throw new ArgumentException("SHA-256 must be lowercase hexadecimal.");
+        if (draft.Uuid is not null) _ = SchemaV3Contract.AttachmentRelativePath(draft.Uuid);
         return draft with { MimeType = Optional(draft.MimeType), Sha256 = digest };
     }
     private static ReminderDraft ValidateReminder(ReminderDraft draft)

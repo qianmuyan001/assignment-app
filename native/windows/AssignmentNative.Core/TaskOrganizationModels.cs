@@ -123,7 +123,8 @@ public sealed record AttachmentMetadataDraft(
     string FileName,
     string? MimeType,
     long ByteSize,
-    string Sha256);
+    string Sha256,
+    string? Uuid = null);
 
 public sealed record ReminderDraft(
     long AssignmentId,

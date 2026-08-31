@@ -188,7 +188,7 @@ private struct CourseManager: View {
                 course?.teacher = draft.teacher
                 course?.semester = draft.semester
                 course?.isArchived = draft.isArchived
-                if var course {
+                if let course {
                     _ = try repository.updateCourse(course)
                 }
             } else {
@@ -388,12 +388,15 @@ private struct ProjectManager: View {
                 status: draftStatus
             )
             if let id = editingID {
-                var project = try repository.fetchProjects(includeDeleted: true).first(where: { $0.id == id })
+                var project = try repository.fetchProjects(
+                    courseID: nil,
+                    includeDeleted: true
+                ).first(where: { $0.id == id })
                 project?.name = draft.name
                 project?.courseID = draft.courseID
                 project?.projectDescription = draft.projectDescription
                 project?.status = draft.status
-                if var project {
+                if let project {
                     _ = try repository.updateProject(project)
                 }
             } else {
@@ -420,7 +423,10 @@ private struct ProjectManager: View {
         guard let repository else { return }
         do {
             courses = try repository.fetchCourses(includeDeleted: false)
-            projects = try repository.fetchProjects(includeDeleted: false)
+            projects = try repository.fetchProjects(
+                courseID: nil,
+                includeDeleted: false
+            )
         } catch {
             presentError(error.localizedDescription)
         }
@@ -562,7 +568,7 @@ private struct TagManager: View {
                 var tag = try repository.fetchTags(includeDeleted: true).first(where: { $0.id == id })
                 tag?.name = draft.name
                 tag?.colorHex = draft.colorHex
-                if var tag {
+                if let tag {
                     _ = try repository.updateTag(tag)
                 }
             } else {

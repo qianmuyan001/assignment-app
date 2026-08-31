@@ -607,7 +607,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
         let values = try Self.validatedAttachmentDraft(draft)
         return try withWrite { database in
             try Self.requireActiveAssignment(values.assignmentID, on: database)
-            let uuid = UUID()
+            let uuid = values.uuid
             let path = try SharedIdentity.attachmentRelativePath(for: uuid)
             let statement = try SQLiteSupport.prepare(
                 """
@@ -631,6 +631,24 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             SQLiteSupport.bind(timestamp, to: statement, index: 9)
             try SQLiteSupport.checkDone(statement, on: database)
             return try Self.fetchAttachment(id: sqlite3_last_insert_rowid(database), on: database)
+        }
+    }
+
+    func fetchAllAttachments(includeDeleted: Bool = false) throws -> [AttachmentMetadata] {
+        try lock.withLock {
+            let database = try requireDatabase()
+            let statement = try SQLiteSupport.prepare(
+                """
+                SELECT id, uuid, assignment_id, file_name, relative_path, mime_type,
+                       byte_size, sha256, created_at, updated_at, deleted_at
+                FROM attachments
+                \(includeDeleted ? "" : "WHERE deleted_at IS NULL")
+                ORDER BY id
+                """,
+                on: database
+            )
+            defer { sqlite3_finalize(statement) }
+            return try Self.collect(statement, on: database, mapper: Self.attachment)
         }
     }
 
@@ -1408,6 +1426,7 @@ private extension SQLiteOrganizationRepository {
         value.mimeType = normalizedOptional(draft.mimeType)
         value.sha256 = draft.sha256.lowercased()
         guard value.assignmentID > 0,
+              value.uuid.versionNumber == 4,
               !value.fileName.isEmpty,
               value.fileName.count <= 255,
               value.fileName != ".",

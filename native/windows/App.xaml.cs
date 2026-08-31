@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using AssignmentNative.Services;
 
 namespace AssignmentNative;
 
@@ -9,6 +10,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        WindowsNotificationScheduler.Shared.Register();
         UnhandledException += (_, args) =>
         {
             // Keep diagnostics useful without copying exception messages that

@@ -1992,8 +1992,8 @@ async function loadOrganization() {
     populateTagCheckboxes();
     if (dom.orgDialog && dom.orgDialog.open) renderOrgManager();
   } catch (error) {
-    // Organization is auxiliary; never block the assignment list on its failure.
     console.warn("Organization load failed:", error.message);
+    showError(`Organization data could not be loaded: ${error.message}`);
   }
 }
 
@@ -2200,7 +2200,26 @@ async function renderAttachments(view, assignment) {
       span.textContent = `${attachment.file_name} · ${formatBytes(attachment.byte_size)}`;
       const sha = document.createElement("span");
       sha.className = "org-row-sub";
-      sha.textContent = `${attachment.sha256.slice(0, 12)}…`;
+      sha.textContent = attachment.payload_available
+        ? `${attachment.sha256.slice(0, 12)}…`
+        : "Local file missing";
+      const actions = document.createElement("span");
+      actions.className = "org-row-actions";
+      if (attachment.payload_available) {
+        const openLink = document.createElement("a");
+        openLink.className = "secondary-button org-row-btn";
+        openLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file`;
+        openLink.target = "_blank";
+        openLink.rel = "noopener";
+        openLink.textContent = "Open";
+        openLink.setAttribute("aria-label", `Open ${attachment.file_name}`);
+        const exportLink = document.createElement("a");
+        exportLink.className = "secondary-button org-row-btn";
+        exportLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file?download=true`;
+        exportLink.textContent = "Export";
+        exportLink.setAttribute("aria-label", `Export ${attachment.file_name}`);
+        actions.append(openLink, exportLink);
+      }
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.className = "delete-button org-row-btn";
@@ -2217,7 +2236,8 @@ async function renderAttachments(view, assignment) {
           showError(error.message);
         }
       });
-      li.append(span, sha, deleteButton);
+      actions.append(deleteButton);
+      li.append(span, sha, actions);
       list.appendChild(li);
     });
   } catch (error) {
@@ -2238,17 +2258,14 @@ async function renderAttachments(view, assignment) {
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
     try {
-      const buffer = await file.arrayBuffer();
-      const sha256 = await sha256Hex(buffer);
-      await apiRequest(`/assignments/${assignment.id}/attachments`, {
+      await apiRequest(`/assignments/${assignment.id}/attachments/file`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file_name: file.name,
-          mime_type: file.type || null,
-          byte_size: file.size,
-          sha256,
-        }),
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Attachment-Name": encodeURIComponent(file.name),
+          "X-Attachment-Mime": file.type || "application/octet-stream",
+        },
+        body: file,
       });
       await renderAttachments(view, assignment);
     } catch (error) {

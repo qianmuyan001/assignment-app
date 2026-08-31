@@ -121,9 +121,13 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <DatePicker x:Name="NewReminderDatePicker"
+                                Header="Date"
+                                AutomationProperties.Name="Reminder date"
                                 HorizontalAlignment="Stretch"/>
                     <TimePicker x:Name="NewReminderTimePicker"
                                 Grid.Column="1"
+                                Header="Time"
+                                AutomationProperties.Name="Reminder time"
                                 HorizontalAlignment="Stretch"/>
                 </Grid>
                 <Button Content="Add reminder"

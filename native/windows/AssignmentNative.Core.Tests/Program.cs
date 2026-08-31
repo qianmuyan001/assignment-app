@@ -67,6 +67,7 @@ internal static class Program
             ("task tags detach and restore", TaskTagLifecycle),
             ("subtasks derive parent progress", SubtaskDerivedProgress),
             ("attachment metadata is safe and contains no payload", AttachmentMetadataContract),
+            ("attachment payload lifecycle is atomic and reconciled", AttachmentPayloadLifecycle),
             ("reminders require UTC and canonical recurrence", ReminderContract),
             ("soft deleted tasks restore without losing fields", TaskSoftDeleteRestore),
             ("task edit preserves soft deleted organization links", DeletedOrganizationLinksSurviveTaskEdit),
@@ -1258,6 +1259,85 @@ internal static class Program
         untyped.CommandText = "ALTER TABLE attachments ADD COLUMN payload BLOB GENERATED ALWAYS AS (x'00') VIRTUAL";
         untyped.ExecuteNonQuery();
         Throws<SchemaV3ContractException>(() => SchemaV3Contract.Validate(connection));
+    }
+
+    private static void AttachmentPayloadLifecycle()
+    {
+        using var workspace = new TestWorkspace();
+        var database = workspace.Database();
+        var task = database.Add(Draft("Art", "Portfolio payload"));
+        var repository = new TaskOrganizationRepository(database);
+        var store = new AttachmentFileStore(workspace.DatabasePath);
+        var source = Path.Combine(workspace.DirectoryPath, "作品 final.txt");
+        var payload = "中英文, emoji 🧪, and <special> data";
+        File.WriteAllText(source, payload);
+
+        var attachment = store.Import(source, task, "text/plain", repository);
+        var managed = store.PayloadPath(attachment);
+        Equal(payload, File.ReadAllText(managed));
+        Equal(new FileInfo(source).Length, attachment.ByteSize);
+        using (var input = File.OpenRead(source))
+        {
+            Equal(
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(input))
+                    .ToLowerInvariant(),
+                attachment.Sha256);
+        }
+
+        var staging = Path.Combine(workspace.DirectoryPath, ".attachment-staging");
+        var tombstone = Path.Combine(staging, $"{attachment.Uuid}.deleted");
+        File.Move(managed, tombstone);
+        var partial = Path.Combine(staging, "interrupted.partial");
+        File.WriteAllText(partial, "partial");
+        var restored = store.Reconcile(repository.FetchAllAttachments());
+        Equal(0, restored.MissingPayloadNames.Count);
+        Equal(payload, File.ReadAllText(managed));
+        False(File.Exists(tombstone));
+        False(File.Exists(partial));
+
+        var orphan = Path.Combine(
+            workspace.DirectoryPath,
+            "attachments",
+            SchemaV3Contract.NewUuid());
+        File.WriteAllText(orphan, "orphan");
+        var reconciliation = store.Reconcile(repository.FetchAllAttachments());
+        Equal(1, reconciliation.RemovedOrphanCount);
+        False(File.Exists(orphan));
+
+        File.Delete(managed);
+        var symbolicLinkCreated = false;
+        try
+        {
+            File.CreateSymbolicLink(managed, source);
+            symbolicLinkCreated = true;
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        catch (PlatformNotSupportedException) { }
+        try
+        {
+            if (symbolicLinkCreated)
+            {
+                var unsafePayload = store.Reconcile(repository.FetchAllAttachments());
+                Equal(1, unsafePayload.MissingPayloadNames.Count);
+                Equal(attachment.FileName, unsafePayload.MissingPayloadNames[0]);
+                Throws<IOException>(() => store.PayloadPath(attachment));
+            }
+        }
+        finally
+        {
+            if (File.Exists(managed)) File.Delete(managed);
+            File.Copy(source, managed);
+        }
+
+        Throws<OrganizationRepositoryException>(() =>
+            store.Import(source, long.MaxValue, "text/plain", repository));
+        Equal(1, Directory.EnumerateFiles(
+            Path.Combine(workspace.DirectoryPath, "attachments")).Count());
+
+        store.Delete(attachment, repository);
+        False(File.Exists(managed));
+        Equal(0, repository.FetchAllAttachments().Count);
     }
 
     private static void ReminderContract()

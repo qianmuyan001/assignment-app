@@ -19,8 +19,6 @@ jobs:
     # arm64 Xcode 27 preview image until that toolchain becomes GA.
     runs-on: xcode-27
     timeout-minutes: 45
-    env:
-      ASSIGNMENT_DERIVED_DATA: ${{ runner.temp }}/assignment-app-derived-data
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "DEVELOPER_DIR=$(xcode-select -p)" >> "$GITHUB_ENV"
+          echo "ASSIGNMENT_DERIVED_DATA=$RUNNER_TEMP/assignment-app-derived-data" >> "$GITHUB_ENV"
           xcodebuild -version
           xcrun swift --version
           xcodebuild -showsdks
