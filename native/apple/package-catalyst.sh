@@ -21,7 +21,14 @@ export DEVELOPER_DIR
 
 DERIVED_DATA="$ASSIGNMENT_DERIVED_DATA"
 RUN_STAMP="$ASSIGNMENT_RUN_STAMP"
-OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-$RUN_STAMP"
+LOCAL_RUNNABLE="${ASSIGNMENT_LOCAL_RUNNABLE:-0}"
+SANDBOX_ENABLED=true
+if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
+  OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-local-$RUN_STAMP"
+  SANDBOX_ENABLED=false
+else
+  OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-$RUN_STAMP"
+fi
 SOURCE_APP="$DERIVED_DATA/Build/Products/Debug-maccatalyst/Assignment App.app"
 OUTPUT_APP="$OUTPUT_DIR/Assignment App.app"
 OUTPUT_ZIP="$OUTPUT_DIR/Assignment-App-$VERSION-Catalyst-Debug-$ASSIGNMENT_CATALYST_ARCH.zip"
@@ -59,6 +66,21 @@ if [[ "$SOURCE_TREE_DIRTY" == "true" ]]; then
   printf '%s\n' "$SOURCE_STATUS" > "$OUTPUT_DIR/logs/source-status.log"
 else
   echo "clean" > "$OUTPUT_DIR/logs/source-status.log"
+fi
+
+if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
+  ENTITLEMENTS="$OUTPUT_DIR/logs/local-debug.entitlements"
+  cat > "$ENTITLEMENTS" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>
+EOF
+  echo "Local runnable mode: signing without App Sandbox." | tee "$OUTPUT_DIR/logs/local-runnable-note.log"
 fi
 
 xcodebuild \
@@ -119,8 +141,10 @@ codesign --verify --deep --strict --verbose=2 "$OUTPUT_APP" \
 codesign -d --entitlements :- "$OUTPUT_APP" \
   > "$OUTPUT_DIR/logs/codesign-entitlements.plist" \
   2> "$OUTPUT_DIR/logs/codesign-entitlements.log"
-[[ "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - \
-  "$OUTPUT_DIR/logs/codesign-entitlements.plist")" == "true" ]]
+if [[ "$SANDBOX_ENABLED" == "true" ]]; then
+  [[ "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - \
+    "$OUTPUT_DIR/logs/codesign-entitlements.plist")" == "true" ]]
+fi
 
 COPYFILE_DISABLE=1 ditto -c -k --keepParent --norsrc --noextattr --noqtn --noacl \
   "$OUTPUT_APP" "$OUTPUT_ZIP"
@@ -153,6 +177,9 @@ cleanup() {
       "$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp/assignment-app-smoke-"*)
         rm -rf "$SMOKE_DIR"
         ;;
+      /private/tmp/assignment-app-smoke-*)
+        rm -rf "$SMOKE_DIR"
+        ;;
       *) echo "Refusing to clean unexpected smoke directory: $SMOKE_DIR" >&2 ;;
     esac
   fi
@@ -169,14 +196,20 @@ codesign --verify --deep --strict --verbose=2 "$ARCHIVE_APP" \
 codesign -d --entitlements :- "$ARCHIVE_APP" \
   > "$OUTPUT_DIR/logs/archive-entitlements.plist" \
   2> "$OUTPUT_DIR/logs/archive-entitlements.log"
-[[ "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - \
-  "$OUTPUT_DIR/logs/archive-entitlements.plist")" == "true" ]]
+if [[ "$SANDBOX_ENABLED" == "true" ]]; then
+  [[ "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - \
+    "$OUTPUT_DIR/logs/archive-entitlements.plist")" == "true" ]]
+fi
 
 LAUNCH_SMOKE_RESULT="skipped"
 SMOKE_SCHEMA_VERSION="not-checked"
 if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
-  CONTAINER_TMP="$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp"
-  SMOKE_DIR="$CONTAINER_TMP/assignment-app-smoke-$RUN_STAMP-$$"
+  if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
+    SMOKE_DIR="/private/tmp/assignment-app-smoke-$RUN_STAMP-$$"
+  else
+    CONTAINER_TMP="$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp"
+    SMOKE_DIR="$CONTAINER_TMP/assignment-app-smoke-$RUN_STAMP-$$"
+  fi
   SMOKE_DATABASE="$SMOKE_DIR/assignments.db"
   mkdir -p "$SMOKE_DIR"
 
@@ -276,7 +309,7 @@ fi
   echo "launch_smoke=$LAUNCH_SMOKE_RESULT"
   echo "smoke_schema_version=$SMOKE_SCHEMA_VERSION"
   echo "signing=ad-hoc"
-  echo "app_sandbox=true"
+  echo "app_sandbox=$SANDBOX_ENABLED"
   echo "coverage_instrumentation=absent"
   echo "zip_appledouble=absent"
   echo
