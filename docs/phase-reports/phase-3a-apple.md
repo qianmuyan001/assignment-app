@@ -84,6 +84,9 @@ signing/notarization/public release.
 
 **Test files:**
 
+- `backend/tests/test_database_v3.py` — added
+  `test_v4_database_fails_closed_instead_of_being_written_as_v3`, covering the
+  cross-platform rule that a v3-only platform must reject a v4 database (Section 6.1).
 - `native/apple/AssignmentApp2Tests/LearningScenePlannerTests.swift`
 - `native/apple/AssignmentApp2Tests/LearningSceneRepositoryTests.swift`
 - `native/apple/AssignmentApp2Tests/LearningSceneRuleTests.swift`
@@ -116,6 +119,14 @@ re-run after the final packager commit specifically so that the SHA recorded in
 ```
 
 Result: **85 passed, 18 subtests passed**.
+
+### Web backend database tests
+
+```bash
+/Users/qianmuyan/.workbuddy/binaries/python/envs/default/bin/python -m pytest backend/tests -q
+```
+
+Result: **20 passed**, including the new v4 fail-closed test described in Section 6.1.
 
 ### iPadOS unit tests
 
@@ -181,9 +192,27 @@ xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
 ```
 
 Result: **blocked** — `Assignment App encountered an error (The test runner hung before
-establishing connection.)`, exit 65, after ~6 minutes. This is an XPC/test-host
-environment issue, not a source failure. Handed back per user instruction
+establishing connection.)`, `** TEST FAILED **`, after 347 s on the first attempt and
+340 s with parallel testing disabled. Handed back per user instruction
 "做不了的验证交给我".
+
+Three diagnostics narrow the cause down and rule out our code:
+
+1. **The app under test is healthy.** Launching the test host from the same derived-data
+   build by hand (`ASSIGNMENT_DB_PATH=<temp> …/Assignment App`) starts successfully and
+   initializes a v4 database. Catalyst runtime behavior is fine.
+2. **It is not the App Sandbox crash.** The sandboxed package crash (Section 8.1)
+   produces a report in `~/Library/Logs/DiagnosticReports`; these runs produce none, so
+   the host never crashes — it never finishes connecting.
+3. **It is not Swift Testing.** Every unit suite uses Swift Testing (`@Suite`). An
+   XCTest-based probe suite was added, built, and run with `-only-testing`, and it hung
+   identically. So the failure is in the test-host connection itself, not in either test
+   framework.
+
+Conclusion: on this macOS 27.0 beta, no test runner can attach to the Catalyst app host.
+Catalyst consequently has **no** automated test coverage here — not because the tests
+fail, but because they never start. The probe used for diagnosis was removed afterwards;
+it appears in no commit.
 
 ### `git diff --check`
 
@@ -205,6 +234,29 @@ Result: **OK** — root, README, CHANGELOG, Apple, Windows all at 2.0.0.
   and fingerprint checks.
 - Windows and Web do **not** yet support Schema v4; the shared contract is documented
   for future implementation.
+
+### 6.1 Verified: the Web backend fails closed on a v4 database
+
+`shared/feature-specs/learning-scenes-v4.md` states that Windows and Web "must fail
+closed when opening a v4 database instead of writing with a v3 contract." That was an
+unverified normative claim, so it is now covered by a test:
+
+`backend/tests/test_database_v3.py::BackendDatabaseV3Tests::test_v4_database_fails_closed_instead_of_being_written_as_v3`
+
+The test builds a real v3 database, migrates it to v4 with the shared
+`migrate_v3_to_v4`, then asks the Web backend to open it. It asserts:
+
+- `migrate_database` raises `DatabaseMigrationError` containing "newer than supported";
+- `PRAGMA user_version` is still `4` afterwards — nothing was rewritten or downgraded;
+- `course_meetings` and `exams` are still present;
+- `DATABASE_VERSION` is `3`, i.e. the Web backend still imports its version from
+  `shared.schema_v3`.
+
+Why this matters: a v3-only platform that silently opened a v4 database would drop
+course meetings, exams, and the reminder schedule kind on its next write.
+
+**Windows is still unverified.** The same fail-closed behavior is expected there but has
+not been checked, since no Windows build is available on this machine.
 
 ## 7. UI/UX screenshots
 
@@ -325,9 +377,11 @@ verified after that final copy, so metadata attached there is harmless.
 
 ## 9. Remaining blockers / unfinished
 
-1. **Mac Catalyst unit tests** — blocked by test-runner hang (Section 5). The suite has
-   never run to completion on this machine, so Catalyst has no automated test coverage
-   at all.
+1. **Mac Catalyst unit tests** — blocked by test-runner hang (Section 5). Diagnosed as
+   far as it can be diagnosed here: the app host launches, it does not crash, and both
+   Swift Testing and XCTest hang identically, so the defect is in the test-host
+   connection on this macOS 27.0 beta. Catalyst has **no** automated test coverage as a
+   result. This needs a different macOS/Xcode combination, not a code change.
 2. **Catalyst launch with App Sandbox enabled** — the sandboxed package crashes during
    `_libsecinit_appsandbox` initialization on this macOS 27.0 beta machine, before any
    app code runs (Section 8.1). Evidence that this is environmental, not a source
@@ -348,7 +402,9 @@ verified after that final copy, so metadata attached there is harmless.
    due date" rule are unit tested, but no notification has been observed actually
    firing.
 6. **Windows and Web Phase 3A** — not implemented.
-7. **Global Gate A** — cannot be claimed until Windows Phase 2.5 is verified and the
+7. **Windows fail-closed on a v4 database** — expected but unverified (Section 6.1). Web
+   is now covered by a test; Windows needs a Windows machine.
+8. **Global Gate A** — cannot be claimed until Windows Phase 2.5 is verified and the
    cross-platform contract is implemented on all platforms.
 
 ## 10. Repository state and non-fabrication
@@ -382,6 +438,8 @@ verified after that final copy, so metadata attached there is harmless.
 | Check | Result |
 |-------|--------|
 | Shared Python contract/rule tests | 85 passed, 18 subtests passed |
+| Web backend database tests | 20 passed |
+| Web backend rejects a v4 database | verified, new test (Section 6.1) |
 | iPadOS unit tests | 98/98 passed |
 | iPad UI smoke tests | 4/4 passed |
 | `git diff --check` | clean |
