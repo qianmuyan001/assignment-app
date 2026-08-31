@@ -421,9 +421,14 @@ verified after that final copy, so metadata attached there is harmless.
   - `7124953` — packager: `ASSIGNMENT_LOCAL_RUNNABLE` mode + this report
   - `0374f8d` — packager: sign outside the file-provider tree, record blocked launches
   - `d716f7b` — this report (documentation only)
-- **All verification evidence corresponds to `0374f8d`.** That commit is the last one
-  that touched application or packaging code; `d716f7b` edited only this Markdown file,
-  so the test results, packages, and screenshots it records are unchanged.
+  - `58bffbd` — this report (documentation only)
+  - `8756ae2` — Web backend v4 fail-closed test (Section 6.1) + this report
+- **Apple evidence corresponds to `0374f8d`**, the last commit that touched Apple
+  application or packaging code. The later commits change only this Markdown file and
+  a Web backend test, so the Apple test results, packages, and screenshots recorded
+  here are unaffected by them.
+- **Web evidence corresponds to `8756ae2`**, which is where the fail-closed test was
+  added.
 - **No push / merge / tag / PR / Release.**
 - **Verification evidence is SHA-traceable.** Both Catalyst packages embed
   `source_revision` and their own `logs/source-status.log`, and `build-info.txt` records
