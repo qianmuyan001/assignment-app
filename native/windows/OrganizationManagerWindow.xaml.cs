@@ -16,6 +16,7 @@ public sealed partial class OrganizationManagerWindow : Window
     public OrganizationManagerWindow(ITaskOrganizationRepository organization)
     {
         InitializeComponent();
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(900, 620));
         _organization = organization;
         LoadAll();
     }

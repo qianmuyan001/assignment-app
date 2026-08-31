@@ -37,7 +37,7 @@
                           SelectionChanged="ProjectPicker_SelectionChanged"/>
                 <StackPanel Spacing="6">
                     <TextBlock Text="Tags" FontSize="13" Opacity="0.8"/>
-                    <WrapPanel x:Name="TagPanel" Orientation="Horizontal"/>
+                    <StackPanel x:Name="TagPanel" Orientation="Horizontal" Spacing="4"/>
                 </StackPanel>
             </StackPanel>
 
