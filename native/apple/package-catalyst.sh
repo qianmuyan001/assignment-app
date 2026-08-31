@@ -68,6 +68,23 @@ else
   echo "clean" > "$OUTPUT_DIR/logs/source-status.log"
 fi
 
+# The artifact root can sit under a file-provider-managed tree (anything
+# Desktop-backed, for example). There, Finder re-attaches com.apple.FinderInfo
+# and com.apple.fileprovider.fpfs#P to a freshly created directory within a
+# second or two, and codesign rejects an app bundle carrying that metadata
+# ("resource fork, Finder information, or similar detritus not allowed").
+# Stripping it is a losing race, so the whole copy / sign / package pipeline
+# runs inside /private/tmp and only the finished deliverable is published into
+# the artifact directory. Metadata attached to that final copy is harmless,
+# because nothing is signed or verified afterwards.
+SIGN_ROOT="$(mktemp -d /private/tmp/assignment-app-catalyst-sign.XXXXXX)"
+case "$SIGN_ROOT" in
+  /private/tmp/assignment-app-catalyst-sign.*) ;;
+  *) echo "Unexpected signing directory: $SIGN_ROOT" >&2; exit 1 ;;
+esac
+SIGN_APP="$SIGN_ROOT/Assignment App.app"
+SIGN_ZIP="$SIGN_ROOT/Assignment-App-$VERSION-Catalyst-Debug-$ASSIGNMENT_CATALYST_ARCH.zip"
+
 if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
   ENTITLEMENTS="$OUTPUT_DIR/logs/local-debug.entitlements"
   cat > "$ENTITLEMENTS" <<'EOF'
@@ -132,13 +149,13 @@ fi
 # Desktop can be managed by a file provider, so never copy Finder metadata or
 # extended attributes into the deliverable. They can invalidate strict
 # signature verification and create AppleDouble entries in the ZIP.
-ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP" "$OUTPUT_APP"
-xattr -cr "$OUTPUT_APP"
-codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$OUTPUT_APP" \
+ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP" "$SIGN_APP"
+xattr -cr "$SIGN_APP"
+codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$SIGN_APP" \
   2>&1 | tee "$OUTPUT_DIR/logs/codesign.log"
-codesign --verify --deep --strict --verbose=2 "$OUTPUT_APP" \
+codesign --verify --deep --strict --verbose=2 "$SIGN_APP" \
   2>&1 | tee "$OUTPUT_DIR/logs/codesign-verify.log"
-codesign -d --entitlements :- "$OUTPUT_APP" \
+codesign -d --entitlements :- "$SIGN_APP" \
   > "$OUTPUT_DIR/logs/codesign-entitlements.plist" \
   2> "$OUTPUT_DIR/logs/codesign-entitlements.log"
 if [[ "$SANDBOX_ENABLED" == "true" ]]; then
@@ -147,14 +164,18 @@ if [[ "$SANDBOX_ENABLED" == "true" ]]; then
 fi
 
 COPYFILE_DISABLE=1 ditto -c -k --keepParent --norsrc --noextattr --noqtn --noacl \
-  "$OUTPUT_APP" "$OUTPUT_ZIP"
-unzip -t "$OUTPUT_ZIP" > "$OUTPUT_DIR/logs/zip-verify.log"
-zip_entries="$(unzip -Z1 "$OUTPUT_ZIP")"
+  "$SIGN_APP" "$SIGN_ZIP"
+unzip -t "$SIGN_ZIP" > "$OUTPUT_DIR/logs/zip-verify.log"
+zip_entries="$(unzip -Z1 "$SIGN_ZIP")"
 if grep -Eq '(^|/)(__MACOSX|\._)' <<< "$zip_entries"; then
   echo "ZIP contains Finder metadata or AppleDouble entries" >&2
   exit 1
 fi
 echo "appledouble_entries=absent" >> "$OUTPUT_DIR/logs/zip-verify.log"
+
+# Publish the signed deliverable into the artifact directory.
+ditto --norsrc --noextattr --noqtn --noacl "$SIGN_APP" "$OUTPUT_APP"
+cp "$SIGN_ZIP" "$OUTPUT_ZIP"
 
 # Verify the actual transferable payload after extracting it outside the
 # Desktop file-provider tree. Finder may attach metadata to the visible app
@@ -186,6 +207,9 @@ cleanup() {
   case "$VERIFY_DIR" in
     /private/tmp/assignment-app-catalyst-verify.*) rm -rf "$VERIFY_DIR" ;;
   esac
+  case "$SIGN_ROOT" in
+    /private/tmp/assignment-app-catalyst-sign.*) rm -rf "$SIGN_ROOT" ;;
+  esac
 }
 trap cleanup EXIT
 
@@ -203,6 +227,65 @@ fi
 
 LAUNCH_SMOKE_RESULT="skipped"
 SMOKE_SCHEMA_VERSION="not-checked"
+
+# A blocked launch must still leave traceable evidence behind. The package is
+# never reported as passing, but the failure has to be reproducible from the
+# artifact directory and tied to a source revision.
+capture_crash_report() {
+  local newest="" candidate
+  local reports_dir="$HOME/Library/Logs/DiagnosticReports"
+  for candidate in "$reports_dir"/Assignment\ App-*.ips \
+                   "$reports_dir"/Retired/Assignment\ App-*.ips; do
+    [[ -f "$candidate" ]] || continue
+    if [[ -z "$newest" || "$candidate" -nt "$newest" ]]; then
+      newest="$candidate"
+    fi
+  done
+  if [[ -n "$newest" ]]; then
+    cp "$newest" "$OUTPUT_DIR/logs/catalyst-launch-crash.ips"
+  fi
+}
+
+write_build_info() {
+  {
+    echo "Assignment App $VERSION Apple Debug package"
+    echo "created_utc=$RUN_STAMP"
+    echo "scheme=AssignmentApp2"
+    echo "configuration=Debug"
+    echo "destination=$DESTINATION"
+    echo "architecture=$ASSIGNMENT_CATALYST_ARCH"
+    echo "bundle_identifier=com.qianmuyan.assignmentapp"
+    echo "version=$VERSION"
+    echo "derived_data=$DERIVED_DATA"
+    echo "source_revision=$SOURCE_REVISION"
+    echo "source_tree_dirty=$SOURCE_TREE_DIRTY"
+    echo "source_status_log=logs/source-status.log"
+    echo "ipad_tests=$ASSIGNMENT_IPAD_TESTS"
+    echo "ipad_ui_tests=$ASSIGNMENT_IPAD_UI_TESTS"
+    echo "catalyst_tests=$ASSIGNMENT_CATALYST_TESTS"
+    echo "launch_smoke=$LAUNCH_SMOKE_RESULT"
+    echo "smoke_schema_version=$SMOKE_SCHEMA_VERSION"
+    echo "signing=ad-hoc"
+    echo "app_sandbox=$SANDBOX_ENABLED"
+    echo "coverage_instrumentation=absent"
+    echo "zip_appledouble=absent"
+    echo
+    xcodebuild -version
+    xcrun swift --version
+    echo
+    shasum -a 256 "$OUTPUT_ZIP"
+  } > "$OUTPUT_DIR/build-info.txt"
+}
+
+fail_launch() {
+  LAUNCH_SMOKE_RESULT="failed"
+  capture_crash_report
+  write_build_info
+  echo "$1" >&2
+  echo "build-info.txt written with launch_smoke=failed at $OUTPUT_DIR/build-info.txt" >&2
+  exit 1
+}
+
 if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
     SMOKE_DIR="/private/tmp/assignment-app-smoke-$RUN_STAMP-$$"
@@ -223,8 +306,7 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   for _ in {1..100}; do
     if ! kill -0 "$APP_PID" 2>/dev/null; then
       wait "$APP_PID" || true
-      echo "Packaged Catalyst app exited during launch smoke." >&2
-      exit 1
+      fail_launch "Packaged Catalyst app exited during launch smoke."
     fi
     if [[ -f "$SMOKE_DATABASE" ]] && \
       CANDIDATE_SCHEMA_VERSION="$(sqlite3 "$SMOKE_DATABASE" 'PRAGMA user_version;' 2>/dev/null)" && \
@@ -235,8 +317,7 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
     sleep 0.2
   done
   if [[ "$SMOKE_READY" != "true" ]]; then
-    echo "Packaged Catalyst app did not initialize a v4 smoke database within 20 seconds." >&2
-    exit 1
+    fail_launch "Packaged Catalyst app did not initialize a v4 smoke database within 20 seconds."
   fi
   SMOKE_READY_SECONDS="$(( $(date +%s) - SMOKE_STARTED_AT ))"
 
@@ -264,12 +345,10 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
         "$SMOKE_COLUMNS" != "$EXPECTED_ASSIGNMENT_COLUMNS" || \
         "$SMOKE_INDEXES" != "$EXPECTED_V4_INDEXES" || \
         "$SMOKE_TRIGGERS" != "$EXPECTED_V4_TRIGGERS" ]]; then
-    echo "Packaged Catalyst database smoke validation failed." >&2
-    exit 1
+    fail_launch "Packaged Catalyst database smoke validation failed."
   fi
   if ! kill -0 "$APP_PID" 2>/dev/null; then
-    echo "Packaged Catalyst app exited after database initialization." >&2
-    exit 1
+    fail_launch "Packaged Catalyst app exited after database initialization."
   fi
   {
     echo "runtime_database_path=$SMOKE_DATABASE"
@@ -290,33 +369,6 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   LAUNCH_SMOKE_RESULT="passed"
 fi
 
-{
-  echo "Assignment App $VERSION Apple Debug package"
-  echo "created_utc=$RUN_STAMP"
-  echo "scheme=AssignmentApp2"
-  echo "configuration=Debug"
-  echo "destination=$DESTINATION"
-  echo "architecture=$ASSIGNMENT_CATALYST_ARCH"
-  echo "bundle_identifier=com.qianmuyan.assignmentapp"
-  echo "version=$VERSION"
-  echo "derived_data=$DERIVED_DATA"
-  echo "source_revision=$SOURCE_REVISION"
-  echo "source_tree_dirty=$SOURCE_TREE_DIRTY"
-  echo "source_status_log=logs/source-status.log"
-  echo "ipad_tests=$ASSIGNMENT_IPAD_TESTS"
-  echo "ipad_ui_tests=$ASSIGNMENT_IPAD_UI_TESTS"
-  echo "catalyst_tests=$ASSIGNMENT_CATALYST_TESTS"
-  echo "launch_smoke=$LAUNCH_SMOKE_RESULT"
-  echo "smoke_schema_version=$SMOKE_SCHEMA_VERSION"
-  echo "signing=ad-hoc"
-  echo "app_sandbox=$SANDBOX_ENABLED"
-  echo "coverage_instrumentation=absent"
-  echo "zip_appledouble=absent"
-  echo
-  xcodebuild -version
-  xcrun swift --version
-  echo
-  shasum -a 256 "$OUTPUT_ZIP"
-} > "$OUTPUT_DIR/build-info.txt"
+write_build_info
 
 echo "$OUTPUT_DIR"
