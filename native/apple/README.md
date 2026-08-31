@@ -105,7 +105,7 @@ its ignored build products are not a current 2.0 deliverable.
 ```text
 native/apple/
   AssignmentApp2.xcodeproj/   Xcode project and AssignmentApp2 scheme
-  AssignmentApp2/             app, SwiftUI, v3 migration, task and organization repositories
+  AssignmentApp2/             app, SwiftUI, v3+v4 migration, task and organization repositories
   AssignmentApp2Tests/        Swift Testing unit and migration tests
   AssignmentApp2UITests/      isolated launch and interaction smoke tests
 ```
@@ -152,8 +152,32 @@ starts `BEGIN IMMEDIATE`, performs a second version check, and only then asks a
 separate read-only connection to create one uniquely named sibling backup with
 SQLite Online Backup. The backup is written as `.partial`, validated, and only
 then atomically renamed to its final `.backup` name. A 1.0 database is upgraded
-through v2 and v3 in that same
-transaction; a v2 database receives only the additive v3 upgrade.
+through v2, v3, and v4 in that same
+transaction; a v2 database receives the additive v3 upgrade and then the
+additive v4 upgrade. Every path ends at schema v4; there is no v3-only exit and
+no commit between stages, so a half-migrated database is never observable.
+
+Schema v4 is the Phase 3A learning-scene contract. It reuses the existing
+`courses`, `assignments`, and `reminders` tables instead of introducing a second
+course, task, or notification system, and adds only:
+
+- `reminders.schedule_kind` (`'fixed'` or `'due_relative'`, defaulting to
+  `'fixed'`). Existing v3 reminders keep fixed-trigger semantics and their
+  stored UTC trigger never moves. Only rows explicitly marked `due_relative`
+  recalculate when a deadline or timezone changes.
+- `course_meetings` and `exams`, with their indexes and UUID-immutability
+  triggers.
+
+The v3-to-v4 step snapshots every v3 reminder column before the upgrade and
+compares it afterwards, so an additive migration that moved a fixed trigger
+would abort instead of committing.
+
+**Platform support is not symmetric.** Only the Apple repository implements
+Schema v4. The Windows (WinUI 3) and Web (FastAPI) sides still target Schema v3
+and do not read or write `schedule_kind`, `course_meetings`, or `exams`. A
+database migrated to v4 by the Apple app is therefore ahead of what Windows and
+Web can currently interpret; do not open an Apple-migrated v4 file with the
+Windows or Web build while Phase 3A is Apple-only.
 
 Migration validates legacy payload, IDs, schema, indexes, triggers, foreign
 keys, UUID lineage, status/progress invariants, and SQLite integrity before

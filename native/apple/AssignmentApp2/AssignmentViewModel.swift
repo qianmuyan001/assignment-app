@@ -21,31 +21,80 @@ final class AssignmentViewModel: ObservableObject {
 
     private let repository: AssignmentRepository?
     let organizationRepository: OrganizationRepository?
+    /// Concrete repository behind `repository`. The Phase 3A learning scenes
+    /// need its exam review-task entry point, which is not part of the
+    /// platform-neutral `AssignmentRepository` contract.
+    private(set) var sqliteRepository: SQLiteAssignmentRepository?
+    /// The learning-scene half of the organization repository. It is the same
+    /// object, reached through a second protocol so the timetable and exam
+    /// pages stay independent of the general organization surface.
+    var learningRepository: LearningSceneRepository? {
+        organizationRepository as? LearningSceneRepository
+    }
+    /// Course meetings and exams. It reads and writes through the same
+    /// repository as the task list, so no second data path exists.
+    let learningStore: LearningSceneStore
     private var notificationOperationTask: Task<Void, Never>?
+    private var storeSubscription: AnyCancellable?
 
     init(repository: AssignmentRepository? = nil) {
+        // Every dependency is resolved into a local first, so the stored
+        // properties — including the learning store that needs both
+        // repositories — can be assigned exactly once on every path.
+        let resolvedRepository: AssignmentRepository?
+        let resolvedSQLite: SQLiteAssignmentRepository?
+        let resolvedOrganization: OrganizationRepository?
+        var resolvedLocation = ""
+        var startupError: String?
+
         if let repository {
-            self.repository = repository
-            databaseLocation = repository.databaseURL.path
-            if let sqlite = repository as? SQLiteAssignmentRepository {
-                organizationRepository = try? SQLiteOrganizationRepository(databaseURL: sqlite.databaseURL)
-            } else {
-                organizationRepository = nil
-            }
+            resolvedRepository = repository
+            resolvedSQLite = repository as? SQLiteAssignmentRepository
+            resolvedLocation = repository.databaseURL.path
+            resolvedOrganization = (repository as? SQLiteAssignmentRepository)
+                .flatMap { try? SQLiteOrganizationRepository(databaseURL: $0.databaseURL) }
         } else {
             do {
                 let liveRepository = try SQLiteAssignmentRepository()
-                self.repository = liveRepository
-                databaseLocation = liveRepository.databaseURL.path
-                organizationRepository = try? SQLiteOrganizationRepository(databaseURL: liveRepository.databaseURL)
+                resolvedRepository = liveRepository
+                resolvedSQLite = liveRepository
+                resolvedLocation = liveRepository.databaseURL.path
+                resolvedOrganization = try? SQLiteOrganizationRepository(
+                    databaseURL: liveRepository.databaseURL
+                )
             } catch {
-                self.repository = nil
-                organizationRepository = nil
-                errorMessage = error.localizedDescription
+                resolvedRepository = nil
+                resolvedSQLite = nil
+                resolvedOrganization = nil
+                startupError = error.localizedDescription
             }
         }
 
-        if self.repository != nil {
+        self.repository = resolvedRepository
+        sqliteRepository = resolvedSQLite
+        organizationRepository = resolvedOrganization
+        databaseLocation = resolvedLocation
+        errorMessage = startupError
+        learningStore = LearningSceneStore(
+            learningRepository: resolvedOrganization as? LearningSceneRepository,
+            organizationRepository: resolvedOrganization,
+            assignmentRepository: resolvedSQLite
+        )
+
+        // A new Review Task is an ordinary task; the task pages reload so it
+        // shows up there too.
+        learningStore.onDidMutate = { [weak self] in
+            self?.reload()
+        }
+        // The learning store is a separate observable object, so its changes
+        // have to reach the views that observe this one — the Today overview
+        // reads meetings and exams through it.
+        storeSubscription = learningStore.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+
+        if resolvedRepository != nil {
             reload()
         }
     }
@@ -85,6 +134,16 @@ final class AssignmentViewModel: ObservableObject {
     }
 
     var isWriteEnabled: Bool { repository != nil }
+
+    /// What the Today page summarises: today's classes, nearby exams, tasks due
+    /// today, and overdue tasks.
+    var todayOverview: TodayOverview {
+        LearningScenePlanner.todayOverview(
+            meetings: learningStore.meetings,
+            exams: learningStore.exams,
+            assignments: assignments
+        )
+    }
 
     func reload() {
         guard let repository else { return }
@@ -257,6 +316,10 @@ final class AssignmentViewModel: ObservableObject {
 
     private func reconcileNotifications() {
         guard let organizationRepository else { return }
+        // Due-relative reminders are derived from the task deadlines currently
+        // in the database. Recomputing them here means a deadline or time-zone
+        // change moves them before the scheduler reads them back.
+        recalculateRelativeReminders()
         let snapshot = assignments
         replaceNotificationOperation {
             do {
@@ -265,6 +328,19 @@ final class AssignmentViewModel: ObservableObject {
             } catch {
                 self.errorMessage = "Reminders could not be reconciled: \(error.localizedDescription)"
             }
+        }
+    }
+
+    /// Recomputes every reminder marked `.dueRelative` from the deadlines
+    /// stored in `assignments`. Fixed reminders — including every row migrated
+    /// from Schema v3 — are never touched.
+    private func recalculateRelativeReminders() {
+        guard let learningRepository else { return }
+        do {
+            _ = try learningRepository.rescheduleRelativeReminders()
+        } catch {
+            errorMessage = "Due-relative reminders could not be recalculated: "
+                + error.localizedDescription
         }
     }
 

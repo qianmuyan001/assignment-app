@@ -301,8 +301,25 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
                     throw AssignmentRepositoryError.notFound(assignment.id)
                 }
                 let updated = try Self.fetch(id: assignment.id, on: database)
+                // A due-relative reminder's trigger is a cache of the deadline,
+                // so moving the deadline has to move it too. Fixed reminders are
+                // never touched.
+                if let dueDate = updated.dueDate {
+                    try Self.applyRelativeReminderTriggers(
+                        assignmentID: assignment.id,
+                        dueAtUTC: dueDate,
+                        timestamp: timestamp,
+                        on: database
+                    )
+                } else {
+                    try Self.disableRelativeReminders(
+                        assignmentID: assignment.id,
+                        timestamp: timestamp,
+                        on: database
+                    )
+                }
                 try Self.execute("COMMIT", on: database)
-                return updated
+                return try Self.fetch(id: assignment.id, on: database)
             } catch {
                 try? Self.execute("ROLLBACK", on: database)
                 throw error
@@ -408,6 +425,113 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
                 let updated = try Self.fetch(id: id, on: database)
                 try Self.execute("COMMIT", on: database)
                 return updated
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
+        }
+    }
+
+    /// Creates the Review Task for an exam, or returns the one that exists.
+    ///
+    /// The task insert and the `exams.linked_assignment_id` update share one
+    /// transaction, so a repeat call can never leave two tasks behind and a
+    /// failure can never leave an orphan. Soft-deleting an exam never touches
+    /// the task: it stays an ordinary task the user owns.
+    func createOrFetchReviewTask(
+        forExam examID: Int64,
+        daysBeforeExam: Int = 1
+    ) throws -> ExamReviewTaskLink {
+        try lock.withLock {
+            let database = try requireDatabase()
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let stored = try SQLiteOrganizationRepository.fetchExam(
+                    id: examID,
+                    on: database
+                )
+                if let linked = stored.linkedAssignmentID {
+                    let assignment = try Self.fetchIncludingDeleted(id: linked, on: database)
+                    try Self.execute("COMMIT", on: database)
+                    return ExamReviewTaskLink(
+                        exam: stored,
+                        assignment: assignment,
+                        created: false
+                    )
+                }
+
+                let courseName = try Self.courseName(id: stored.courseID, on: database)
+                let wall = try LocalWallDateTime(stored.startsAtLocal)
+                let timeZone = try Self.validatedTimeZone(identifier: stored.timezoneID)
+                guard let startsAt = LearningRules.resolveWallTime(wall, in: timeZone) else {
+                    throw LearningSceneError.invalidLocalDateTime(stored.startsAtLocal)
+                }
+                let dueDate = startsAt.addingTimeInterval(-Double(daysBeforeExam) * 86_400)
+                let timestamp = DatabaseTimestamp.string(from: Date())
+                let courseID = try Self.resolveCourseID(
+                    named: courseName,
+                    preferredID: stored.courseID,
+                    on: database
+                )
+                let statement = try Self.prepare(
+                    """
+                    INSERT INTO assignments (
+                        uuid, course_name, title, due_date, description, link, status,
+                        priority, source_name, source_type, source_file, source_url,
+                        created_at, updated_at, course_id, project_id, completed_at,
+                        progress_percent, all_day, timezone_id, deleted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL)
+                    """,
+                    on: database
+                )
+                defer { sqlite3_finalize(statement) }
+                Self.bind(UUID().canonicalString, to: statement, index: 1)
+                Self.bind(courseName, to: statement, index: 2)
+                Self.bind("Review: \(stored.name)", to: statement, index: 3)
+                Self.bind(
+                    LocalWallTime.string(from: dueDate, timeZone: timeZone),
+                    to: statement,
+                    index: 4
+                )
+                Self.bind("Linked to an exam.", to: statement, index: 5)
+                Self.bind(nil as String?, to: statement, index: 6)
+                Self.bind(AssignmentStatus.todo.storageValue, to: statement, index: 7)
+                Self.bind(AssignmentPriority.high.rawValue, to: statement, index: 8)
+                Self.bind(nil as String?, to: statement, index: 9)
+                Self.bind(nil as String?, to: statement, index: 10)
+                Self.bind(nil as String?, to: statement, index: 11)
+                Self.bind(nil as String?, to: statement, index: 12)
+                Self.bind(timestamp, to: statement, index: 13)
+                Self.bind(timestamp, to: statement, index: 14)
+                sqlite3_bind_int64(statement, 15, courseID)
+                sqlite3_bind_null(statement, 16)
+                sqlite3_bind_null(statement, 17)
+                Self.bind(stored.timezoneID, to: statement, index: 18)
+                guard sqlite3_step(statement) == SQLITE_DONE else {
+                    throw AssignmentRepositoryError.execute(Self.message(from: database))
+                }
+                let assignmentID = sqlite3_last_insert_rowid(database)
+
+                let link = try Self.prepare(
+                    """
+                    UPDATE exams SET linked_assignment_id = ?, updated_at = ?
+                    WHERE id = ? AND deleted_at IS NULL AND linked_assignment_id IS NULL
+                    """,
+                    on: database
+                )
+                defer { sqlite3_finalize(link) }
+                sqlite3_bind_int64(link, 1, assignmentID)
+                Self.bind(timestamp, to: link, index: 2)
+                sqlite3_bind_int64(link, 3, examID)
+                try SQLiteSupport.checkDone(link, on: database)
+                guard sqlite3_changes(database) == 1 else {
+                    throw OrganizationRepositoryError.notFound("Exam", examID)
+                }
+
+                let assignment = try Self.fetch(id: assignmentID, on: database)
+                let exam = try SQLiteOrganizationRepository.fetchExam(id: examID, on: database)
+                try Self.execute("COMMIT", on: database)
+                return ExamReviewTaskLink(exam: exam, assignment: assignment, created: true)
             } catch {
                 try? Self.execute("ROLLBACK", on: database)
                 throw error
@@ -604,6 +728,133 @@ private extension SQLiteAssignmentRepository {
         return result == SQLITE_ROW
     }
 
+    /// Reads a task row whether or not it is soft-deleted.
+    ///
+    /// A Review Task stays readable through its exam even after the user
+    /// removes the task from the task list; the exam link is evidence, not a
+    /// command to resurrect it.
+    static func fetchIncludingDeleted(id: Int64, on database: OpaquePointer) throws -> Assignment {
+        let statement = try prepare(
+            """
+            SELECT id, uuid, course_name, title, due_date, description, link,
+                   status, priority, source_name, source_type, source_file,
+                   source_url, created_at, updated_at, course_id, project_id,
+                   completed_at, progress_percent, all_day, timezone_id, deleted_at
+            FROM assignments
+            WHERE id = ?
+            """,
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, id)
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_ROW else {
+            if result == SQLITE_DONE {
+                throw AssignmentRepositoryError.notFound(id)
+            }
+            throw AssignmentRepositoryError.execute(message(from: database))
+        }
+        return try assignment(from: statement)
+    }
+
+    static func courseName(id: Int64, on database: OpaquePointer) throws -> String {
+        let statement = try prepare(
+            "SELECT name FROM courses WHERE id = ? AND deleted_at IS NULL",
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, id)
+        guard sqlite3_step(statement) == SQLITE_ROW,
+              let name = SQLiteSupport.text(statement, 0) else {
+            throw OrganizationRepositoryError.notFound("Course", id)
+        }
+        return name
+    }
+
+    /// Moves every due-relative reminder of one task to the new deadline.
+    static func applyRelativeReminderTriggers(
+        assignmentID: Int64,
+        dueAtUTC: Date,
+        timestamp: String,
+        on database: OpaquePointer
+    ) throws {
+        let entries = try relativeReminderLeadTimes(
+            assignmentID: assignmentID,
+            on: database
+        )
+        guard !entries.isEmpty else { return }
+        let update = try prepare(
+            """
+            UPDATE reminders SET trigger_at_utc = ?, updated_at = ?
+            WHERE id = ? AND deleted_at IS NULL
+            """,
+            on: database
+        )
+        defer { sqlite3_finalize(update) }
+        for (id, leadMinutes) in entries {
+            let trigger = try LearningRules.relativeReminderTrigger(
+                dueAtUTC: dueAtUTC,
+                leadMinutes: leadMinutes
+            )
+            Self.bind(DatabaseTimestamp.string(from: trigger), to: update, index: 1)
+            Self.bind(timestamp, to: update, index: 2)
+            sqlite3_bind_int64(update, 3, id)
+            do { try SQLiteSupport.checkDone(update, on: database) }
+            catch { throw error }
+            sqlite3_reset(update)
+        }
+    }
+
+    /// A due-relative reminder cannot fire without a deadline. It is disabled,
+    /// not deleted, so the reason stays visible.
+    static func disableRelativeReminders(
+        assignmentID: Int64,
+        timestamp: String,
+        on database: OpaquePointer
+    ) throws {
+        let statement = try prepare(
+            """
+            UPDATE reminders SET is_enabled = 0, updated_at = ?
+            WHERE assignment_id = ? AND schedule_kind = 'due_relative'
+              AND deleted_at IS NULL
+            """,
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        Self.bind(timestamp, to: statement, index: 1)
+        sqlite3_bind_int64(statement, 2, assignmentID)
+        try SQLiteSupport.checkDone(statement, on: database)
+    }
+
+    private static func relativeReminderLeadTimes(
+        assignmentID: Int64,
+        on database: OpaquePointer
+    ) throws -> [(Int64, Int)] {
+        let statement = try prepare(
+            """
+            SELECT id, lead_minutes FROM reminders
+            WHERE assignment_id = ? AND schedule_kind = 'due_relative'
+              AND deleted_at IS NULL
+            ORDER BY id
+            """,
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, assignmentID)
+        var entries: [(Int64, Int)] = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            entries.append(
+                (sqlite3_column_int64(statement, 0), Int(sqlite3_column_int64(statement, 1)))
+            )
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else {
+            throw AssignmentRepositoryError.execute(message(from: database))
+        }
+        return entries
+    }
+
     static func assignment(from statement: OpaquePointer) throws -> Assignment {
         guard let uuidText = text(statement, 1),
               let uuid = UUID(uuidString: uuidText),
@@ -755,6 +1006,10 @@ private extension SQLiteAssignmentRepository {
         let isPrimaryKey: Bool
     }
 
+    /// Retired standalone v1-to-v2 entry point. Nothing calls it: the app and
+    /// the tests open databases through `MigrationCoordinator`, which reaches
+    /// schema v4 in a single transaction. It is kept only because it is the
+    /// documented reference for the legacy v1 column rules.
     static func prepareDatabase(
         at url: URL,
         migrationFailureInjector: (() throws -> Void)?
@@ -774,7 +1029,7 @@ private extension SQLiteAssignmentRepository {
                 toVersion: databaseVersion,
                 migrated: true,
                 backupURL: nil,
-                strategy: .createV3
+                strategy: .createV2
             )
         }
 
@@ -892,11 +1147,11 @@ private extension SQLiteAssignmentRepository {
             let strategy: MigrationStrategy
             if try requiresRebuild(columns: columns, on: database) {
                 try rebuildAssignments(columns: columns, on: database)
-                strategy = .v1RebuildToV3
+                strategy = .v1RebuildToV2
             } else {
                 try addV2Columns(columns: columns, on: database)
                 try createIndexes(on: database)
-                strategy = .v1AdditiveToV3
+                strategy = .v1AdditiveToV2
             }
 
             try normalizeLegacyDueDates(on: database)

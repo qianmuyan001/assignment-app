@@ -41,6 +41,8 @@ struct ContentView: View {
             NavigationStack {
                 if viewModel.selection == .settings {
                     settingsContent
+                } else if viewModel.selection.isLearningScene {
+                    learningContent
                 } else {
                     assignmentContent
                 }
@@ -135,22 +137,53 @@ struct ContentView: View {
                     }
                 }
             }
-        } else if viewModel.visibleAssignments.isEmpty {
+        } else if viewModel.visibleAssignments.isEmpty
+                    && viewModel.selection != .today {
             emptyState
         } else {
+            // Today always renders the list, even with no tasks: the overview
+            // card at the top is the page's reason to exist, and it carries the
+            // "nothing due today" hint itself.
             assignmentList
         }
     }
 
     private var assignmentList: some View {
-        List(viewModel.visibleAssignments) { assignment in
-            AssignmentRow(
-                assignment: assignment,
-                displayMode: displayMode,
-                onEdit: { showEditor(for: assignment) },
-                onToggleCompletion: { viewModel.toggleCompletion(assignment) }
-            )
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+        List {
+            if viewModel.selection == .today {
+                Section {
+                    TodayOverviewCard(
+                        overview: viewModel.todayOverview,
+                        displayMode: displayMode,
+                        courseName: { viewModel.learningStore.courseName($0) },
+                        onOpenTask: { showEditor(for: $0) },
+                        onShowTimetable: { viewModel.selection = .timetable },
+                        onShowExams: { viewModel.selection = .exams },
+                        onShowOverdue: { viewModel.selection = .overdue }
+                    )
+                }
+            }
+
+            Section {
+                ForEach(viewModel.visibleAssignments) { assignment in
+                    row(for: assignment)
+                }
+            }
+        }
+        .listStyle(.inset)
+        .refreshable {
+            viewModel.reload()
+        }
+    }
+
+    private func row(for assignment: Assignment) -> some View {
+        AssignmentRow(
+            assignment: assignment,
+            displayMode: displayMode,
+            onEdit: { showEditor(for: assignment) },
+            onToggleCompletion: { viewModel.toggleCompletion(assignment) }
+        )
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 Button {
                     viewModel.toggleCompletion(assignment)
                 } label: {
@@ -199,11 +232,6 @@ struct ContentView: View {
                     activeAlert = .delete(assignment)
                 }
             }
-        }
-        .listStyle(.inset)
-        .refreshable {
-            viewModel.reload()
-        }
     }
 
     @ViewBuilder
@@ -272,6 +300,28 @@ struct ContentView: View {
         }
     }
 
+    /// The Phase 3A pages. They own their own content and never borrow the task
+    /// list, so they are routed before `assignmentContent`.
+    @ViewBuilder
+    private var learningContent: some View {
+        switch viewModel.selection {
+        case .timetable:
+            TimetableView(
+                store: viewModel.learningStore,
+                displayMode: displayMode,
+                isWriteEnabled: viewModel.isWriteEnabled
+            )
+        case .exams:
+            ExamListView(
+                store: viewModel.learningStore,
+                displayMode: displayMode,
+                isWriteEnabled: viewModel.isWriteEnabled
+            )
+        case .all, .today, .week, .overdue, .completed, .settings:
+            assignmentContent
+        }
+    }
+
     private var settingsContent: some View {
         AssignmentSettingsView(
             displayMode: displayModeBinding,
@@ -319,7 +369,8 @@ struct ContentView: View {
         AssignmentCommandActions(
             availability: AssignmentCommandAvailability(
                 isWriteEnabled: viewModel.isWriteEnabled,
-                isTaskDestination: viewModel.selection != .settings,
+                isTaskDestination: !viewModel.selection.isLearningScene
+                    && viewModel.selection != .settings,
                 isSearchExpanded: searchPresentation.isExpanded,
                 isModalPresented: editorPresentation != nil || activeAlert != nil
             ),
@@ -414,7 +465,8 @@ struct ContentView: View {
     }
 
     private func presentSearch() {
-        guard viewModel.selection != .settings,
+        guard !viewModel.selection.isLearningScene,
+              viewModel.selection != .settings,
               editorPresentation == nil,
               activeAlert == nil else {
             return

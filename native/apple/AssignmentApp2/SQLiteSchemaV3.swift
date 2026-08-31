@@ -213,11 +213,18 @@ enum SQLiteSchemaV3 {
     }
 
     static func validate(on database: OpaquePointer) throws {
-        guard try SQLiteSupport.scalarInt("PRAGMA foreign_keys", on: database) == 1 else {
-            throw DatabaseMigrationError("Schema v3 validation requires foreign keys enabled.")
-        }
         guard try SQLiteSupport.scalarInt("PRAGMA user_version", on: database) == 3 else {
             throw DatabaseMigrationError("Database user_version must be 3.")
+        }
+        try validateStructure(on: database)
+    }
+
+    /// Version-agnostic v3 contract check. Schema v4 calls this before checking
+    /// its own additions so a v4 database still proves it kept every v3 object
+    /// and value intact.
+    static func validateStructure(on database: OpaquePointer) throws {
+        guard try SQLiteSupport.scalarInt("PRAGMA foreign_keys", on: database) == 1 else {
+            throw DatabaseMigrationError("Schema v3 validation requires foreign keys enabled.")
         }
 
         let existingTables = Set(try applicationTableNames(on: database))
@@ -280,7 +287,9 @@ enum SQLiteSchemaV3 {
 
 // MARK: - Schema creation
 
-private extension SQLiteSchemaV3 {
+// Not `private`: schema v4 reuses `auditColumns` and `uuidCheck` so its tables
+// keep the exact v3 conventions instead of a second spelling of them.
+extension SQLiteSchemaV3 {
     static var auditColumns: String {
         """
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -834,7 +843,9 @@ private extension SQLiteSchemaV3 {
 
 // MARK: - Index and trigger contract
 
-private extension SQLiteSchemaV3 {
+// Not `private`: schema v4 validates its own indexes and triggers through the
+// same contract types, so a v4 database is checked with identical rules.
+extension SQLiteSchemaV3 {
     struct ForeignKeyContract: Hashable {
         let from: String
         let table: String

@@ -14,6 +14,10 @@ extension AssignmentView {
             return "exclamationmark.triangle"
         case .completed:
             return "checkmark.circle"
+        case .timetable:
+            return "calendar.day.timeline.leading"
+        case .exams:
+            return "graduationcap"
         case .settings:
             return "gearshape"
         }
@@ -31,6 +35,10 @@ extension AssignmentView {
             return "No overdue tasks"
         case .completed:
             return "No completed tasks"
+        case .timetable:
+            return "No classes scheduled"
+        case .exams:
+            return "No exams yet"
         case .settings:
             return ""
         }
@@ -48,6 +56,10 @@ extension AssignmentView {
             return "You are caught up. Unfinished tasks past their due time will appear here."
         case .completed:
             return "Tasks you finish will appear here."
+        case .timetable:
+            return "Add a weekly meeting to build your timetable."
+        case .exams:
+            return "Add an exam to track its date, place, and scope."
         case .settings:
             return ""
         }

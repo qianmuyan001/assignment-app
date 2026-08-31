@@ -558,11 +558,27 @@ struct AppleNavigationChromeTests {
             "This Week",
             "Overdue",
             "Completed",
+            // Phase 3A learning pages, grouped under their own header.
+            "Timetable",
+            "Exams",
             "Settings",
         ]
 
         #expect(AssignmentView.allCases.map(\.title) == expected)
         #expect(AssignmentView.allCases.allSatisfy { !$0.title.isEmpty })
+    }
+
+    @Test("Only the learning pages opt out of the task list")
+    func learningPagesAreSeparated() {
+        let learning = AssignmentView.allCases.filter(\.isLearningScene)
+        #expect(learning == [.timetable, .exams])
+        #expect(AssignmentView.allCases.filter { !$0.isLearningScene }.count
+                == AssignmentView.allCases.count - 2)
+        // Every page still needs an icon and empty-state copy.
+        #expect(AssignmentView.allCases.allSatisfy { !$0.systemImage.isEmpty })
+        #expect(AssignmentView.allCases
+            .filter { $0 != .settings }
+            .allSatisfy { !$0.emptyTitle.isEmpty && !$0.emptyDescription.isEmpty })
     }
 
     @Test("Search clear closes presentation and clears the query")
@@ -830,10 +846,11 @@ struct SQLiteRepositoryTests {
         let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
         let assignments = try repository.fetchAll()
 
-        #expect(try repository.schemaVersion == 3)
+        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
         #expect(repository.lastMigrationResult.fromVersion == 1)
-        #expect(repository.lastMigrationResult.toVersion == 3)
+        #expect(repository.lastMigrationResult.toVersion == SQLiteSchemaV4.databaseVersion)
         #expect(repository.lastMigrationResult.migrated)
+        #expect(repository.lastMigrationResult.strategy == .v1AdditiveToV4)
         #expect(assignments.map(\.id) == [41, 42])
         #expect(assignments.map(\.status) == [.done, .todo])
         #expect(assignments.allSatisfy { $0.priority == .medium })
@@ -925,8 +942,8 @@ struct SQLiteRepositoryTests {
         #expect(assignment.sourceURL == "https://例子.测试/source")
     }
 
-    @Test("A fresh database is v3 and task creation keeps shared defaults")
-    func databaseV3VersionAndPriorityDefault() throws {
+    @Test("A fresh database is v4 and task creation keeps shared defaults")
+    func databaseV4VersionAndPriorityDefault() throws {
         let temporary = try TemporaryDatabase()
         defer { temporary.cleanup() }
         let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
@@ -935,23 +952,25 @@ struct SQLiteRepositoryTests {
             AssignmentDraft(courseName: "Biology", title: "Default priority")
         )
 
-        let v3Columns = try tableColumns(at: temporary.databaseURL)
-        #expect(try repository.schemaVersion == 3)
-        #expect(SQLiteAssignmentRepository.databaseVersion == 3)
-        #expect(v3Columns.count == 22)
-        #expect(v3Columns.contains("uuid"))
-        #expect(v3Columns.contains("progress_percent"))
+        let assignmentColumns = try tableColumns(at: temporary.databaseURL)
+        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
+        #expect(repository.lastMigrationResult.strategy == .createV4)
+        #expect(assignmentColumns.count == 22)
+        #expect(assignmentColumns.contains("uuid"))
+        #expect(assignmentColumns.contains("progress_percent"))
+        // 30 v3 contract indexes plus the 8 learning-scene indexes v4 adds.
         #expect(
             try scalarInt(
                 at: temporary.databaseURL,
                 sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
-            ) == 30
+            ) == 38
         )
+        // 12 v3 contract triggers plus the 2 learning-scene UUID triggers.
         #expect(
             try scalarInt(
                 at: temporary.databaseURL,
                 sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"
-            ) == 12
+            ) == 14
         )
         #expect(
             try scalarText(

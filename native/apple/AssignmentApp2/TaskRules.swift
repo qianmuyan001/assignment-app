@@ -54,6 +54,10 @@ enum TaskRules {
                 return false
             }
             return dueDate < now
+        case .timetable, .exams:
+            // Learning-scene pages own their own content; they never borrow
+            // the task list.
+            return false
         }
     }
 

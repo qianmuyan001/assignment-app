@@ -103,6 +103,14 @@ struct TaskReminder: Identifiable, Hashable {
     var createdAt: Date
     var updatedAt: Date
     var deletedAt: Date?
+    /// Schema v4 discriminator. `.fixed` means `triggerAtUTC` is authoritative;
+    /// `.dueRelative` means it is a cache derived from the task deadline minus
+    /// `leadMinutes`. Rows migrated from v3 are always `.fixed`.
+    var scheduleKind: ReminderScheduleKind = .fixed
+
+    /// True when this reminder follows the task deadline instead of a stored
+    /// instant, and therefore has to be recomputed when the deadline moves.
+    var isDueRelative: Bool { scheduleKind == .dueRelative }
 }
 
 
@@ -154,4 +162,7 @@ struct ReminderDraft: Equatable {
     var repeatRule: String?
     var isEnabled: Bool = true
     var lastScheduledAt: Date?
+    /// `.dueRelative` requires the task to have a due date; the repository
+    /// derives `triggerAtUTC` from it instead of trusting the draft value.
+    var scheduleKind: ReminderScheduleKind = .fixed
 }

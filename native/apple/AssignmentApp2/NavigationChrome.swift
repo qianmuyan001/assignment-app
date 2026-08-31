@@ -123,7 +123,11 @@ struct AssignmentSidebar: View {
     @Namespace private var selectionNamespace
     @Namespace private var glassNamespace
 
-    private let taskViews = AssignmentView.allCases.filter { $0 != .settings }
+    private let taskViews = AssignmentView.allCases.filter {
+        !$0.isLearningScene && $0 != .settings
+    }
+
+    private let learningViews = AssignmentView.allCases.filter(\.isLearningScene)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -157,19 +161,19 @@ struct AssignmentSidebar: View {
 
     private var navigationStack: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if displayStyle == .expanded {
-                Text("Tasks")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.6)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 2)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            sectionHeader("Tasks")
 
             ForEach(taskViews) { view in
                 sidebarButton(for: view)
+            }
+
+            if !learningViews.isEmpty {
+                sectionHeader("Learning")
+                    .padding(.top, 10)
+
+                ForEach(learningViews) { view in
+                    sidebarButton(for: view)
+                }
             }
 
             Spacer(minLength: 20)
@@ -177,6 +181,20 @@ struct AssignmentSidebar: View {
             sidebarButton(for: .settings)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        if displayStyle == .expanded {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 
     private func sidebarButton(for view: AssignmentView) -> some View {

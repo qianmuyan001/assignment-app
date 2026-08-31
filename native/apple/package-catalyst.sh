@@ -195,14 +195,14 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
     fi
     if [[ -f "$SMOKE_DATABASE" ]] && \
       CANDIDATE_SCHEMA_VERSION="$(sqlite3 "$SMOKE_DATABASE" 'PRAGMA user_version;' 2>/dev/null)" && \
-      [[ "$CANDIDATE_SCHEMA_VERSION" == "3" ]]; then
+      [[ "$CANDIDATE_SCHEMA_VERSION" == "4" ]]; then
       SMOKE_READY=true
       break
     fi
     sleep 0.2
   done
   if [[ "$SMOKE_READY" != "true" ]]; then
-    echo "Packaged Catalyst app did not initialize a v3 smoke database within 20 seconds." >&2
+    echo "Packaged Catalyst app did not initialize a v4 smoke database within 20 seconds." >&2
     exit 1
   fi
   SMOKE_READY_SECONDS="$(( $(date +%s) - SMOKE_STARTED_AT ))"
@@ -221,16 +221,16 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
     "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name);")"
   SMOKE_IDENTITY_ROWS="$(sqlite3 "$SMOKE_DATABASE" \
     "SELECT COUNT(*) FROM database_identity WHERE singleton = 1 AND length(instance_uuid) = 36 AND instance_uuid = lower(instance_uuid) AND substr(instance_uuid, 9, 1) = '-' AND substr(instance_uuid, 14, 1) = '-' AND substr(instance_uuid, 15, 1) = '4' AND substr(instance_uuid, 19, 1) = '-' AND substr(instance_uuid, 20, 1) IN ('8', '9', 'a', 'b') AND substr(instance_uuid, 24, 1) = '-' AND replace(instance_uuid, '-', '') NOT GLOB '*[^0-9a-f]*';")"
-  EXPECTED_V3_TABLES="assignments,attachments,courses,database_identity,projects,reminders,subtasks,tags,task_tags"
-  EXPECTED_V3_COLUMNS="all_day,completed_at,course_id,course_name,created_at,deleted_at,description,due_date,id,link,priority,progress_percent,project_id,source_file,source_name,source_type,source_url,status,timezone_id,title,updated_at,uuid"
-  EXPECTED_V3_INDEXES="ix_assignments_course_id,ix_assignments_deleted_at,ix_assignments_due_date,ix_assignments_priority,ix_assignments_project_id,ix_assignments_status,ix_attachments_assignment,ix_attachments_sha256,ix_courses_archived_name,ix_courses_normalized_name,ix_projects_course_status,ix_projects_deleted_at,ix_reminders_assignment,ix_reminders_enabled_trigger,ix_subtasks_assignment_order,ix_subtasks_status,ix_tags_deleted_at,ix_task_tags_assignment,ix_task_tags_tag,ux_assignments_uuid,ux_attachments_relative_path,ux_attachments_uuid,ux_courses_uuid,ux_projects_uuid,ux_reminders_uuid,ux_subtasks_uuid,ux_tags_normalized_name,ux_tags_uuid,ux_task_tags_active_pair,ux_task_tags_uuid"
-  EXPECTED_V3_TRIGGERS="assignments_uuid_immutable,assignments_v3_contract_insert,assignments_v3_contract_update,attachments_uuid_immutable,courses_uuid_immutable,database_identity_immutable_delete,database_identity_immutable_update,projects_uuid_immutable,reminders_uuid_immutable,subtasks_uuid_immutable,tags_uuid_immutable,task_tags_uuid_immutable"
-  if [[ "$SMOKE_SCHEMA_VERSION" != "3" || "$SMOKE_QUICK_CHECK" != "ok" || \
+  EXPECTED_V4_TABLES="assignments,attachments,course_meetings,courses,database_identity,exams,projects,reminders,subtasks,tags,task_tags"
+  EXPECTED_ASSIGNMENT_COLUMNS="all_day,completed_at,course_id,course_name,created_at,deleted_at,description,due_date,id,link,priority,progress_percent,project_id,source_file,source_name,source_type,source_url,status,timezone_id,title,updated_at,uuid"
+  EXPECTED_V4_INDEXES="ix_assignments_course_id,ix_assignments_deleted_at,ix_assignments_due_date,ix_assignments_priority,ix_assignments_project_id,ix_assignments_status,ix_attachments_assignment,ix_attachments_sha256,ix_course_meetings_deleted_at,ix_course_meetings_week,ix_courses_archived_name,ix_courses_normalized_name,ix_exams_course_start,ix_exams_deleted_at,ix_exams_status_start,ix_projects_course_status,ix_projects_deleted_at,ix_reminders_assignment,ix_reminders_enabled_trigger,ix_subtasks_assignment_order,ix_subtasks_status,ix_tags_deleted_at,ix_task_tags_assignment,ix_task_tags_tag,ux_assignments_uuid,ux_attachments_relative_path,ux_attachments_uuid,ux_course_meetings_uuid,ux_courses_uuid,ux_exams_linked_assignment,ux_exams_uuid,ux_projects_uuid,ux_reminders_uuid,ux_subtasks_uuid,ux_tags_normalized_name,ux_tags_uuid,ux_task_tags_active_pair,ux_task_tags_uuid"
+  EXPECTED_V4_TRIGGERS="assignments_uuid_immutable,assignments_v3_contract_insert,assignments_v3_contract_update,attachments_uuid_immutable,course_meetings_uuid_immutable,courses_uuid_immutable,database_identity_immutable_delete,database_identity_immutable_update,exams_uuid_immutable,projects_uuid_immutable,reminders_uuid_immutable,subtasks_uuid_immutable,tags_uuid_immutable,task_tags_uuid_immutable"
+  if [[ "$SMOKE_SCHEMA_VERSION" != "4" || "$SMOKE_QUICK_CHECK" != "ok" || \
         "$SMOKE_FOREIGN_KEY_ERRORS" != "0" || "$SMOKE_IDENTITY_ROWS" != "1" || \
-        "$SMOKE_TABLES" != "$EXPECTED_V3_TABLES" || \
-        "$SMOKE_COLUMNS" != "$EXPECTED_V3_COLUMNS" || \
-        "$SMOKE_INDEXES" != "$EXPECTED_V3_INDEXES" || \
-        "$SMOKE_TRIGGERS" != "$EXPECTED_V3_TRIGGERS" ]]; then
+        "$SMOKE_TABLES" != "$EXPECTED_V4_TABLES" || \
+        "$SMOKE_COLUMNS" != "$EXPECTED_ASSIGNMENT_COLUMNS" || \
+        "$SMOKE_INDEXES" != "$EXPECTED_V4_INDEXES" || \
+        "$SMOKE_TRIGGERS" != "$EXPECTED_V4_TRIGGERS" ]]; then
     echo "Packaged Catalyst database smoke validation failed." >&2
     exit 1
   fi
@@ -248,9 +248,9 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
     echo "assignment_columns=$SMOKE_COLUMNS"
     echo "assignment_column_count=22"
     echo "contract_indexes=$SMOKE_INDEXES"
-    echo "contract_index_count=30"
+    echo "contract_index_count=38"
     echo "contract_triggers=$SMOKE_TRIGGERS"
-    echo "contract_trigger_count=12"
+    echo "contract_trigger_count=14"
     echo "database_ready_seconds=$SMOKE_READY_SECONDS"
     echo "process_alive_after_schema_validation=true"
   } >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log"

@@ -93,9 +93,24 @@ enum AssignmentView: String, CaseIterable, Identifiable {
     case week
     case overdue
     case completed
+    // Learning scenes. They are pages in their own right rather than smart
+    // lists of tasks, so `TaskRules` matches no assignment for them.
+    case timetable
+    case exams
     case settings
 
     var id: String { rawValue }
+
+    /// True for the pages that show course meetings and exams instead of a
+    /// filtered task list.
+    var isLearningScene: Bool {
+        switch self {
+        case .timetable, .exams:
+            return true
+        case .all, .today, .week, .overdue, .completed, .settings:
+            return false
+        }
+    }
 
     var title: String {
         switch self {
@@ -109,6 +124,10 @@ enum AssignmentView: String, CaseIterable, Identifiable {
             return "Overdue"
         case .completed:
             return "Completed"
+        case .timetable:
+            return "Timetable"
+        case .exams:
+            return "Exams"
         case .settings:
             return "Settings"
         }

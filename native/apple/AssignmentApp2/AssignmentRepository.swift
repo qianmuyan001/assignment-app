@@ -25,12 +25,29 @@ protocol AssignmentRepository: AnyObject {
 }
 
 
+/// Names describe the complete chain that produced the current version, so a
+/// v2 database records that it also received the additive v4 upgrade.
+/// Names describe the complete chain that produced the current version, so a
+/// v2 database records that it also received the additive v4 upgrade.
 enum MigrationStrategy: String, Equatable {
+    /// Produced when the database was already at the current schema version.
     case none
-    case createV3 = "create-v3"
-    case v2ToV3 = "v2-v3-additive"
-    case v1AdditiveToV3 = "v1-v2-additive+v2-v3-additive"
-    case v1RebuildToV3 = "v1-v2-rebuild+v2-v3-additive"
+
+    // Live strategies. Every `MigrationCoordinator` path ends at v4; there is
+    // no v3-only exit.
+    case createV4 = "create-v3+v3-v4-additive"
+    case v2ToV4 = "v2-v3-additive+v3-v4-additive"
+    case v1AdditiveToV4 = "v1-v2-additive+v2-v3-additive+v3-v4-additive"
+    case v1RebuildToV4 = "v1-v2-rebuild+v2-v3-additive+v3-v4-additive"
+    case v3ToV4 = "v3-v4-additive"
+
+    // Retired strategies. Nothing calls the standalone v1-to-v2 entry point in
+    // `SQLiteAssignmentRepository` any more: the app and the tests all go
+    // through `MigrationCoordinator`. They stop at v2, so they are named for
+    // what they actually do rather than for a version they never reach.
+    case createV2 = "create-v2"
+    case v1AdditiveToV2 = "v1-v2-additive"
+    case v1RebuildToV2 = "v1-v2-rebuild"
 }
 
 
