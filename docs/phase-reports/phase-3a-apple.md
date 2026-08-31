@@ -105,6 +105,10 @@ export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
 
 All Xcode builds/tests also set `OTHER_SWIFT_FLAGS='-Xfrontend -disable-sandbox'`.
 
+Every result in this section was produced at HEAD `0374f8d`. The iPad tests were
+re-run after the final packager commit specifically so that the SHA recorded in
+`build-info.txt` matches the SHA the tests actually ran against.
+
 ### Shared contract / rule tests
 
 ```bash
@@ -125,8 +129,10 @@ xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
   -skip-testing:AssignmentApp2UITests test
 ```
 
-Result: **98 passed, 0 failed, 0 skipped** (verified via `xcresulttool` summary on
-`/private/tmp/assignment-app-xcode-derived-data/Logs/Test/Test-AssignmentApp2-2026.08.31_21-44-20-+0800.xcresult`).
+Result: **98 passed, 0 failed, 0 skipped** at HEAD `0374f8d` (verified via
+`xcresulttool get test-results summary` on
+`/private/tmp/assignment-app-xcode-derived-data/Logs/Test/Test-AssignmentApp2-2026.08.31_22-18-09-+0800.xcresult`:
+`failedTests 0`, `passedTests 98`, `skippedTests 0`, `result "Passed"`).
 
 Suite breakdown:
 
@@ -152,7 +158,11 @@ xcodebuild -project native/apple/AssignmentApp2.xcodeproj \
   OTHER_SWIFT_FLAGS='-Xfrontend -disable-sandbox' test
 ```
 
-Result: **4 tests, 0 failures**.
+Result: **4 tests, 0 failures, 0 skipped** at HEAD `0374f8d`, `** TEST SUCCEEDED **`
+in 92.745 s. Verified via `xcresulttool get test-results summary` on
+`/private/tmp/assignment-app-xcode-derived-data/Logs/Test/Test-AssignmentApp2UISmoke-2026.08.31_22-19-27-+0800.xcresult`:
+`result "Passed"`, `passedTests 4`, `failedTests 0`, `totalTestCount 4`, on iPad Pro
+11-inch (M4) 18.5.
 
 The smoke creates a throwaway database, exercises timetable CRUD, exam CRUD, the
 idempotent "Add Review Task" flow, the Today overview, and landscape/portrait
@@ -207,52 +217,138 @@ iPad UI screenshots were captured by the `AssignmentApp2UISmoke` suite:
 Files include empty states, timetable week/today, meeting/exam editors, review-task
 alert, Today overview, landscape/portrait, and sidebar/search states.
 
-Catalyst UI screenshots were **not** produced because the packaged Catalyst app crashes
-on launch in this environment (see Section 9).
+All 18 files were regenerated at HEAD `0374f8d` by the run in Section 5. They come from
+`XCUIApplication.screenshot()` inside the simulator, which needs no extra macOS
+permission.
+
+Catalyst UI screenshots were **not** captured. The app does launch in this environment
+in local-runnable mode (Section 8), so the blocker is capture, not launch. Two
+independent routes were attempted and both are blocked by permissions on the
+automation process:
+
+- `screencapture -x` fails with `could not create image from display` — no Screen
+  Recording permission for the automating process.
+- `System Events` AppleScript window queries hang on the Accessibility permission
+  prompt.
+
+A third route, driving the Catalyst app with an XCUITest bundle, is unavailable
+without a project change: `AssignmentApp2.xcodeproj` declares
+`SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"` and `SDKROOT = iphoneos`, so no
+test target in this project can build against the macOS SDK. Adding a macOS UI test
+target is out of scope for this phase.
+
+Catalyst screenshots therefore have to be taken by a person, or by an automation
+process that has Screen Recording permission.
 
 ## 8. Artifacts
 
-Catalyst Debug test package (build, code-sign, ZIP verification succeeded; launch smoke
-failed):
+Two Catalyst Debug packages were produced from the same source revision
+`0374f8de745533ba89e91b5cf74e7a8662292fe4`. They differ only in the App Sandbox
+entitlement.
+
+### 8.1 Sandboxed package (canonical, launch blocked)
 
 ```text
-/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/Assignment App.app
-/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip
+/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-140756Z/Assignment App.app
+/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-140756Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip
 ```
+
+- **Build / ad-hoc sign / deep verify / ZIP verification:** all succeeded
+- **Launch smoke:** **failed** — `Trace/BPT trap: 5` during dyld initialization
+- `app_sandbox=true`
+- Crash report: `logs/catalyst-launch-crash.ips`
+  - `EXC_BREAKPOINT` / `SIGTRAP`, termination `SIGNAL 5`
+  - triggering frames: `_libsecinit_appsandbox.cold.9` → `_libsecinit_appsandbox` →
+    `_libsecinit_initializer` → `libSystem_initializer`, all inside
+    `dyld4::Loader::findAndRunAllInitializers`
+  - i.e. it dies in libSystem before any application code runs
+- `build-info.txt` **was** written, with `launch_smoke=failed` (the packager was
+  changed to record blocked launches instead of aborting without a record)
+
+### 8.2 Local-runnable package (App Sandbox removed, launch verified)
+
+```text
+/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-local-20260831-140857Z/Assignment App.app
+/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-local-20260831-140857Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip
+```
+
+- **Launch smoke: passed.** The packaged app started, created a throwaway database, and
+  was still alive after schema validation.
+- `app_sandbox=false`; signed ad-hoc with `com.apple.security.get-task-allow` only
+- **ZIP SHA-256:**
+  `9175b474eb58c547c50c1cb34c51592e195bd6e3501fc20f401ea5ad48c82c75`
+- Launch-smoke fingerprint (from `logs/catalyst-launch-smoke.log`):
+
+| Check | Value |
+|-------|-------|
+| `user_version` | 4 |
+| `quick_check` | ok |
+| `foreign_key_errors` | 0 |
+| `database_identity_rows` | 1 |
+| tables | 11, exactly the expected v4 set |
+| `assignments` columns | 22, exact match |
+| indexes | 38, exact match |
+| triggers | 14, exact match |
+| `process_alive_after_schema_validation` | true |
+
+**This package is a local acceptance aid only.** It is not the canonical deliverable:
+the shipping configuration has App Sandbox enabled, and this variant exists solely so
+a real launch can be demonstrated on this machine.
+
+### 8.3 Shared properties
 
 - **Version:** 2.0.0
 - **Architecture:** arm64 Mac Catalyst
-- **Git SHA:** `b4acb5574eaff8f0ca90db099355fdb126f4f928`
-- **Source tree:** mostly clean; only untracked `CONTEXT.md` remains
-- **Signing:** local ad-hoc; App Sandbox entitlement embedded; not notarized
-- **ZIP SHA-256:** `410bff16431af40fb537741c375f016265c626217a42f8dc3a4b16f1ee80a05e`
+- **Git SHA:** `0374f8de745533ba89e91b5cf74e7a8662292fe4`
+- **Source tree:** tracked files clean; the only entry in
+  `logs/source-status.log` is the untracked `CONTEXT.md`, which was deliberately left
+  untouched and unstaged
+- **Signing:** local ad-hoc, not notarized, no Developer ID
 - **ZIP verification:** no AppleDouble / `__MACOSX` entries (script verified)
 - **Binary profile check:** no LLVM coverage instrumentation
 
-Build log and crash log:
+### 8.4 Why the second packaging attempt previously failed
 
-```text
-/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/logs/catalyst-build.log
-/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/logs/catalyst-launch-crash.ips
-```
+The first local-runnable attempt failed with
+`Disallowed xattr com.apple.FinderInfo found`. Root cause: the artifact root sits under
+a file-provider-managed tree, which re-attaches `com.apple.FinderInfo` and
+`com.apple.fileprovider.fpfs#P` to any newly created directory within about two
+seconds. `codesign` rejects a bundle carrying that metadata, and stripping it is a
+losing race — the earlier run only succeeded because signing happened to finish before
+the metadata reappeared.
 
-Note: `build-info.txt` was **not** written because `package-catalyst.sh` aborted at the
-launch-smoke step. The artifact directory still contains the signed `.app`, `.zip`, and
-all intermediate logs.
+Measured: `xattr -cr` removes the keys, and they return within 2 s.
+
+`package-catalyst.sh` now copies, signs, and packages inside `/private/tmp`, then
+publishes the finished deliverable into the artifact directory. Nothing is signed or
+verified after that final copy, so metadata attached there is harmless.
 
 ## 9. Remaining blockers / unfinished
 
-1. **Mac Catalyst unit tests** — blocked by test-runner hang (Section 5).
-2. **Real Catalyst launch smoke / acceptance** — the packaged app crashes during
-   `_libsecinit_appsandbox` initialization on this macOS 27.0 beta machine. The crash
-   signature is `SYSCALL_SET_USERLAND_PROFILE` / `EXC_BREAKPOINT`. The unsigned
-   derived-data build of the same binary launches successfully, so the crash is tied to
-   the ad-hoc signed + App Sandbox packaged app in this environment, not to app code.
-3. **Real notification delivery on device** — not independently verified. The existing
-  `AssignmentNotificationScheduler` is reused; relative reminder recalculation is unit
-   tested.
-4. **Windows and Web Phase 3A** — not implemented.
-5. **Global Gate A** — cannot be claimed until Windows Phase 2.5 is verified and the
+1. **Mac Catalyst unit tests** — blocked by test-runner hang (Section 5). The suite has
+   never run to completion on this machine, so Catalyst has no automated test coverage
+   at all.
+2. **Catalyst launch with App Sandbox enabled** — the sandboxed package crashes during
+   `_libsecinit_appsandbox` initialization on this macOS 27.0 beta machine, before any
+   app code runs (Section 8.1). Evidence that this is environmental, not a source
+   defect: the unsigned derived-data build of the same binary launches, and the same
+   package re-signed without App Sandbox launches and initializes a v4 database. The
+   canonical sandboxed configuration therefore remains unverified here.
+3. **Catalyst manual acceptance** — not performed. Requires a person at the keyboard:
+   wide/narrow window resizing, timetable and exam CRUD, linked task creation, real
+   notification delivery/modification/cancellation, restart recovery, keyboard
+   navigation, VoiceOver, and simple/professional mode switching. The local-runnable
+   package in Section 8.2 is the artifact to use.
+4. **Catalyst screenshots** — not captured (Section 7). Blocked by Screen Recording and
+   Accessibility permissions on the automation process; no macOS test target exists to
+   capture them in-process.
+5. **Real notification delivery** — not independently verified. The existing
+   `AssignmentNotificationScheduler` is reused; relative reminder recalculation,
+   cancellation on completion/deletion, and the "disabled with reason when there is no
+   due date" rule are unit tested, but no notification has been observed actually
+   firing.
+6. **Windows and Web Phase 3A** — not implemented.
+7. **Global Gate A** — cannot be claimed until Windows Phase 2.5 is verified and the
    cross-platform contract is implemented on all platforms.
 
 ## 10. Repository state and non-fabrication
@@ -262,9 +358,16 @@ all intermediate logs.
   - HEAD `61205f6`
 - **Phase 3A worktree:** `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
   - branch `qianmuyan001/apple-phase3a-preview`
-  - HEAD `b4acb5574eaff8f0ca90db099355fdb126f4f928`
-- **Local commit:** `b4acb55` on `qianmuyan001/apple-phase3a-preview`.
+  - HEAD `0374f8de745533ba89e91b5cf74e7a8662292fe4`
+- **Local commits** on `qianmuyan001/apple-phase3a-preview`, all created from explicit
+  file lists (`git add .` was never used):
+  - `b4acb55` — Schema v4, timetable, exams, relative reminders, Today overview
+  - `7124953` — packager: `ASSIGNMENT_LOCAL_RUNNABLE` mode + this report
+  - `0374f8d` — packager: sign outside the file-provider tree, record blocked launches
 - **No push / merge / tag / PR / Release.**
+- **Verification evidence is SHA-traceable.** Both Catalyst packages embed
+  `source_revision` and their own `logs/source-status.log`, and `build-info.txt` records
+  the iPad test results they were built against.
 - **Excluded from commit:** `.workbuddy/`, databases, WAL/SHM, backups, temp evidence,
   user files, and `artifacts/` (git-ignored).
 - **No untracked user modifications were overwritten.** The only untracked file is
@@ -279,8 +382,14 @@ all intermediate logs.
 | iPad UI smoke tests | 4/4 passed |
 | `git diff --check` | clean |
 | Version sync | 2.0.0 everywhere |
-| Mac Catalyst unit tests | blocked (test-runner hang) |
-| Mac Catalyst launch smoke | blocked (App Sandbox init crash) |
+| Catalyst build / ad-hoc sign / deep verify | passed |
+| Catalyst ZIP integrity (no AppleDouble) | passed |
+| Catalyst launch smoke, sandboxed | **blocked** (App Sandbox init crash) |
+| Catalyst launch smoke, no App Sandbox | passed, `user_version=4`, schema fingerprint exact |
+| Catalyst Schema v4 fingerprint | 11 tables / 22 columns / 38 indexes / 14 triggers, exact |
+| Mac Catalyst unit tests | **blocked** (test-runner hang) |
+| Catalyst UI screenshots | **not captured** (permission + no macOS test target) |
+| Catalyst manual acceptance | **not performed** (needs a person) |
 | Real notification delivery | not independently verified |
 | Windows Phase 2.5 | still unverified |
 | Windows/Web Phase 3A | not implemented |
@@ -291,15 +400,22 @@ Per the Apple Phase 3A Preview spec, §十三:
 
 - [x] Schema v4 spec & migration explanation (Section 3 and shared docs)
 - [x] Actual test commands, counts, and results (Section 5)
-- [x] Catalyst `.app` path
-  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/Assignment App.app`
-- [x] Catalyst ZIP path
-  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-133026Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip`
+- [x] Catalyst `.app` paths — sandboxed (blocked) and local-runnable (verified)
+  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-140756Z/Assignment App.app`
+  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-local-20260831-140857Z/Assignment App.app`
+- [x] Catalyst ZIP paths
+  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-20260831-140756Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip`
+  - `/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/artifacts/apple/debug-local-20260831-140857Z/Assignment-App-2.0.0-Catalyst-Debug-arm64.zip`
+    (SHA-256 `9175b474eb58c547c50c1cb34c51592e195bd6e3501fc20f401ea5ad48c82c75`)
 - [x] Version / architecture / Git SHA / signing status (Section 8)
 - [x] iPad screenshot directory (Section 7)
+- [ ] **Catalyst screenshot directory** — not captured (Section 7). This is the one
+  §十三 item that is genuinely missing.
 - [x] Notification evidence: not independently verified; disclosed in Section 9
-- [x] Data came from temporary databases: yes, UI tests and launch smoke both use
-  throwaway DBs; unit tests use temp/in-memory DBs
+- [x] Data came from temporary databases: yes. UI tests and both launch smokes use
+  throwaway DBs; unit tests use temp/in-memory DBs. The demo content seeded for the
+  Catalyst launch attempt also lived in a temporary database and was discarded.
+  **No real user database was migrated or modified.**
 - [x] Unfinished/unverified content listed (Section 9)
 - [x] Branch / HEAD / worktree / local-commit status (Section 10)
 - [x] Explicit statement: Gate A incomplete, Windows Phase 2.5 unverified, Windows/Web
