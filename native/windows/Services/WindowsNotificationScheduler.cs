@@ -3,6 +3,7 @@ using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
+using CoreAssignmentItem = AssignmentNative.Core.AssignmentItem;
 
 namespace AssignmentNative.Services;
 
@@ -68,7 +69,7 @@ public sealed class WindowsNotificationScheduler
         try
         {
             var assignments = database.FetchCoreAssignments().ToDictionary(item => item.Id);
-            var desired = new Dictionary<string, (ReminderItem Reminder, AssignmentItem Task)>();
+            var desired = new Dictionary<string, (ReminderItem Reminder, CoreAssignmentItem Task)>();
             foreach (var task in assignments.Values)
             {
                 foreach (var reminder in database.Organization.FetchReminders(task.Id))
@@ -103,7 +104,7 @@ public sealed class WindowsNotificationScheduler
         }
     }
 
-    public bool Schedule(ReminderItem reminder, AssignmentItem task)
+    public bool Schedule(ReminderItem reminder, CoreAssignmentItem task)
     {
         if (!Register()) return false;
         if (AppNotificationManager.Default.Setting != AppNotificationSetting.Enabled)
@@ -121,7 +122,7 @@ public sealed class WindowsNotificationScheduler
         }
     }
 
-    private static void ScheduleCore(ReminderItem reminder, AssignmentItem task)
+    private static void ScheduleCore(ReminderItem reminder, CoreAssignmentItem task)
     {
         CancelCore(reminder);
         if (!reminder.IsEnabled || reminder.TriggerAtUtc <= DateTimeOffset.UtcNow ||

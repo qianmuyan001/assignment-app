@@ -5,6 +5,7 @@ using AssignmentNative.Core;
 using AssignmentNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.Storage;
@@ -377,7 +378,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
         }
     }
 
-    private static Grid BuildRow(UIElement primary, UIElement secondary)
+    private static Grid BuildRow(FrameworkElement primary, FrameworkElement secondary)
     {
         var grid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -389,7 +390,7 @@ public sealed partial class TaskEditorDialog : ContentDialog
         return grid;
     }
 
-    private static Grid BuildRow(UIElement leading, UIElement middle, UIElement trailing)
+    private static Grid BuildRow(FrameworkElement leading, FrameworkElement middle, FrameworkElement trailing)
     {
         var grid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0, GridUnitType.Auto) });
@@ -498,7 +499,13 @@ public sealed partial class TaskEditorDialog : ContentDialog
         var status = check.IsChecked == true ? TaskStatuses.Done : TaskStatuses.Todo;
         try
         {
-            _organization.UpdateSubtask(subtask with { Status = status });
+            _organization.UpdateSubtask(
+                subtask.Id,
+                new SubtaskDraft(
+                    subtask.AssignmentId,
+                    subtask.Title,
+                    status,
+                    subtask.SortOrder));
             RenderSubtasks(_organization.FetchSubtasks(_existing.Id));
             ReconcileNotificationsAfterChildChange();
         }
@@ -533,9 +540,9 @@ public sealed partial class TaskEditorDialog : ContentDialog
             var reminder = _organization.CreateReminder(new ReminderDraft(
                 _existing.Id,
                 trigger,
-                leadMinutes: 0,
-                repeatRule: null,
-                isEnabled: true));
+                LeadMinutes: 0,
+                RepeatRule: null,
+                IsEnabled: true));
             if (!WindowsNotificationScheduler.Shared.Schedule(reminder, _existing))
             {
                 ShowNotice(
@@ -773,10 +780,10 @@ public sealed partial class TaskEditorDialog : ContentDialog
                     InitializeWithWindow.Initialize(folderPicker, _ownerHandle);
                 var folder = await folderPicker.PickSingleFolderAsync();
                 if (folder is null) return;
-                var destination = await folder.CreateFileAsync(
+                var folderDestination = await folder.CreateFileAsync(
                     attachment.FileName,
                     CreationCollisionOption.GenerateUniqueName);
-                File.Copy(_attachmentStore.PayloadPath(attachment), destination.Path, overwrite: true);
+                File.Copy(_attachmentStore.PayloadPath(attachment), folderDestination.Path, overwrite: true);
                 return;
             }
 
