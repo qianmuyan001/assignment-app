@@ -39,8 +39,11 @@ public sealed class AttachmentFileStore
             File.Copy(source, staged, overwrite: false);
             var info = new FileInfo(staged);
             var byteSize = info.Length;
-            using var input = File.OpenRead(staged);
-            var digest = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
+            string digest;
+            using (var input = File.OpenRead(staged))
+            {
+                digest = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
+            }
             File.Move(staged, destination);
             try
             {
