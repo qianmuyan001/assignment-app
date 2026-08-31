@@ -55,8 +55,14 @@ public sealed class AppSettingsStore
         }
     }
 
-    private static string DefaultSettingsPath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AssignmentNative",
-        "settings-v2.json");
+    private static string DefaultSettingsPath()
+    {
+        var overridePath = Environment.GetEnvironmentVariable("ASSIGNMENT_SETTINGS_PATH");
+        return string.IsNullOrWhiteSpace(overridePath)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AssignmentNative",
+                "settings-v2.json")
+            : overridePath;
+    }
 }

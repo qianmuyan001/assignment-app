@@ -4,6 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls"/>
+            </ResourceDictionary.MergedDictionaries>
+
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="TaskCardBrush" Color="#FFFDFDFD"/>
@@ -33,6 +37,7 @@
             <Style TargetType="TextBox">
                 <Setter Property="CornerRadius" Value="6"/>
             </Style>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

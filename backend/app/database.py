@@ -413,7 +413,7 @@ def _acquire_lock(lock_file: BinaryIO) -> None:
                 lock_file.seek(0)
                 msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
             else:
-                import fcntl  # pylint: disable=import-outside-toplevel
+                import fcntl  # pylint: disable=import-outside-toplevel,import-error
 
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
@@ -432,7 +432,7 @@ def _release_lock(lock_file: BinaryIO) -> None:
         lock_file.seek(0)
         msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
     else:
-        import fcntl  # pylint: disable=import-outside-toplevel
+        import fcntl  # pylint: disable=import-outside-toplevel,import-error
 
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 

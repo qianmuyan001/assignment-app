@@ -43,6 +43,8 @@ internal static class Program
             ("search title course and description", SearchFields),
             ("status course and priority filters", CombinedFilters),
             ("simple and professional mode preserve hidden data", ModeDoesNotLoseData),
+            ("navigation pane mode persists with existing settings", NavigationPaneModePersists),
+            ("settings path override isolates desktop acceptance", SettingsPathOverrideIsolates),
             ("WinUI editor projection preserves v3 fields and derives status", EditorProjectionPreservesV3Fields),
             ("unchanged due controls preserve seconds and raw value", DueControlBaselinePreservesPrecision),
             ("v1 database migration and backup", V1Migration),
@@ -414,6 +416,41 @@ internal static class Program
         Equal("https://example.test/a?x=1&y=二", saved.Link);
         Equal(TaskPriorities.High, saved.Priority);
         Equal(AssignmentDisplayMode.Simple, settingsStore.Load().DetailMode);
+    }
+
+    private static void NavigationPaneModePersists()
+    {
+        using var workspace = new TestWorkspace();
+        var settingsStore = new AppSettingsStore(workspace.SettingsPath);
+        settingsStore.Save(new AppSettings
+        {
+            DetailMode = AssignmentDisplayMode.Professional,
+            Theme = AppTheme.Dark,
+            NavigationPaneMode = NavigationPaneMode.Compact
+        });
+
+        var restored = settingsStore.Load();
+        Equal(AssignmentDisplayMode.Professional, restored.DetailMode);
+        Equal(AppTheme.Dark, restored.Theme);
+        Equal(NavigationPaneMode.Compact, restored.NavigationPaneMode);
+    }
+
+    private static void SettingsPathOverrideIsolates()
+    {
+        using var workspace = new TestWorkspace();
+        var previous = Environment.GetEnvironmentVariable("ASSIGNMENT_SETTINGS_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASSIGNMENT_SETTINGS_PATH", workspace.SettingsPath);
+            var store = new AppSettingsStore();
+            Equal(Path.GetFullPath(workspace.SettingsPath), store.SettingsPath);
+            store.Save(new AppSettings { NavigationPaneMode = NavigationPaneMode.Compact });
+            Equal(NavigationPaneMode.Compact, store.Load().NavigationPaneMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASSIGNMENT_SETTINGS_PATH", previous);
+        }
     }
 
     private static void EditorProjectionPreservesV3Fields()

@@ -6,6 +6,7 @@ using AssignmentNative.Core;
 using AssignmentNative.Services;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -30,11 +31,18 @@ public sealed partial class MainWindow : Window
     private string _filter = "all";
     private bool _browserInitialized;
     private bool _rootLoaded;
+    private bool _searchExpanded;
     private bool _updatingControls;
+
+    private const double CompactNavigationThreshold = 760;
 
     public MainWindow()
     {
         InitializeComponent();
+        RootGrid.AddHandler(
+            UIElement.PointerPressedEvent,
+            new PointerEventHandler(RootGrid_PointerPressed),
+            handledEventsToo: true);
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 780));
         Navigation.SelectedItem = Navigation.MenuItems[0];
@@ -81,6 +89,7 @@ public sealed partial class MainWindow : Window
             });
         _updatingControls = false;
         ApplyTheme();
+        ApplyNavigationPaneMode(RootGrid.ActualWidth);
     }
 
     private async Task InitializeDatabaseAsync()
@@ -285,6 +294,11 @@ public sealed partial class MainWindow : Window
         NavigationView sender,
         NavigationViewSelectionChangedEventArgs args)
     {
+        if (_rootLoaded)
+        {
+            CollapseSearch(clearQuery: false);
+        }
+
         if (args.IsSettingsSelected)
         {
             ShowPanel("settings");
@@ -318,6 +332,78 @@ public sealed partial class MainWindow : Window
         AutoSuggestBox sender,
         AutoSuggestBoxTextChangedEventArgs args) => ApplyFilter();
 
+    private void SearchToggle_Click(object sender, RoutedEventArgs e) =>
+        ExpandSearch();
+
+    private void SearchClose_Click(object sender, RoutedEventArgs e)
+    {
+        CollapseSearch(clearQuery: true);
+        SearchToggleButton.Focus(FocusState.Programmatic);
+    }
+
+    private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Escape)
+        {
+            return;
+        }
+
+        CollapseSearch(clearQuery: false);
+        SearchToggleButton.Focus(FocusState.Programmatic);
+        e.Handled = true;
+    }
+
+    private void Find_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        ExpandSearch();
+        args.Handled = true;
+    }
+
+    private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (_searchExpanded &&
+            e.OriginalSource is DependencyObject source &&
+            !IsDescendantOf(source, SearchChrome))
+        {
+            CollapseSearch(clearQuery: false);
+        }
+    }
+
+    private void ExpandSearch()
+    {
+        _searchExpanded = true;
+        SearchChrome.Width = 300;
+        SearchToggleButton.Visibility = Visibility.Collapsed;
+        SearchEditor.Visibility = Visibility.Visible;
+        DispatcherQueue.TryEnqueue(() => SearchBox.Focus(FocusState.Programmatic));
+    }
+
+    private void CollapseSearch(bool clearQuery)
+    {
+        if (clearQuery)
+        {
+            SearchBox.Text = "";
+        }
+        _searchExpanded = false;
+        SearchEditor.Visibility = Visibility.Collapsed;
+        SearchToggleButton.Visibility = Visibility.Visible;
+        SearchChrome.Width = 40;
+    }
+
+    private static bool IsDescendantOf(DependencyObject source, DependencyObject ancestor)
+    {
+        for (DependencyObject? current = source;
+             current is not null;
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void Filter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_updatingControls)
@@ -329,7 +415,7 @@ public sealed partial class MainWindow : Window
     private void ClearFilters_Click(object sender, RoutedEventArgs e)
     {
         _updatingControls = true;
-        SearchBox.Text = "";
+        CollapseSearch(clearQuery: true);
         StatusFilterBox.SelectedIndex = 0;
         CourseFilterBox.SelectedIndex = 0;
         PriorityFilterBox.SelectedIndex = 0;
@@ -543,6 +629,36 @@ public sealed partial class MainWindow : Window
         SaveSettings();
     }
 
+    private void NavigationStyle_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.NavigationPaneMode = _settings.NavigationPaneMode == NavigationPaneMode.Compact
+            ? NavigationPaneMode.Expanded
+            : NavigationPaneMode.Compact;
+        ApplyNavigationPaneMode(RootGrid.ActualWidth);
+        SaveSettings();
+    }
+
+    private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyNavigationPaneMode(e.NewSize.Width);
+
+    private void ApplyNavigationPaneMode(double width)
+    {
+        var compact = _settings.NavigationPaneMode == NavigationPaneMode.Compact ||
+                      width is > 0 and < CompactNavigationThreshold;
+        Navigation.PaneDisplayMode = compact
+            ? NavigationViewPaneDisplayMode.LeftCompact
+            : NavigationViewPaneDisplayMode.Left;
+        Navigation.IsPaneOpen = !compact;
+        NavigationStyleLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+
+        var action = _settings.NavigationPaneMode == NavigationPaneMode.Compact
+            ? "Show navigation labels"
+            : "Use compact navigation";
+        NavigationStyleLabel.Text = action;
+        ToolTipService.SetToolTip(NavigationStyleButton, action);
+        AutomationProperties.SetName(NavigationStyleButton, action);
+    }
+
     private bool IsProfessionalMode =>
         _settings.DetailMode == AssignmentDisplayMode.Professional;
 
@@ -712,6 +828,12 @@ public sealed partial class MainWindow : Window
 
     private void LoginMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // SelectedIndex raises while later XAML fields are still being created.
+        if (!_rootLoaded)
+        {
+            return;
+        }
+
         var saved = LoginModeBox.SelectedIndex == 1;
         CredentialButton.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
         AutoFillToggle.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;

@@ -1,209 +1,182 @@
-# Phase 2.5 Gate A — Windows acceptance and source closeout
+# Phase 2.5 Windows x64 acceptance
 
-Date: 2026-08-31
+Date: 2026-09-01
 
-Result: **Windows Gate 未验证（未通过）**
+Result: **Gate W0 passed; Gate W1 partially passed and remains not accepted.**
 
-Scope: Windows Phase 2.5 Gate A only. Phase 3A, Schema v4, timetable, and exam work were not started.
+Scope: Windows Phase 2.5 acceptance and Apple parity inspection only. Phase 3A,
+Schema v4, timetable, and exam work were not started.
 
 ## Source identity
 
-- Repository: `/Users/qianmuyan/Documents/GitHub/assignment-app`
-- Branch: `main`
-- HEAD: `e487dc21bc636906e717986844e5b4227e7f127a`
-- `origin/main`: `079d779e11c2923cd2b03e1a7ea8b5d08ca622a1`
-- Ahead/behind after `git fetch --prune origin`: ahead 4, behind 0
+- Repository: `D:\Desktop\assignment-app-windows-parity`
+- Branch: `qianmuyan001/windows-parity`
+- Imported source candidate: `61205f63a41923b5d3926aec66baf04b47f09147`
+- Local content-equivalent checkpoint: `21cad47624ef123c55fc060eca024b2377336ffb`
 - Remote: `https://github.com/qianmuyan001/assignment-app.git`
-- Version: 2.0.0; version synchronization passed
-- Source state: dirty, with the complete Phase 2.5 work still uncommitted
-- Pre-existing `.workbuddy/`: left untracked and untouched
+- Version: 2.0.0
+- Database schema: v3
+- Final package source revision and tree state: recorded in the package
+  `build-info.txt`; that file is authoritative for a produced artifact.
 
-The inspected worktree contains `AttachmentFileStore.cs`,
-`WindowsNotificationScheduler.cs`, the current `TaskEditorDialog.xaml.cs` and
-`MainWindow.xaml.cs`, and a 48-case Core harness. A clone of `origin/main` alone
-does not contain this exact Phase 2.5 source and must not be used for acceptance.
+The remote candidate and local checkpoint were compared by Git object content:
+all 43 imported paths matched. The two Phase 2.5 reports and the required
+Windows attachment, notification, task-editor, and main-window files are
+present. Gate W0 therefore passed; this acceptance did not use the stale
+`origin/main` revision as its source baseline.
 
-Full source-state evidence:
+No Phase 3A report, Schema v4 specification, v4 migration, or v4 model was
+found. **Windows 已追平当前 Apple Phase 2.5 的主要源码能力；Apple Phase 3A 尚未形成可移植基线。**
+This is a source-scope statement, not a final Preview acceptance claim.
 
-```text
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/git-state.txt
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/git-diff-stat.txt
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/untracked.txt
-```
+## Windows fixes in this branch
 
-## Reuse decision
+- Corrected WinUI startup resources and DPI manifest behavior so the unpackaged
+  self-contained executable launches reliably.
+- Added an isolated settings path override for desktop acceptance and tests.
+- Added persistent compact/expanded navigation modes, narrow-window adaptation,
+  and search expand/focus/clear/Escape/outside-click behavior.
+- Added automation names and stable focus targets for navigation, search, task
+  actions, settings, reminder controls, attachments, and organization UI.
+- Replaced the self-contained-incompatible AppNotificationManager registration
+  path with `CommunityToolkit.WinUI.Notifications` 7.1.2 for unpackaged toast
+  registration and scheduling. The SQLite reminder contract remains unchanged.
+- Preserved the existing Phase 2.5 attachment safety, rollback, reconciliation,
+  organization, migration, and task-domain implementations.
 
-| Capability | Reused implementation | Decision |
+Schema v3 was not changed. `repeat_rule` is still preserved and validated, but
+native recurrence and deadline-relative reminders remain deferred.
+
+## Automated verification
+
+All commands ran on Windows 11 x64 (`10.0.22631`) using isolated temporary or
+acceptance data.
+
+| Check | Result | Evidence |
 | --- | --- | --- |
-| WinUI UI | Existing WinUI 3, Windows App SDK, repository view/dialog code | No UI framework added |
-| Attachment storage | `System.IO`, UUID storage keys, staging moves, `SHA256`, Windows pickers/launcher | No storage library added |
-| Notifications | Windows App SDK `AppNotificationManager` and official scheduled-toast bridge | No daemon or third-party notification package added |
-| Data/testing | Existing `AssignmentNative.Core`, Microsoft.Data.Sqlite, 48-case temporary-database harness | Schema v3 unchanged |
-| Packaging | Existing `native/windows/publish-x64.ps1` | Must run unchanged, without `-SkipSmokeTest`, on an interactive Windows x64 host |
+| Version synchronization | Passed, all platforms 2.0.0 | `artifacts/windows/final-regression-20260901T0020Z/logs/version-sync.log` |
+| Shared contract tests | **57/57 passed** | `artifacts/windows/final-regression-20260901T0020Z/logs/shared-tests-correct-env.log` |
+| Backend tests | **19/19 passed** | `artifacts/windows/final-regression-20260901T0020Z/logs/backend-tests-correct-env.log` |
+| Pylint CI errors-only command | Passed | `artifacts/windows/final-regression-20260901T0020Z/logs/pylint-errors-workflow.log` |
+| Windows Core Release harness | **50/50 passed** | `artifacts/windows/final-regression-20260901T0020Z/logs/core-tests.log` |
+| WinUI Debug x64 | Passed, 0 warnings/errors | `artifacts/windows/final-regression-20260901T0020Z/logs/winui-debug.log` |
+| WinUI Release x64 | Passed, 0 warnings/errors | `artifacts/windows/final-regression-20260901T0020Z/logs/winui-release.log` |
+| `git diff --check` | Passed | final Git inspection |
 
-Installed skills and repository tooling were checked first. The `code-review`
-workflow was used for independent specification and standards passes. No
-installed tool can truthfully emulate a logged-in Windows desktop on this
-Apple-silicon macOS host, and no new dependency was installed.
+The first Python rerun used a bundled interpreter without project dependencies
+and failed to import SQLAlchemy/Uvicorn. This was an environment-selection
+error, not a product failure; the suites were rerun with the preflight virtual
+environment and passed as recorded above.
 
-Microsoft's current documentation confirms that scheduled app notifications
-use an `AppNotificationBuilder` payload with `ScheduledToastNotification`, and
-that unpackaged .NET apps register through `AppNotificationManager.Register()`.
-The self-contained deployment documentation also requires guarding optional app
-notification support with `IsSupported()`. The source follows those platform
-patterns.
+## Publish and launch
 
-References:
+`native/windows/publish-x64.ps1` was run without `-SkipSmokeTest`.
 
-- <https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/app-notifications-scheduled>
-- <https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications-dotnet>
+| Requirement | Result |
+| --- | --- |
+| Self-contained Release x64 publish | Passed |
+| Published `AssignmentNative.exe` present | Passed |
+| Core tests inside publish script | 50/50 passed |
+| Isolated published-EXE startup | Passed |
+| Process stayed alive | Passed |
+| Isolated database schema | v3 |
+| SQLite `quick_check` | `ok` |
+| Complete Schema v3 contract | Passed |
+| File version | 2.0.0.0 |
+| Authenticode | Not signed |
+
+The test package is not an installer, Store package, signed release, or formal
+release. The publish directory, exact executable hash, environment inventory,
+and launch readiness time are recorded in its `build-info.txt` and logs.
+
+## Desktop interaction evidence
+
+The release build was launched in the logged-in Windows desktop with:
+
+- `ASSIGNMENT_DB_PATH` pointing to an isolated acceptance database;
+- `ASSIGNMENT_SETTINGS_PATH` pointing to an isolated settings file;
+- attachment payloads stored beside that isolated database.
+
+No real user database, WAL/SHM file, backup, or attachment directory was opened
+or migrated.
+
+| Area | Implemented | Automated | Actual desktop | Evidence / remaining work |
+| --- | --- | --- | --- | --- |
+| Add/edit task and fields | Yes | Yes | Passed | `task-editor-add.png`; SQLite row verified |
+| todo/in_progress/done rules | Yes | Yes | Partial | in-progress task exercised; full done/delete matrix not repeated manually |
+| Search/filter/sort and smart lists | Yes | Yes | Passed for search/sidebar/layout | `search-expanded.png`, `main-wide.png`, `main-narrow.png` |
+| Simple/professional and theme persistence | Yes | Yes | Partial | professional and navigation modes persisted across restart; dark theme not manually repeated |
+| Compact/expanded/narrow navigation | Yes | Yes | Passed | `main-wide.png`, `main-compact.png`, `main-narrow.png` |
+| Search focus/clear/Escape/outside click | Yes | Core/UIA checks | Passed | live UI Automation acceptance |
+| Course/project/tag/subtask | Yes | Yes | Partial | subtask created and verified; manager launched in `organization-manager.png`; full manual project/tag CRUD not repeated |
+| Attachment import/SHA/open/export/delete | Yes | Yes | Passed | real picker; stored/exported SHA-256 matched; UI delete removed payload and soft-deleted metadata |
+| Missing/orphan/reparse/rollback handling | Yes | Yes | Not all forced manually | covered by Core lifecycle tests |
+| Reminder add/edit/disable/remove | Yes | Yes | Partial | add and edit exercised through WinUI; records verified in SQLite |
+| Notification registration/status | Yes | Indirect | Passed | settings showed `Allowed` after custom probe registrations were removed |
+| Notification scheduling/system delivery | Yes | Indirect | Passed at platform level | event 3052 at 00:01:59 and 00:10:00; notification history contained tag `r3` |
+| Visible notification banner/card | Yes | No | **Not verified** | screenshots did not capture the Assignment notification card despite platform delivery/history evidence |
+| Keyboard, focus, automation names | Yes | Partial | Passed for inspected flows | UI Automation tree and keyboard search checks |
+| Narrator, full Tab order, high DPI | Intended | No | **Not fully verified** | requires dedicated manual accessibility pass |
+
+Desktop evidence root:
+
+```text
+artifacts/windows/desktop-acceptance-20260831T1530Z/
+```
+
+Important evidence includes `main-wide.png`, `main-compact.png`,
+`search-expanded.png`, `main-narrow.png`, `settings-professional.png`,
+`task-editor-add.png`, `task-editor-subtask.png`,
+`task-editor-attachment.png`, `organization-manager.png`,
+`notification-delivery.log`, `notification-delivery-background.log`, and the
+notification-center screenshots.
+
+## Notification finding
+
+The unpackaged self-contained AppNotificationManager path failed on this host
+because it depends on Windows App SDK singleton registration that is not part of
+the portable publish directory. The compatibility notifier now reports
+`Allowed`, accepts schedule/cancel/reconcile operations, and survives application
+exit. Windows PushNotification-Platform event 3052 twice recorded delivery to
+session 1 for the current executable; an independent history read returned the
+scheduled `r3` notification.
+
+However, neither the real-time screenshot nor the subsequently opened
+notification center showed the Assignment card. Do Not Disturb was inspected
+and restored to its original off state. Because the user's acceptance criterion
+requires actual visible receipt, this report does not promote platform-delivery
+evidence to a visible-notification pass.
+
+References used during diagnosis:
+
 - <https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/self-contained-deploy/deploy-self-contained-apps>
+- <https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/app-notifications-scheduled>
+- <https://learn.microsoft.com/en-us/windows/win32/shell/appids>
+- <https://github.com/CommunityToolkit/WindowsCommunityToolkit/blob/main/Microsoft.Toolkit.Uwp.Notifications/Toasts/Compat/ToastNotificationManagerCompat.cs>
 
-## Source fixes completed
+## Data and scope safety
 
-### Attachments
+- Schema remains v3; no v4 migration or parallel model was introduced.
+- All automated and desktop tests used disposable or explicitly isolated data.
+- User databases, side files, attachments, and `.workbuddy/` were preserved.
+- No push, merge, tag, PR, Store submission, signing, installer, or formal
+  Release was performed.
 
-- Reconciliation now runs during application startup, not only when an existing
-  professional-mode task editor is opened.
-- Active reparse-point payloads are reported as missing/unsafe; open and export
-  remain disabled for them.
-- Imports use a UUID payload name, staging copy, real SHA-256, and database/file
-  rollback. Deletes stage the payload and restore it if metadata deletion fails.
-- Extensionless files export through a folder picker using the safe original
-  filename. Existing destinations are not silently overwritten.
-- Startup reconciliation restores interrupted deletes, removes partial staging
-  files, reports missing payloads, and removes safe unreferenced UUID payloads.
+## Gate decision
 
-### Notifications and reminders
+Automated tests, Windows Debug/Release builds, self-contained publish, isolated
+published-EXE startup, core task/editor flows, attachment lifecycle, navigation,
+search, and notification platform delivery passed.
 
-- Added reminder-time editing using a Flyout, avoiding a nested `ContentDialog`
-  inside the task editor.
-- Date/time controls and dynamic edit, toggle, remove, open, export, and subtask
-  controls have contextual automation names.
-- Reminder add/edit/disable/delete immediately schedules or cancels its Windows
-  request and reports adapter failure without rolling back valid task data.
-- Task mutation, task completion/deletion, and subtask-derived parent completion
-  run notification reconciliation.
-- Notification registration failures are retryable; a transient exception no
-  longer disables the adapter for the remainder of the process.
-- Startup reconciliation removes stale requests and rebuilds future enabled
-  requests for active tasks.
+Gate W1 remains **not passed** because visible notification receipt, the complete
+organization CRUD matrix, full task completion/deletion interaction, Narrator,
+high-DPI, and exhaustive keyboard/Tab-order acceptance are not all closed with
+matching evidence. Therefore this report does **not** claim:
 
-Schema v3 stores the reminder as an exact UTC trigger plus metadata. Therefore a
-task title/deadline edit rebuilds notification content at the reminder's stored
-trigger; it does not silently turn an independently chosen reminder into a
-deadline-relative reminder. Deadline-relative lead-time behavior is Phase 3A
-scope and was intentionally not added here.
+> Windows Preview 已追平当前 Apple 版本。
 
-### Usability
+The correct current statement is:
 
-- Reminder date/time fields expose visible headers and accessibility names.
-- Operational failures use the task editor's visible assertive validation text
-  rather than attempting to show another modal dialog.
-- Missing/unsafe attachments have a visible state and unavailable actions.
-- No recurrence-rule editor or non-functional placeholder was added.
-
-## Automated checks actually run
-
-Host used for these checks:
-
-```text
-macOS 27.0 (26A5416b), arm64
-.NET SDK 10.0.302
-PowerShell 7.6.4
-```
-
-| Check | Result |
-| --- | --- |
-| `python3 scripts/check_version_sync.py` | Passed: all reported versions 2.0.0 |
-| Windows Core Release harness, with .NET major roll-forward | **48/48 passed** |
-| Restore exactly as the Windows command on macOS | Expected host rejection: `NETSDK1100` |
-| Restore with `EnableWindowsTargeting=true` for source inspection only | Passed |
-| Debug x64 WinUI build on macOS | Failed at Windows-only `XamlCompiler.exe`; not Windows build evidence |
-| Release x64 WinUI build on macOS | Failed at Windows-only `XamlCompiler.exe`; not Windows build evidence |
-| Isolated notification-adapter C# compilation, PRI generation disabled | Passed, 0 warnings and 0 errors; source-only evidence |
-| `git diff --check` | Passed |
-
-Logs:
-
-```text
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/version-sync.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/core-tests.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/restore.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/restore-enable-windows-targeting.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/build-debug.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/build-release.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/notification-adapter-compile-no-pri.log
-/private/tmp/assignment-app-evidence/phase2-5-windows-20260831-macos/host.txt
-```
-
-The Core lifecycle test uses a disposable workspace and now also checks active
-symbolic-link/reparse payload rejection when the host permits symbolic-link
-creation. The test workspace is deleted by the harness. No repository or user
-database was opened by the test.
-
-## Required real-Windows acceptance matrix
-
-| Requirement | Status |
-| --- | --- |
-| Windows x64 version/build, Visual Studio workloads, WebView2, notification/DND inventory | **未验证** |
-| WinUI Debug and Release x64 compilation | **未验证** |
-| Self-contained `publish-x64.ps1` without `-SkipSmokeTest` | **未验证** |
-| `AssignmentNative.exe`, launch smoke, schema v3 and `quick_check=ok` | **未验证** |
-| Logged-in desktop launch, restart persistence, resize, maximize, high DPI | **未验证** |
-| Task CRUD, smart lists, search/filter/sort, modes, theme | **未验证** |
-| Course/project/tag/subtask interactive CRUD and derived progress | **未验证** |
-| File picker/import/open/export/delete/missing-file/restart UI flow | **未验证** |
-| Notification status, schedule, actual delivery, edit, disable, cancel, restart reconciliation | **未验证** |
-| Keyboard focus, Tab/Enter/Escape, screen-reader names, narrow/wide/error/empty states | **未验证** |
-
-The host has no Windows VM, remote interactive Windows session, Visual Studio,
-or Windows desktop automation path. Running the publish script here would stop
-at Windows executable tooling and could not provide the required GUI or
-notification evidence, so it was not misreported as an acceptance run. The
-remote branch also lacks the dirty Phase 2.5 worktree, so an existing remote CI
-run would test the wrong source.
-
-## Artifacts
-
-- Windows publish directory: **not generated**
-- `AssignmentNative.exe`: **not generated**
-- Executable SHA-256: **not available**
-- Authenticode status: **not available**
-- Launch smoke log: **not available**
-- Main-window screenshots: **not available**
-- Notification-delivery screenshot: **not available**
-
-No package, signature, screenshot, notification delivery, or Windows launch was
-fabricated.
-
-## Data safety and scope
-
-- Database schema remains v3; no migration or schema file changed in this
-  Windows closeout.
-- No real user database, backup, WAL, or SHM file was opened, migrated, reset,
-  overwritten, or deleted.
-- No push, tag, PR, Release, signing, or public publication was performed.
-- Phase 3A and all later-phase features remain untouched.
-
-## Gate decision and next action
-
-Windows Gate A remains **未验证（未通过）** because all real Windows build,
-publish, launch, interaction, attachment, accessibility, and notification
-delivery evidence is absent. The only valid next action is to transport this
-exact dirty worktree (not `origin/main`) to a logged-in Windows x64 environment,
-run `native/windows/publish-x64.ps1` without `-SkipSmokeTest`, then complete and
-record the interactive matrix above. Even after Windows passes, overall Gate A
-still requires the outstanding Apple organization, attachment, and delivered
-notification manual acceptance; Phase 3A must not start before that gate passes.
-
-## Independent source-review summary
-
-- Specification pass: the source-level gaps for reminder editing, startup
-  attachment reconciliation, accessibility labels, subtask notification
-  reconciliation, and stale README claims were fixed. The remaining blockers
-  are real Windows evidence and the explicitly deferred deadline-relative rule.
-- Standards pass: startup reconciliation, reparse-point handling, transient
-  notification retry, extensionless export, and nested-dialog risks were fixed.
-  `TaskEditorDialog` remains a large divergent-change area; splitting it before
-  a real Windows compile would increase risk, so that refactor is deferred.
+> Windows source and automated behavior are aligned with the current Apple
+> Phase 2.5 baseline; Windows desktop acceptance remains partially open, and
+> Apple Phase 3A has not formed a portable baseline.

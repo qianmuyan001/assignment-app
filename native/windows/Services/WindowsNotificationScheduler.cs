@@ -1,5 +1,5 @@
 using AssignmentNative.Core;
-using Microsoft.Windows.AppNotifications;
+using CommunityToolkit.WinUI.Notifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
@@ -21,22 +21,21 @@ public sealed class WindowsNotificationScheduler
         {
             try
             {
-                if (!AppNotificationManager.IsSupported())
-                    return "Unavailable on this Windows installation";
-                var setting = AppNotificationManager.Default.Setting switch
+                var setting = CreateNotifier().Setting switch
                 {
-                    AppNotificationSetting.Enabled => "Allowed",
-                    AppNotificationSetting.DisabledForApplication => "Disabled for Assignment App",
-                    AppNotificationSetting.DisabledForUser => "Disabled for this Windows user",
-                    AppNotificationSetting.DisabledByGroupPolicy => "Disabled by Group Policy",
-                    AppNotificationSetting.DisabledByManifest => "Disabled by app manifest",
+                    NotificationSetting.Enabled => "Allowed",
+                    NotificationSetting.DisabledForApplication => "Disabled for Assignment App",
+                    NotificationSetting.DisabledForUser => "Disabled for this Windows user",
+                    NotificationSetting.DisabledByGroupPolicy => "Disabled by Group Policy",
+                    NotificationSetting.DisabledByManifest => "Disabled by app manifest",
                     _ => "Unavailable"
                 };
                 return _lastError is null ? setting : $"{setting} · {_lastError}";
             }
             catch (Exception error)
             {
-                return $"Unavailable on this Windows installation ({error.GetType().Name})";
+                return $"Unavailable on this Windows installation " +
+                    $"({error.GetType().Name}, 0x{error.HResult:X8})";
             }
         }
     }
@@ -46,12 +45,7 @@ public sealed class WindowsNotificationScheduler
         if (_registered) return true;
         try
         {
-            if (!AppNotificationManager.IsSupported())
-            {
-                _lastError = "Notification API is not supported";
-                return false;
-            }
-            AppNotificationManager.Default.Register();
+            _ = CreateNotifier().Setting;
             _registered = true;
             _lastError = null;
             return true;
@@ -82,13 +76,13 @@ public sealed class WindowsNotificationScheduler
                 }
             }
 
-            var notifier = ToastNotificationManager.CreateToastNotifier();
+            var notifier = CreateNotifier();
             foreach (var scheduled in notifier.GetScheduledToastNotifications()
                          .Where(item => item.Group == NotificationGroup && !desired.ContainsKey(item.Tag)))
             {
                 notifier.RemoveFromSchedule(scheduled);
             }
-            if (AppNotificationManager.Default.Setting != AppNotificationSetting.Enabled)
+            if (notifier.Setting != NotificationSetting.Enabled)
             {
                 _lastError = null;
                 return false;
@@ -107,7 +101,7 @@ public sealed class WindowsNotificationScheduler
     public bool Schedule(ReminderItem reminder, CoreAssignmentItem task)
     {
         if (!Register()) return false;
-        if (AppNotificationManager.Default.Setting != AppNotificationSetting.Enabled)
+        if (CreateNotifier().Setting != NotificationSetting.Enabled)
             return false;
         try
         {
@@ -127,7 +121,7 @@ public sealed class WindowsNotificationScheduler
         CancelCore(reminder);
         if (!reminder.IsEnabled || reminder.TriggerAtUtc <= DateTimeOffset.UtcNow ||
             task.Status == TaskStatuses.Done ||
-            AppNotificationManager.Default.Setting != AppNotificationSetting.Enabled) return;
+            CreateNotifier().Setting != NotificationSetting.Enabled) return;
         var payload = new AppNotificationBuilder()
             .AddArgument("assignmentId", task.Id.ToString())
             .AddText(task.Title)
@@ -141,7 +135,7 @@ public sealed class WindowsNotificationScheduler
             Tag = Tag(reminder),
             Group = NotificationGroup
         };
-        ToastNotificationManager.CreateToastNotifier().AddToSchedule(scheduled);
+        CreateNotifier().AddToSchedule(scheduled);
     }
 
     public bool Cancel(ReminderItem reminder)
@@ -162,7 +156,7 @@ public sealed class WindowsNotificationScheduler
 
     private static void CancelCore(ReminderItem reminder)
     {
-        var notifier = ToastNotificationManager.CreateToastNotifier();
+        var notifier = CreateNotifier();
         foreach (var scheduled in notifier.GetScheduledToastNotifications()
                      .Where(item => item.Group == NotificationGroup && item.Tag == Tag(reminder)))
         {
@@ -172,6 +166,9 @@ public sealed class WindowsNotificationScheduler
 
     private static string Tag(ReminderItem reminder) => $"r{reminder.Id}";
 
+    private static ToastNotifierCompat CreateNotifier() =>
+        ToastNotificationManagerCompat.CreateToastNotifier();
+
     private void RecordFailure(Exception error) =>
-        _lastError = $"Last operation failed ({error.GetType().Name})";
+        _lastError = $"Last operation failed ({error.GetType().Name}, 0x{error.HResult:X8})";
 }

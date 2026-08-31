@@ -13,7 +13,9 @@
         IsPaneToggleButtonVisible="True"
         IsTitleBarAutoPaddingEnabled="True"
         OpenPaneLength="230"
-        PaneDisplayMode="Auto"
+        CompactPaneLength="52"
+        IsPaneOpen="True"
+        PaneDisplayMode="Left"
         SelectionChanged="Navigation_SelectionChanged">
 
         <NavigationView.Resources>
@@ -46,6 +48,22 @@
             </StackPanel>
         </NavigationView.PaneHeader>
 
+        <NavigationView.PaneFooter>
+            <Button x:Name="NavigationStyleButton"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
+                    Click="NavigationStyle_Click"
+                    ToolTipService.ToolTip="Use compact navigation"
+                    AutomationProperties.Name="Use compact navigation">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <FontIcon Glyph="&#xE700;" FontSize="16"/>
+                    <TextBlock x:Name="NavigationStyleLabel"
+                               Text="Compact navigation"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </NavigationView.PaneFooter>
+
         <NavigationView.MenuItems>
             <NavigationViewItem Content="All Assignments" Tag="all" Icon="AllApps"/>
             <NavigationViewItem Content="Today" Tag="today" Icon="CalendarDay"/>
@@ -56,7 +74,14 @@
             <NavigationViewItem Content="Sources" Tag="sources" Icon="Link"/>
         </NavigationView.MenuItems>
 
-        <Grid x:Name="RootGrid" Loaded="RootGrid_Loaded">
+        <Grid x:Name="RootGrid"
+              Loaded="RootGrid_Loaded"
+              SizeChanged="RootGrid_SizeChanged">
+            <Grid.KeyboardAccelerators>
+                <KeyboardAccelerator Key="F"
+                                     Modifiers="Control"
+                                     Invoked="Find_Invoked"/>
+            </Grid.KeyboardAccelerators>
             <Grid x:Name="AssignmentPanel" Padding="24,18,24,22" RowSpacing="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -103,11 +128,41 @@
                               VerticalScrollMode="Disabled"
                               VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal" Spacing="8" MinWidth="880">
-                        <AutoSuggestBox x:Name="SearchBox"
-                                        Width="300"
-                                        PlaceholderText="Search title, course, or description"
-                                        TextChanged="SearchBox_TextChanged"
-                                        QueryIcon="Find"/>
+                        <Grid x:Name="SearchChrome"
+                              Width="40"
+                              VerticalAlignment="Bottom">
+                            <Button x:Name="SearchToggleButton"
+                                    Width="40"
+                                    Height="32"
+                                    Click="SearchToggle_Click"
+                                    ToolTipService.ToolTip="Search assignments"
+                                    AutomationProperties.Name="Search assignments">
+                                <FontIcon Glyph="&#xE721;" FontSize="16"/>
+                            </Button>
+                            <Grid x:Name="SearchEditor"
+                                  Visibility="Collapsed"
+                                  ColumnSpacing="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <AutoSuggestBox x:Name="SearchBox"
+                                                PlaceholderText="Search title, course, or description"
+                                                TextChanged="SearchBox_TextChanged"
+                                                PreviewKeyDown="SearchBox_KeyDown"
+                                                QueryIcon="Find"
+                                                AutomationProperties.Name="Search assignments"/>
+                                <Button x:Name="SearchCloseButton"
+                                        Grid.Column="1"
+                                        Width="36"
+                                        Height="32"
+                                        Click="SearchClose_Click"
+                                        ToolTipService.ToolTip="Clear and close search"
+                                        AutomationProperties.Name="Clear and close search">
+                                    <FontIcon Glyph="&#xE711;" FontSize="14"/>
+                                </Button>
+                            </Grid>
+                        </Grid>
                         <ComboBox x:Name="StatusFilterBox"
                                   Width="150"
                                   Header="Status"
