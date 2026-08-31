@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using AssignmentNative.Core;
 using AssignmentNative.Services;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -6,6 +9,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using WinRT;
+using WinRT.Interop;
 using AssignmentDatabase = AssignmentNative.Services.AssignmentDatabase;
 using CoreAssignmentItem = AssignmentNative.Core.AssignmentItem;
 
@@ -89,7 +94,10 @@ public sealed partial class MainWindow : Window
                 ? $"Schema version {_database.SchemaVersion} · migration backup: {backupPath}"
                 : $"Schema version {_database.SchemaVersion}";
             AddAssignmentButton.IsEnabled = true;
+            await ReconcileAttachmentFilesAsync(_database);
             await ReloadAssignmentsAsync(showLoading: false);
+            ReconcileNotifications();
+            NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
         }
         catch (Exception error)
         {
@@ -340,31 +348,47 @@ public sealed partial class MainWindow : Window
 
         var dialog = new TaskEditorDialog(
             existing: null,
-            professionalMode: IsProfessionalMode)
+            professionalMode: IsProfessionalMode,
+            organization: _database.Organization,
+            ownerHandle: OwnerHandle)
         {
             XamlRoot = Content.XamlRoot
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary && dialog.Result is { } draft)
         {
-            await ExecuteDatabaseChangeAsync(database => database.Add(draft));
+            var tagIds = dialog.SelectedTagIds;
+            long? newId = null;
+            await ExecuteDatabaseChangeAsync(database => { newId = database.Add(draft); });
+            if (newId is { } id)
+            {
+                ApplyOrganizationTags(id, tagIds);
+            }
         }
     }
 
     private async void EditAssignment_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: long id } ||
+            _database is null ||
             _allAssignments.FirstOrDefault(item => item.Id == id) is not { } assignment)
         {
             return;
         }
 
-        var dialog = new TaskEditorDialog(assignment, IsProfessionalMode)
+        var dialog = new TaskEditorDialog(
+            assignment,
+            IsProfessionalMode,
+            _database.Organization,
+            OwnerHandle,
+            notificationReconcile: ReconcileNotifications)
         {
             XamlRoot = Content.XamlRoot
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary && dialog.Result is { } draft)
         {
+            var tagIds = dialog.SelectedTagIds;
             await ExecuteDatabaseChangeAsync(database => database.Update(id, draft));
+            ApplyOrganizationTags(id, tagIds);
         }
     }
 
@@ -417,6 +441,7 @@ public sealed partial class MainWindow : Window
             await Task.Run(() => change(database));
             ErrorBar.IsOpen = false;
             await ReloadAssignmentsAsync(showLoading: false);
+            ReconcileNotifications();
         }
         catch (Exception error)
         {
@@ -426,6 +451,48 @@ public sealed partial class MainWindow : Window
         {
             SetLoading(false);
             ApplyFilter();
+        }
+    }
+
+    private async void OpenNotificationSettings_Click(object sender, RoutedEventArgs e)
+    {
+        await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:notifications"));
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+    }
+
+    private void RefreshNotificationStatus_Click(object sender, RoutedEventArgs e)
+    {
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+        ReconcileNotifications();
+    }
+
+    private void ReconcileNotifications()
+    {
+        if (_database is not null)
+            WindowsNotificationScheduler.Shared.Reconcile(_database);
+        NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+    }
+
+    private async Task ReconcileAttachmentFilesAsync(AssignmentDatabase database)
+    {
+        try
+        {
+            var result = await Task.Run(() =>
+                new AttachmentFileStore(database.DatabasePath).Reconcile(
+                    database.Organization.FetchAllAttachments()));
+            if (result.MissingPayloadNames.Count > 0)
+            {
+                ShowError(
+                    "Some attachment files are missing from local storage: " +
+                    string.Join(", ", result.MissingPayloadNames));
+            }
+        }
+        catch (Exception error)
+        {
+            ShowError(
+                "Attachment files could not be reconciled. Tasks remain available, " +
+                "but attachment cleanup needs attention.",
+                error);
         }
     }
 
@@ -478,6 +545,46 @@ public sealed partial class MainWindow : Window
 
     private bool IsProfessionalMode =>
         _settings.DetailMode == AssignmentDisplayMode.Professional;
+
+    private IntPtr OwnerHandle => WindowNative.GetWindowHandle(this);
+
+    private void ApplyOrganizationTags(long assignmentId, IReadOnlyList<long> tagIds)
+    {
+        var org = _database?.Organization;
+        if (org is null)
+        {
+            return;
+        }
+        try
+        {
+            var current = new HashSet<long>(
+                org.FetchTaskTags(assignmentId).Select(link => link.TagId));
+            var desired = new HashSet<long>(tagIds);
+            foreach (var tagId in desired.Except(current))
+            {
+                org.AttachTag(assignmentId, tagId);
+            }
+            foreach (var tagId in current.Except(desired))
+            {
+                org.DetachTag(assignmentId, tagId);
+            }
+        }
+        catch (Exception error)
+        {
+            ShowError("The assignment tags could not be saved.", error);
+        }
+    }
+
+    private void ManageOrganization_Click(object sender, RoutedEventArgs e)
+    {
+        if (_database is null)
+        {
+            ShowError("The database is unavailable, so organization settings cannot be opened.");
+            return;
+        }
+        var window = new OrganizationManagerWindow(_database.Organization);
+        window.Activate();
+    }
 
     private void ApplyTheme()
     {

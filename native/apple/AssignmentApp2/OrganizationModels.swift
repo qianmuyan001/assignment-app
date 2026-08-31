@@ -143,6 +143,7 @@ struct AttachmentMetadataDraft: Equatable {
     var mimeType: String?
     var byteSize: Int64
     var sha256: String
+    var uuid: UUID = UUID()
 }
 
 

@@ -6,13 +6,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import models
-from .database import ensure_assignment_schema
+from .database import DATABASE_PATH, ensure_assignment_schema
 from .routers import assignments, organization
+from .services.attachment_store import reconcile_attachment_files
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 ensure_assignment_schema()
+reconcile_attachment_files(DATABASE_PATH)
 
 app = FastAPI(title="Assignment Organizer API")
 

@@ -86,6 +86,19 @@ const dom = {
   previousCard: document.querySelector("#previous-card-button"),
   nextCard: document.querySelector("#next-card-button"),
   flowPosition: document.querySelector("#flow-position"),
+  openOrg: document.querySelector("#open-org-button"),
+  closeOrg: document.querySelector("#close-org-button"),
+  orgDialog: document.querySelector("#org-dialog"),
+  coursePicker: document.querySelector("#course-picker"),
+  projectPicker: document.querySelector("#project-picker"),
+  tagCheckboxes: document.querySelector("#tag-checkboxes"),
+  orgCourseForm: document.querySelector("#org-course-form"),
+  orgProjectForm: document.querySelector("#org-project-form"),
+  orgTagForm: document.querySelector("#org-tag-form"),
+  orgCourseList: document.querySelector("#org-course-list"),
+  orgProjectList: document.querySelector("#org-project-list"),
+  orgTagList: document.querySelector("#org-tag-list"),
+  orgProjectCourseSelect: document.querySelector("#org-project-course"),
   counts: {
     total: document.querySelector("#total-count"),
     open: document.querySelector("#open-count"),
@@ -102,6 +115,13 @@ const state = {
   detailExpanded: false,
   loadGeneration: 0,
   inFlightLoads: 0,
+  courses: [],
+  projects: [],
+  tags: [],
+  orgGeneration: 0,
+  draftCourseId: null,
+  draftProjectId: null,
+  lastOrgAssignmentId: null,
 };
 
 /* One entry per rendered card, keyed by assignment id, so filtering patches the
@@ -893,7 +913,9 @@ function buildDetailView() {
   extraInner.appendChild(extra);
   extraWrap.appendChild(extraInner);
 
-  root.append(hero, actions, expandButton, extraWrap);
+  const orgSections = buildOrgSections();
+
+  root.append(hero, actions, expandButton, extraWrap, orgSections.fragment);
 
   statusSelect.addEventListener("change", () => {
     const assignment = state.visible[state.selectedIndex];
@@ -923,6 +945,7 @@ function buildDetailView() {
 
   return {
     fragment: root,
+    ...orgSections.refs,
     course,
     title,
     due,
@@ -1006,6 +1029,13 @@ function renderDetail() {
   setDetailRow(view.rows.created, formatDate(assignment.created_at) || "None");
   setDetailRow(view.rows.updated, formatDate(assignment.updated_at) || "None");
   setSourceRow(view.rows.source, assignment.source_url);
+
+  if (assignment && assignment.id !== state.lastOrgAssignmentId) {
+    state.lastOrgAssignmentId = assignment.id;
+    renderOrgSections(view, assignment);
+  } else if (!assignment) {
+    state.lastOrgAssignmentId = null;
+  }
 }
 
 function toggleDetail() {
@@ -1071,6 +1101,59 @@ function renderEditForm(assignment) {
   ];
 
   fields.forEach((field) => form.appendChild(field));
+
+  // Organization pickers (Phase 2).
+  state.editCourseId = matchedCourseId(assignment);
+  state.editProjectId = assignment.project_id || null;
+
+  const coursePicker = createOrgSelectField(
+    "Course",
+    "course_id",
+    state.courses.map((c) => ({ value: String(c.id), label: c.name })),
+    state.editCourseId ? String(state.editCourseId) : "",
+  );
+  const projectPicker = createOrgSelectField(
+    "Project",
+    "project_id",
+    editProjectOptions(),
+    state.editProjectId ? String(state.editProjectId) : "",
+  );
+  form.appendChild(coursePicker.label);
+  form.appendChild(projectPicker.label);
+
+  coursePicker.select.addEventListener("change", (event) => {
+    state.editCourseId = event.target.value ? Number(event.target.value) : null;
+    const refreshed = createOrgSelectField(
+      "Project",
+      "project_id",
+      editProjectOptions(),
+      state.editProjectId ? String(state.editProjectId) : "",
+    );
+    projectPicker.label.replaceWith(refreshed.label);
+    attachProjectChange(refreshed.select);
+  });
+  attachProjectChange(projectPicker.select);
+
+  const tagWrap = document.createElement("fieldset");
+  tagWrap.className = "tag-fieldset";
+  const tagLegend = document.createElement("legend");
+  tagLegend.textContent = "Tags";
+  const tagBox = document.createElement("div");
+  tagBox.className = "tag-options";
+  tagBox.id = "edit-tag-checkboxes";
+  tagWrap.append(tagLegend, tagBox);
+  form.appendChild(tagWrap);
+  populateTagCheckboxesInto(tagBox);
+  apiRequest(`/assignments/${assignment.id}/tags`)
+    .then((links) => {
+      const ids = new Set(links.map((link) => link.tag_id));
+      tagBox
+        .querySelectorAll('input[name="tag_ids"]')
+        .forEach((el) => {
+          el.checked = ids.has(Number(el.value));
+        });
+    })
+    .catch(() => {});
 
   const buttons = document.createElement("div");
   buttons.className = "card-buttons full-width";
@@ -1197,6 +1280,7 @@ async function loadAssignments() {
     updateCourseFilter();
     updateSummaryCounts();
     applyFilters();
+    await loadOrganization();
   } catch (error) {
     if (generation === state.loadGeneration) {
       showError(error.message);
@@ -1305,6 +1389,13 @@ async function createAssignment(event) {
     source_name: emptyToNull(formData.get("source_name")),
   };
 
+  const courseId = state.draftCourseId;
+  const projectId = state.draftProjectId;
+  if (courseId) payload.course_id = courseId;
+  if (projectId) payload.project_id = projectId;
+
+  const tagIds = selectedTagIds();
+
   try {
     const created = await apiRequest("/assignments", {
       method: "POST",
@@ -1312,9 +1403,20 @@ async function createAssignment(event) {
       body: JSON.stringify(payload),
     });
 
+    for (const tagId of tagIds) {
+      try {
+        await apiRequest(`/assignments/${created.id}/tags/${tagId}`, {
+          method: "POST",
+        });
+      } catch (tagError) {
+        showError(`Linked tag failed: ${tagError.message}`);
+      }
+    }
+
     state.selectedId = created.id;
     state.detailExpanded = true;
     dom.form.reset();
+    resetOrgForm();
     closeDialog();
     await loadAssignments();
   } catch (error) {
@@ -1384,6 +1486,8 @@ async function saveAssignment(assignment, form) {
   }
 
   const formData = new FormData(form);
+  const courseIdRaw = form.querySelector('select[name="course_id"]')?.value || "";
+  const projectIdRaw = form.querySelector('select[name="project_id"]')?.value || "";
   const edited = {
     course_name: String(formData.get("course_name") || "").trim(),
     title: String(formData.get("title") || "").trim(),
@@ -1392,6 +1496,8 @@ async function saveAssignment(assignment, form) {
     description: emptyToNull(formData.get("description")),
     source_url: emptyToNull(formData.get("source_url")),
     source_name: emptyToNull(formData.get("source_name")),
+    course_id: courseIdRaw ? Number(courseIdRaw) : null,
+    project_id: projectIdRaw ? Number(projectIdRaw) : null,
   };
 
   const original = {
@@ -1402,6 +1508,8 @@ async function saveAssignment(assignment, form) {
     description: assignment.description || null,
     source_url: assignment.source_url || null,
     source_name: assignment.source_name || null,
+    course_id: assignment.course_id || null,
+    project_id: assignment.project_id || null,
   };
 
   const changes = {};
@@ -1412,7 +1520,12 @@ async function saveAssignment(assignment, form) {
     }
   });
 
-  if (Object.keys(changes).length === 0) {
+  const tagChanges = await computeTagChanges(assignment, form);
+  if (
+    Object.keys(changes).length === 0 &&
+    tagChanges.add.length === 0 &&
+    tagChanges.remove.length === 0
+  ) {
     renderDetail();
     return;
   }
@@ -1420,11 +1533,23 @@ async function saveAssignment(assignment, form) {
   try {
     state.selectedId = assignment.id;
     state.detailExpanded = true;
-    await apiRequest(`/assignments/${assignment.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(changes),
-    });
+    if (Object.keys(changes).length > 0) {
+      await apiRequest(`/assignments/${assignment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      });
+    }
+    for (const tagId of tagChanges.add) {
+      await apiRequest(`/assignments/${assignment.id}/tags/${tagId}`, {
+        method: "POST",
+      });
+    }
+    for (const tagId of tagChanges.remove) {
+      await apiRequest(`/assignments/${assignment.id}/tags/${tagId}`, {
+        method: "DELETE",
+      });
+    }
     await loadAssignments();
   } catch (error) {
     showError(error.message);
@@ -1769,3 +1894,777 @@ bindControls();
 bindCarousel();
 renderDetail();
 loadAssignments();
+initOrg();
+
+// ---------------------------------------------------------------------------
+// Organization (Phase 2): courses, projects, tags, subtasks, attachments, reminders
+// ---------------------------------------------------------------------------
+
+function selectedTagIds() {
+  if (!dom.tagCheckboxes) return [];
+  return [...dom.tagCheckboxes.querySelectorAll('input[name="tag_ids"]:checked')].map(
+    (el) => Number(el.value),
+  );
+}
+
+function resetOrgForm() {
+  state.draftCourseId = null;
+  state.draftProjectId = null;
+  if (dom.coursePicker) dom.coursePicker.value = "";
+  if (dom.projectPicker) dom.projectPicker.value = "";
+  if (dom.tagCheckboxes) {
+    dom.tagCheckboxes
+      .querySelectorAll('input[name="tag_ids"]')
+      .forEach((el) => {
+        el.checked = false;
+      });
+  }
+}
+
+function matchedCourseId(assignment) {
+  if (!assignment || !assignment.course_name) return null;
+  const match = state.courses.find((c) => c.name === assignment.course_name);
+  return match ? match.id : null;
+}
+
+function editProjectOptions() {
+  return state.projects
+    .filter((p) => !state.editCourseId || p.course_id === state.editCourseId)
+    .map((p) => ({ value: String(p.id), label: p.name }));
+}
+
+function populateTagCheckboxesInto(container) {
+  if (!container) return;
+  container.replaceChildren();
+  state.tags.forEach((tag) => {
+    const label = document.createElement("label");
+    label.className = "tag-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = String(tag.id);
+    input.name = "tag_ids";
+    const swatch = document.createElement("span");
+    swatch.className = "tag-swatch";
+    if (tag.color_hex) swatch.style.background = tag.color_hex;
+    const text = document.createElement("span");
+    text.textContent = tag.name;
+    label.append(input, swatch, text);
+    container.appendChild(label);
+  });
+}
+
+function createOrgSelectField(labelText, name, options, selectedValue) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const select = document.createElement("select");
+  select.name = name;
+  options.forEach((opt) => {
+    const option = document.createElement("option");
+    option.value = opt.value;
+    option.textContent = opt.label;
+    select.appendChild(option);
+  });
+  select.value = selectedValue;
+  label.appendChild(select);
+  return { label, select };
+}
+
+function attachProjectChange(select) {
+  select.addEventListener("change", (event) => {
+    state.editProjectId = event.target.value ? Number(event.target.value) : null;
+  });
+}
+
+async function loadOrganization() {
+  const generation = (state.orgGeneration += 1);
+  try {
+    const [courses, projects, tags] = await Promise.all([
+      apiRequest("/courses"),
+      apiRequest("/projects"),
+      apiRequest("/tags"),
+    ]);
+    if (generation !== state.orgGeneration) return;
+    state.courses = Array.isArray(courses) ? courses : [];
+    state.projects = Array.isArray(projects) ? projects : [];
+    state.tags = Array.isArray(tags) ? tags : [];
+    populateCoursePicker();
+    populateProjectPicker();
+    populateTagCheckboxes();
+    if (dom.orgDialog && dom.orgDialog.open) renderOrgManager();
+  } catch (error) {
+    console.warn("Organization load failed:", error.message);
+    showError(`Organization data could not be loaded: ${error.message}`);
+  }
+}
+
+function populateCoursePicker() {
+  if (!dom.coursePicker) return;
+  const previous = dom.coursePicker.value;
+  dom.coursePicker.replaceChildren(createOption("", "— type a new course —"));
+  state.courses.forEach((course) => {
+    dom.coursePicker.appendChild(createOption(String(course.id), course.name));
+  });
+  dom.coursePicker.value = [...dom.coursePicker.options].some(
+    (o) => o.value === previous,
+  )
+    ? previous
+    : "";
+}
+
+function populateProjectPicker() {
+  if (!dom.projectPicker) return;
+  const previous = dom.projectPicker.value;
+  dom.projectPicker.replaceChildren(createOption("", "— no project —"));
+  state.projects
+    .filter((p) => !state.draftCourseId || p.course_id === state.draftCourseId)
+    .forEach((project) => {
+      dom.projectPicker.appendChild(createOption(String(project.id), project.name));
+    });
+  dom.projectPicker.value = [...dom.projectPicker.options].some(
+    (o) => o.value === previous,
+  )
+    ? previous
+    : "";
+}
+
+function populateTagCheckboxes() {
+  populateTagCheckboxesInto(dom.tagCheckboxes);
+}
+
+// ---------------------------------------------------------------------------
+// Detail panel: subtasks, attachments, reminders
+// ---------------------------------------------------------------------------
+
+function buildOrgSections() {
+  const fragment = document.createElement("div");
+  fragment.className = "org-sections";
+
+  const refs = {};
+  const kinds = {
+    subtasks: "Subtasks",
+    attachments: "Attachments",
+    reminders: "Reminders",
+  };
+
+  Object.entries(kinds).forEach(([kind, label]) => {
+    const block = document.createElement("div");
+    block.className = `org-block org-block-${kind}`;
+    const heading = document.createElement("h3");
+    heading.className = "org-block-title";
+    heading.textContent = label;
+    const list = document.createElement("ul");
+    list.className = "org-list";
+    list.dataset.orgKind = kind;
+    const form = document.createElement("form");
+    form.className = "org-add-form";
+    form.dataset.orgKind = kind;
+    block.append(heading, list, form);
+    fragment.appendChild(block);
+    refs[kind] = { block, list, form };
+  });
+
+  return {
+    fragment,
+    refs: {
+      orgSubtasks: refs.subtasks,
+      orgAttachments: refs.attachments,
+      orgReminders: refs.reminders,
+    },
+  };
+}
+
+async function renderOrgSections(view, assignment) {
+  if (!assignment) return;
+  await renderSubtasks(view, assignment);
+  await renderAttachments(view, assignment);
+  await renderReminders(view, assignment);
+}
+
+function formatBytes(n) {
+  if (n == null) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = Number(n);
+  let i = 0;
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i += 1;
+  }
+  return `${size.toFixed(size >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+async function sha256Hex(buffer) {
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function toUtcIso(localDateTime) {
+  const date = new Date(localDateTime);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().replace(".000Z", "Z");
+}
+
+async function renderSubtasks(view, assignment) {
+  const { list, form } = view.orgSubtasks;
+  try {
+    const subtasks = await apiRequest(`/assignments/${assignment.id}/subtasks`);
+    list.replaceChildren();
+    (subtasks || []).forEach((sub) => {
+      list.appendChild(createSubtaskRow(sub, assignment, view));
+    });
+  } catch (error) {
+    list.replaceChildren(createEmptyMessage(error.message));
+  }
+
+  form.replaceChildren();
+  const input = document.createElement("input");
+  input.type = "text";
+  input.name = "title";
+  input.placeholder = "Add subtask";
+  input.required = true;
+  const addButton = document.createElement("button");
+  addButton.type = "submit";
+  addButton.className = "primary-button";
+  addButton.textContent = "Add";
+  form.append(input, addButton);
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const title = input.value.trim();
+    if (!title) return;
+    try {
+      await apiRequest(`/assignments/${assignment.id}/subtasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, status: "todo" }),
+      });
+      await renderSubtasks(view, assignment);
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+}
+
+function createSubtaskRow(sub, assignment, view) {
+  const li = document.createElement("li");
+  li.className = "org-row";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  const done = normalizeStatus(sub.status) === "done";
+  checkbox.checked = done;
+  checkbox.addEventListener("change", async () => {
+    try {
+      await apiRequest(`/assignments/${assignment.id}/subtasks/${sub.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: checkbox.checked ? "done" : "todo" }),
+      });
+      await renderSubtasks(view, assignment);
+    } catch (error) {
+      showError(error.message);
+    }
+  });
+  const span = document.createElement("span");
+  span.className = "org-row-title";
+  span.textContent = sub.title;
+  if (done) span.style.textDecoration = "line-through";
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "delete-button org-row-btn";
+  deleteButton.setAttribute("aria-label", "Delete subtask");
+  deleteButton.textContent = "✕";
+  deleteButton.addEventListener("click", async () => {
+    try {
+      await apiRequest(`/assignments/${assignment.id}/subtasks/${sub.id}`, {
+        method: "DELETE",
+      });
+      await renderSubtasks(view, assignment);
+    } catch (error) {
+      showError(error.message);
+    }
+  });
+  li.append(checkbox, span, deleteButton);
+  return li;
+}
+
+async function renderAttachments(view, assignment) {
+  const { list, form } = view.orgAttachments;
+  try {
+    const items = await apiRequest(`/assignments/${assignment.id}/attachments`);
+    list.replaceChildren();
+    (items || []).forEach((attachment) => {
+      const li = document.createElement("li");
+      li.className = "org-row";
+      const span = document.createElement("span");
+      span.className = "org-row-title";
+      span.textContent = `${attachment.file_name} · ${formatBytes(attachment.byte_size)}`;
+      const sha = document.createElement("span");
+      sha.className = "org-row-sub";
+      sha.textContent = attachment.payload_available
+        ? `${attachment.sha256.slice(0, 12)}…`
+        : "Local file missing";
+      const actions = document.createElement("span");
+      actions.className = "org-row-actions";
+      if (attachment.payload_available) {
+        const openLink = document.createElement("a");
+        openLink.className = "secondary-button org-row-btn";
+        openLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file`;
+        openLink.target = "_blank";
+        openLink.rel = "noopener";
+        openLink.textContent = "Open";
+        openLink.setAttribute("aria-label", `Open ${attachment.file_name}`);
+        const exportLink = document.createElement("a");
+        exportLink.className = "secondary-button org-row-btn";
+        exportLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file?download=true`;
+        exportLink.textContent = "Export";
+        exportLink.setAttribute("aria-label", `Export ${attachment.file_name}`);
+        actions.append(openLink, exportLink);
+      }
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "delete-button org-row-btn";
+      deleteButton.setAttribute("aria-label", "Delete attachment");
+      deleteButton.textContent = "✕";
+      deleteButton.addEventListener("click", async () => {
+        try {
+          await apiRequest(
+            `/assignments/${assignment.id}/attachments/${attachment.id}`,
+            { method: "DELETE" },
+          );
+          await renderAttachments(view, assignment);
+        } catch (error) {
+          showError(error.message);
+        }
+      });
+      actions.append(deleteButton);
+      li.append(span, sha, actions);
+      list.appendChild(li);
+    });
+  } catch (error) {
+    list.replaceChildren(createEmptyMessage(error.message));
+  }
+
+  form.replaceChildren();
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.name = "file";
+  const addButton = document.createElement("button");
+  addButton.type = "submit";
+  addButton.className = "primary-button";
+  addButton.textContent = "Attach";
+  form.append(fileInput, addButton);
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      await apiRequest(`/assignments/${assignment.id}/attachments/file`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Attachment-Name": encodeURIComponent(file.name),
+          "X-Attachment-Mime": file.type || "application/octet-stream",
+        },
+        body: file,
+      });
+      await renderAttachments(view, assignment);
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+}
+
+async function renderReminders(view, assignment) {
+  const { list, form } = view.orgReminders;
+  try {
+    const items = await apiRequest(`/assignments/${assignment.id}/reminders`);
+    list.replaceChildren();
+    (items || []).forEach((reminder) => {
+      const li = document.createElement("li");
+      li.className = "org-row";
+      const span = document.createElement("span");
+      span.className = "org-row-title";
+      span.textContent = formatDate(reminder.trigger_at_utc);
+      const sub = document.createElement("span");
+      sub.className = "org-row-sub";
+      sub.textContent = [
+        reminder.repeat_rule ? `repeat ${reminder.repeat_rule}` : null,
+        reminder.is_enabled ? "on" : "off",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "secondary-button org-row-btn";
+      toggle.textContent = reminder.is_enabled ? "Disable" : "Enable";
+      toggle.addEventListener("click", async () => {
+        try {
+          await apiRequest(
+            `/assignments/${assignment.id}/reminders/${reminder.id}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ is_enabled: !reminder.is_enabled }),
+            },
+          );
+          await renderReminders(view, assignment);
+        } catch (error) {
+          showError(error.message);
+        }
+      });
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "delete-button org-row-btn";
+      deleteButton.setAttribute("aria-label", "Delete reminder");
+      deleteButton.textContent = "✕";
+      deleteButton.addEventListener("click", async () => {
+        try {
+          await apiRequest(
+            `/assignments/${assignment.id}/reminders/${reminder.id}`,
+            { method: "DELETE" },
+          );
+          await renderReminders(view, assignment);
+        } catch (error) {
+          showError(error.message);
+        }
+      });
+      li.append(span, sub, toggle, deleteButton);
+      list.appendChild(li);
+    });
+  } catch (error) {
+    list.replaceChildren(createEmptyMessage(error.message));
+  }
+
+  form.replaceChildren();
+  const dateTime = document.createElement("input");
+  dateTime.type = "datetime-local";
+  dateTime.name = "trigger_at_utc";
+  dateTime.required = true;
+  const addButton = document.createElement("button");
+  addButton.type = "submit";
+  addButton.className = "primary-button";
+  addButton.textContent = "Add";
+  form.append(dateTime, addButton);
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const utc = toUtcIso(dateTime.value);
+    if (!utc) return;
+    try {
+      await apiRequest(`/assignments/${assignment.id}/reminders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger_at_utc: utc, lead_minutes: 0, is_enabled: true }),
+      });
+      await renderReminders(view, assignment);
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Organization manager dialog (courses / projects / tags CRUD)
+// ---------------------------------------------------------------------------
+
+function createOrgRow({ title, subtitle, swatch, onRename, onDelete }) {
+  const li = document.createElement("li");
+  li.className = "org-row";
+  const main = document.createElement("div");
+  main.className = "org-row-main";
+  if (swatch) {
+    const sw = document.createElement("span");
+    sw.className = "tag-swatch";
+    sw.style.background = swatch;
+    main.appendChild(sw);
+  }
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "org-row-title";
+  titleSpan.textContent = title;
+  main.appendChild(titleSpan);
+  if (subtitle) {
+    const sub = document.createElement("span");
+    sub.className = "org-row-sub";
+    sub.textContent = subtitle;
+    main.appendChild(sub);
+  }
+  const actions = document.createElement("div");
+  actions.className = "org-row-actions";
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "secondary-button org-row-btn";
+  editButton.textContent = "Rename";
+  editButton.addEventListener("click", () => startRename(li, titleSpan, onRename));
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "delete-button org-row-btn";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", onDelete);
+  actions.append(editButton, deleteButton);
+  li.append(main, actions);
+  return li;
+}
+
+function startRename(li, titleSpan, onRename) {
+  if (li.querySelector("input.org-rename-input")) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "org-rename-input";
+  input.value = titleSpan.textContent;
+  titleSpan.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const value = input.value.trim();
+    if (value && value !== titleSpan.textContent) {
+      onRename(value);
+    } else {
+      input.replaceWith(titleSpan);
+    }
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      input.blur();
+    } else if (event.key === "Escape") {
+      input.replaceWith(titleSpan);
+    }
+  });
+}
+
+function renderOrgManager() {
+  dom.orgCourseList.replaceChildren();
+  state.courses.forEach((course) => {
+    dom.orgCourseList.appendChild(
+      createOrgRow({
+        title: course.name,
+        subtitle: [course.teacher, course.semester].filter(Boolean).join(" · ") || null,
+        swatch: course.color_hex,
+        onRename: (newName) =>
+          apiRequest(`/courses/${course.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+        onDelete: () =>
+          apiRequest(`/courses/${course.id}`, { method: "DELETE" })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+      }),
+    );
+  });
+
+  dom.orgProjectList.replaceChildren();
+  state.projects.forEach((project) => {
+    const courseName =
+      state.courses.find((c) => c.id === project.course_id)?.name || null;
+    dom.orgProjectList.appendChild(
+      createOrgRow({
+        title: project.name,
+        subtitle: courseName,
+        onRename: (newName) =>
+          apiRequest(`/projects/${project.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+        onDelete: () =>
+          apiRequest(`/projects/${project.id}`, { method: "DELETE" })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+      }),
+    );
+  });
+
+  dom.orgTagList.replaceChildren();
+  state.tags.forEach((tag) => {
+    dom.orgTagList.appendChild(
+      createOrgRow({
+        title: tag.name,
+        swatch: tag.color_hex,
+        onRename: (newName) =>
+          apiRequest(`/tags/${tag.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+        onDelete: () =>
+          apiRequest(`/tags/${tag.id}`, { method: "DELETE" })
+            .then(loadOrganization)
+            .catch((error) => showError(error.message)),
+      }),
+    );
+  });
+
+  if (dom.orgProjectCourseSelect) {
+    dom.orgProjectCourseSelect.replaceChildren(createOption("", "— no course —"));
+    state.courses.forEach((course) => {
+      dom.orgProjectCourseSelect.appendChild(
+        createOption(String(course.id), course.name),
+      );
+    });
+  }
+}
+
+function openOrgDialog() {
+  if (typeof dom.orgDialog.showModal === "function") {
+    dom.orgDialog.showModal();
+  } else {
+    dom.orgDialog.setAttribute("open", "");
+  }
+  renderOrgManager();
+}
+
+function closeOrgDialog() {
+  if (dom.orgDialog.open && typeof dom.orgDialog.close === "function") {
+    dom.orgDialog.close();
+    return;
+  }
+  dom.orgDialog.removeAttribute("open");
+}
+
+async function computeTagChanges(assignment, form) {
+  const box = form.querySelector("#edit-tag-checkboxes");
+  const selected = new Set(
+    box
+      ? [...box.querySelectorAll('input[name="tag_ids"]:checked')].map((el) =>
+          Number(el.value),
+        )
+      : [],
+  );
+  let current = new Set();
+  try {
+    const links = await apiRequest(`/assignments/${assignment.id}/tags`);
+    current = new Set(links.map((link) => link.tag_id));
+  } catch {
+    // If tag links cannot be read, treat as no diff to avoid clobbering.
+  }
+  const add = [...selected].filter((id) => !current.has(id));
+  const remove = [...current].filter((id) => !selected.has(id));
+  return { add, remove };
+}
+
+function initOrg() {
+  if (dom.openOrg) {
+    dom.openOrg.addEventListener("click", openOrgDialog);
+  }
+  if (dom.closeOrg) {
+    dom.closeOrg.addEventListener("click", closeOrgDialog);
+  }
+  if (dom.orgDialog) {
+    dom.orgDialog.addEventListener("click", (event) => {
+      if (event.target === dom.orgDialog) closeOrgDialog();
+    });
+  }
+
+  if (dom.orgDialog) {
+    dom.orgDialog.querySelectorAll(".org-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.orgTab;
+        dom.orgDialog
+          .querySelectorAll(".org-tab")
+          .forEach((t) => t.classList.toggle("is-active", t === tab));
+        dom.orgDialog
+          .querySelectorAll(".org-panel")
+          .forEach((panel) => {
+            panel.hidden = panel.dataset.orgPanel !== target;
+          });
+      });
+    });
+  }
+
+  if (dom.orgCourseForm) {
+    dom.orgCourseForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = dom.orgCourseForm.querySelector("#org-course-name").value.trim();
+      if (!name) return;
+      const teacher = emptyToNull(
+        dom.orgCourseForm.querySelector("#org-course-teacher").value,
+      );
+      const colorHex =
+        dom.orgCourseForm.querySelector("#org-course-color").value.trim() || null;
+      try {
+        await apiRequest("/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, teacher, color_hex: colorHex }),
+        });
+        dom.orgCourseForm.reset();
+        await loadOrganization();
+      } catch (error) {
+        showError(error.message);
+      }
+    });
+  }
+
+  if (dom.orgProjectForm) {
+    dom.orgProjectForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = dom.orgProjectForm.querySelector("#org-project-name").value.trim();
+      if (!name) return;
+      const courseIdRaw = dom.orgProjectForm.querySelector("#org-project-course").value;
+      const courseId = courseIdRaw ? Number(courseIdRaw) : null;
+      try {
+        await apiRequest("/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, course_id: courseId }),
+        });
+        dom.orgProjectForm.reset();
+        await loadOrganization();
+      } catch (error) {
+        showError(error.message);
+      }
+    });
+  }
+
+  if (dom.orgTagForm) {
+    dom.orgTagForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = dom.orgTagForm.querySelector("#org-tag-name").value.trim();
+      if (!name) return;
+      const colorHex =
+        dom.orgTagForm.querySelector("#org-tag-color").value.trim() || null;
+      try {
+        await apiRequest("/tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, color_hex: colorHex }),
+        });
+        dom.orgTagForm.reset();
+        await loadOrganization();
+      } catch (error) {
+        showError(error.message);
+      }
+    });
+  }
+
+  if (dom.coursePicker) {
+    dom.coursePicker.addEventListener("change", () => {
+      const id = dom.coursePicker.value;
+      if (id) {
+        const course = state.courses.find((c) => String(c.id) === id);
+        state.draftCourseId = Number(id);
+        const nameInput = dom.form.querySelector("#course-name");
+        if (course && nameInput) nameInput.value = course.name;
+      } else {
+        state.draftCourseId = null;
+      }
+      populateProjectPicker();
+    });
+  }
+
+  if (dom.projectPicker) {
+    dom.projectPicker.addEventListener("change", () => {
+      state.draftProjectId = dom.projectPicker.value
+        ? Number(dom.projectPicker.value)
+        : null;
+    });
+  }
+}

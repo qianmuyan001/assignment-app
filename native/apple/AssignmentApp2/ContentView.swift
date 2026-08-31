@@ -279,6 +279,9 @@ struct ContentView: View {
             databaseLocation: viewModel.databaseLocation.isEmpty
                 ? "Unavailable"
                 : viewModel.databaseLocation,
+            notificationAuthorization: viewModel.notificationAuthorization,
+            onRequestNotifications: viewModel.requestNotificationAuthorization,
+            onRefreshNotifications: viewModel.refreshNotificationAuthorization,
             onReload: viewModel.reload
         )
     }
@@ -344,23 +347,43 @@ struct ContentView: View {
     }
 
     private func editor(for presentation: TaskEditorPresentation) -> some View {
-        TaskEditorView(
-            assignment: presentation.assignment,
+        let assignment = presentation.assignment
+        let initialTagIDs: [Int64] = assignment.flatMap { target in
+            viewModel.organizationRepository.flatMap { repo in
+                (try? repo.fetchTagLinks(assignmentID: target.id, includeDeleted: false))?
+                    .map(\.tagID)
+            }
+        } ?? []
+
+        return TaskEditorView(
+            assignment: assignment,
             displayMode: displayMode,
             onSave: { draft in
-                if let assignment = presentation.assignment {
+                if let assignment = assignment {
                     viewModel.update(assignment, with: draft)
+                    if viewModel.errorMessage == nil {
+                        viewModel.applyOrganization(assignmentID: assignment.id, draft: draft)
+                    }
                     return viewModel.errorMessage
                 }
 
-                return viewModel.add(draft) == nil
-                    ? (viewModel.errorMessage ?? "The task could not be saved.")
-                    : nil
+                guard let created = viewModel.add(draft) else {
+                    return viewModel.errorMessage ?? "The task could not be saved."
+                }
+                viewModel.applyOrganization(assignmentID: created.id, draft: draft)
+                return viewModel.errorMessage
             },
-            onDelete: presentation.assignment == nil ? nil : { assignment in
+            onDelete: assignment == nil ? nil : { assignment in
                 viewModel.delete(assignment)
                 return viewModel.errorMessage
-            }
+            },
+            organizationRepository: viewModel.organizationRepository,
+            courses: viewModel.organizationCourses,
+            projects: viewModel.organizationProjects,
+            tags: viewModel.organizationTags,
+            initialCourseID: assignment?.courseID,
+            initialProjectID: assignment?.projectID,
+            initialTagIDs: initialTagIDs
         )
     }
 

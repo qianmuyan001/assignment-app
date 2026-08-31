@@ -8,8 +8,9 @@
     DefaultButton="Primary"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
 
-    <ScrollViewer MaxHeight="620" MinWidth="440">
+    <ScrollViewer MaxHeight="640" MinWidth="460">
         <StackPanel Spacing="12" Padding="0,4,0,0">
+
             <TextBlock x:Name="ValidationText"
                        Visibility="Collapsed"
                        Foreground="IndianRed"
@@ -22,7 +23,23 @@
             <TextBox x:Name="CourseBox"
                      Header="Course"
                      MaxLength="120"
-                     PlaceholderText="Course name"/>
+                     PlaceholderText="Course name (type, or pick below)"/>
+
+            <!-- Organization (professional mode only) -->
+            <StackPanel x:Name="OrganizationSection" Spacing="12" Visibility="Collapsed">
+                <ComboBox x:Name="CoursePickerBox"
+                          Header="Pick an existing course"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="CoursePicker_SelectionChanged"/>
+                <ComboBox x:Name="ProjectPickerBox"
+                          Header="Project"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="ProjectPicker_SelectionChanged"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Tags" FontSize="13" Opacity="0.8"/>
+                    <StackPanel x:Name="TagPanel" Orientation="Horizontal" Spacing="4"/>
+                </StackPanel>
+            </StackPanel>
 
             <CheckBox x:Name="HasDueDateBox"
                       Content="Set a due date and time"
@@ -73,6 +90,58 @@
                          Header="Source link"
                          MaxLength="1000"
                          PlaceholderText="https://…"/>
+            </StackPanel>
+
+            <!-- Subtasks (professional mode, existing assignment only) -->
+            <StackPanel x:Name="SubtasksSection" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="Subtasks" FontSize="15" FontWeight="SemiBold"/>
+                <StackPanel x:Name="SubtasksList" Spacing="6"/>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="NewSubtaskBox"
+                             PlaceholderText="Add a subtask"
+                             MaxLength="255"
+                             KeyDown="NewSubtask_KeyDown"/>
+                    <Button Grid.Column="1"
+                            Content="Add"
+                            Click="AddSubtask_Click"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Reminders (professional mode, existing assignment only) -->
+            <StackPanel x:Name="RemindersSection" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="Reminders" FontSize="15" FontWeight="SemiBold"/>
+                <StackPanel x:Name="RemindersList" Spacing="6"/>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <DatePicker x:Name="NewReminderDatePicker"
+                                Header="Date"
+                                AutomationProperties.Name="Reminder date"
+                                HorizontalAlignment="Stretch"/>
+                    <TimePicker x:Name="NewReminderTimePicker"
+                                Grid.Column="1"
+                                Header="Time"
+                                AutomationProperties.Name="Reminder time"
+                                HorizontalAlignment="Stretch"/>
+                </Grid>
+                <Button Content="Add reminder"
+                        HorizontalAlignment="Left"
+                        Click="AddReminder_Click"/>
+            </StackPanel>
+
+            <!-- Attachments (professional mode, existing assignment only) -->
+            <StackPanel x:Name="AttachmentsSection" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="Attachments" FontSize="15" FontWeight="SemiBold"/>
+                <StackPanel x:Name="AttachmentsList" Spacing="6"/>
+                <Button Content="Add attachment…"
+                        HorizontalAlignment="Left"
+                        Click="AddAttachment_Click"/>
             </StackPanel>
 
             <TextBlock x:Name="ModeHelpText"

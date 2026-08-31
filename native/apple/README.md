@@ -17,6 +17,13 @@ SwiftPM 1.0 client is archived under `legacy/macos`.
   loading, and error states.
 - iPad hardware-keyboard and Catalyst commands: Command-N, Command-F,
   Command-R, and context-sensitive Escape.
+- Professional organization UI for courses, projects, tags, subtasks,
+  attachments, and reminders.
+- Managed attachment import, preview/share export, delete, real SHA-256,
+  missing-file reporting, and startup orphan/staging reconciliation.
+- Native notification authorization/status, one-shot schedule/reschedule,
+  cancellation, disable, and startup reconciliation. Notification denial never
+  blocks task CRUD.
 
 ## Apple navigation and search refresh
 
@@ -73,7 +80,7 @@ Dark, and Tinted icons, provide a licensed SVG or a transparent PNG of at least
 release.
 
 The UI is deliberately a stable native baseline. Source-site login, local AI,
-account sync, projects, subtasks, alternative board/table/gallery views, and
+account sync, learning scenarios, alternative board/table/gallery views, and
 other later features are not exposed as non-functional controls.
 
 ## Relationship to the 1.0 Apple client
@@ -161,23 +168,21 @@ released SQLite pointer. A failed or unverifiable migration is thrown to the
 view model, no partially migrated database is opened for writes, and the
 independent backup remains available for reviewed manual recovery.
 
-The final frozen Phase 1 source passed 46/46 unit tests on Mac Catalyst and 3/3
-iPad UI smoke tests. The iPad unit runner was attempted on iPadOS 18.5 and 26.1,
-including one explicit serial run, but CoreSimulator stopped before workers
-materialized and zero tests executed. That current-source iPad unit result is
-therefore **not accepted**; the earlier 44/44 iPad result predates the final
-recovery hardening. Test databases used isolated `/private/tmp` paths:
+The Phase 2.5 source passed 47/47 unit tests on both the fixed iPadOS 18.5
+simulator and Apple Silicon Catalyst, plus 3/3 iPad UI smoke tests. Test
+databases used isolated `/private/tmp` paths:
 
 ```text
-/private/tmp/assignment-app-phase1-safe-recovery-full-final-20260812.xcresult
-/private/tmp/assignment-app-phase1-safe-recovery-ipad26-ui-smoke-final-20260812.xcresult
-/private/tmp/assignment-app-phase1-safe-recovery-ipad26-serial-final-20260812.xcresult
+/private/tmp/assignment-app-ipad-unit-final3.xcresult
+/private/tmp/assignment-app-catalyst-unit-final2.xcresult
+/private/tmp/assignment-app-ipad-ui-final2.xcresult
 ```
 
-The final local Phase 1 Catalyst package is under
-`/private/tmp/assignment-app-phase1-final-artifacts/apple/` and is described in
-its own `build-info.txt`. It is ad-hoc signed and not notarized. Repository
-packages still predate schema v3 and remain Phase 0 evidence only.
+The matching final local Catalyst package is under
+`/private/tmp/assignment-app-artifacts/apple/debug-20260831-060127Z/` and is
+described by its own `build-info.txt`. It is an ad-hoc-signed arm64 Debug package
+from baseline revision `e487dc2` with `source_tree_dirty=true`; it passed its
+process/schema launch smoke but is not notarized or clean-SHA release evidence.
 
 The shared 2.0 contract is in `shared/`:
 
@@ -200,10 +205,16 @@ The shared 2.0 contract is in `shared/`:
   due-date wall times are preserved byte-for-byte during migration and are not
   silently moved into a timezone.
 - Courses, projects, tags, task-tag links, subtasks, attachment metadata, and
-  reminders have separate repositories and audit/soft-delete fields. Phase 1
-  stores attachment metadata only at `attachments/<uuid>` and performs no file
-  copying or notification scheduling; those user-facing operations belong to
-  Phase 2.
+  reminders have separate repositories and audit/soft-delete fields. SQLite
+  stores attachment metadata only; Phase 2.5 keeps payload bytes beside the
+  database at the immutable `attachments/<uuid>` key. File operations use a
+  private staging directory, atomic rename, rollback on metadata failure, real
+  SHA-256, safe presentation copies, and startup reconciliation.
+- Apple notifications use `UNUserNotificationCenter`. Permission state is
+  visible, task/reminder changes reconcile pending requests, and task CRUD
+  remains available if permission is denied. Validated schema recurrence values
+  are preserved, but the native adapter currently schedules only their first
+  occurrence; new recurring-rule editing is therefore not exposed.
 - Course identity uses the exact display name; normalized names are search
   helpers, so `Math` and `math` are not silently merged. Project/course and
   active-parent child invariants are checked transactionally. Reminder repeats
@@ -302,25 +313,20 @@ separate shared scheme for the opt-in UI flow:
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   -project native/apple/AssignmentApp2.xcodeproj \
   -scheme AssignmentApp2UISmoke \
-  -destination 'platform=iOS Simulator,id=F0BB9838-B33F-417E-852C-26BE36AD75CF' \
+  -destination 'platform=iOS Simulator,id=55D6D2F6-FB7A-429C-ADFA-8BF9F8F2286F' \
   -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
-  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO \
-  -only-testing:AssignmentApp2UITests/AssignmentApp2UITests/testSidebarAndSearchStateSmoke \
-  -only-testing:AssignmentApp2UITests/AssignmentApp2UITests/testCompactSidebarAccessibilityAtLargestTextAndRapidRetarget \
-  test
+  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
 ```
 
-That flow verifies navigation does not hide the sidebar, toggles Compact mode,
+The three-test flow verifies isolated database launch, navigation that does not
+hide the sidebar, Compact mode,
 checks all six full accessibility names and 44-point targets, rapidly retargets
 selection, opens search with focus, types a query, closes with the clear button,
 restores the title, and checks portrait/landscape layout. The second test uses a
 Debug-only launch override to force SwiftUI Accessibility 5 while the Simulator
 itself remains at its normal text size; production builds do not include that
-branch. The Catalyst UI runner can still hang waiting for workers to materialize
-under Xcode 27 beta. The 2026-08-10 attempt was interrupted after 139.6 seconds
-without reaching a test assertion; Catalyst build and all 32 unit tests passed.
-Packaged-app startup is
-additionally verified against a disposable sandbox-contained database; this
+branch. Packaged-app startup is additionally verified against a disposable
+sandbox-contained database; this
 checks that the process remains alive and creates the exact schema-v3 table,
 22-column assignment, 30-index, and 12-trigger shape, with one canonical
 database identity, no foreign-key errors, and `PRAGMA quick_check=ok`.
@@ -360,7 +366,22 @@ Catalyst unit results in `build-info.txt`. A normal local dirty-tree package is
 allowed for development but is explicitly marked `source_tree_dirty=true` and
 cannot be used as same-SHA release evidence.
 
-The frozen Phase 1 local development package is:
+The Phase 2.5 local development package matching the source and UI checks above
+is:
+
+```text
+/private/tmp/assignment-app-artifacts/apple/debug-20260831-060127Z/
+```
+
+Its canonical ZIP is
+`Assignment-App-2.0.0-Catalyst-Debug-arm64.zip` (SHA-256
+`03b936f75bf01bc17193f6ec2f7e6d6c8f9a35293b3b1a5131945568575ce7b9`).
+The package records version 2.0.0, arm64, revision `e487dc2`,
+`source_tree_dirty=true`, `signing=ad-hoc`, sandbox enabled, schema v3, and a
+passing process/database launch smoke. The packager does not claim it re-ran
+the separate unit/UI suites; their result bundles are listed above.
+
+Historical Phase 1 local development package:
 
 ```text
 /private/tmp/assignment-app-phase1-final-artifacts/apple/debug-safe-recovery-final-20260812/
@@ -375,7 +396,7 @@ assignment columns, 30 contract indexes, 12 contract triggers,
 `9cb4ad79c476237200c59d7307960acfc0ab585d6f0a9184c24dd5965368ec5f`.
 This is current local Phase 1 evidence, not a notarized or clean-SHA release.
 
-The latest local Phase 0 development verification package is:
+An historical Phase 0 development verification package is:
 
 ```text
 artifacts/apple/debug-20260811-080150Z/
@@ -388,7 +409,7 @@ also records `source_tree_dirty=true`, so it is development evidence only and
 does not replace the still-unrun clean-tree CI gate. It predates schema v3 and
 is not a Phase 1 data-layer artifact.
 
-The verified package from the initial Apple 2.0 delivery is:
+The package from the initial Apple 2.0 delivery is:
 
 ```text
 artifacts/apple/debug-20260807-021853Z/

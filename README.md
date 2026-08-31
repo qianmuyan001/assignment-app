@@ -13,12 +13,16 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## Assignment App 2.0 preview
 
-The repository now contains the shared 2.0 task contract, a versioned SQLite v3
-migration, and independent Apple and Windows implementations of the first 2.0
-task-management workflow and Phase 1 task-organization data layer. Both clients
-use the same task fields, status and priority mappings, UUID lineage, courses,
-projects, tags, subtasks, attachment metadata, reminders, date-list rules,
-fixtures, and acceptance cases.
+The repository contains the shared 2.0 task contract, a versioned SQLite v3
+migration, and Apple, Windows, and Web implementations of the task-management
+and Phase 2 organization workflow. They use the same task fields, status and
+priority mappings, UUID lineage, courses, projects, tags, subtasks, attachment
+metadata, reminders, date-list rules, fixtures, and acceptance cases. Phase 2.5
+adds managed attachment payloads and native notification scheduling without a
+schema change. Its strict cross-platform gate remains open until WinUI is built,
+published, and interactively launched on a real Windows x64 desktop; Phase 3A
+has therefore not started. See
+[the Phase 2.5 report](docs/phase-reports/phase-2-5.md).
 
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
@@ -79,14 +83,19 @@ SQLite assignment schema without replacing or deleting the database.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
-| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | 2.0 source; current-SHA CI/package verification required |
+| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | Phase 2.5 source locally built, tested, launch-smoked; dirty Debug evidence only |
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | 2.0 source; real Windows x64 build/launch not yet verified |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source and Core tests; real Windows x64 build/publish/launch unverified |
 
-Phase 1 is complete at the shared and native data/repository layer. The Apple
-and Windows course/project/tag/subtask/attachment/reminder screens are
-intentionally not present yet; those are Phase 2 work. The current local Phase 1
-verification report is [docs/phase-reports/phase-1.md](docs/phase-reports/phase-1.md).
+Phase 2 organization screens exist on Apple, Windows, and Web. Phase 2.5 stores
+attachment bytes outside SQLite at the database sibling key
+`attachments/<attachment UUID>`, calculates SHA-256 from the real payload, and
+provides import/open/export/delete/missing-file/orphan-reconciliation flows.
+Apple and Windows also contain native notification permission, schedule,
+reschedule, cancellation, and startup reconciliation code. Notification denial
+does not block task CRUD. Recurring reminder text is preserved by schema v3,
+but this closeout schedules only the first occurrence and exposes no misleading
+new-repeat editor.
 
 Apple 2.0:
 
@@ -117,10 +126,10 @@ build and security details.
 
 ## Continuous integration and evidence
 
-Three workflows define the Phase 0 gates:
+Three workflows define the release and Phase 2.5 verification gates:
 
 - `.github/workflows/shared-backend.yml`: version consistency, Python error
-  lint, 57 shared contract/migration tests, and isolated FastAPI/Web asset tests.
+  lint, 57 shared contract/migration tests, and isolated FastAPI/Web tests.
 - `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
   clean-tree packaging, signature checks, and packaged-app database smoke.
 - `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,
@@ -130,8 +139,9 @@ Three workflows define the Phase 0 gates:
 Adding a workflow is not proof that it passed. A platform is accepted only when
 the workflow or a matching local environment produces logs and an artifact whose
 `build-info.txt` records the exact Git SHA, source cleanliness, toolchain,
-architecture, test result, smoke result, and signing state. No Phase 0 workflow
-has been pushed or executed remotely from this local development branch yet.
+architecture, test result, smoke result, and signing state. No workflow was
+pushed or executed remotely during the Phase 2.5 closeout. The local macOS host
+cannot substitute for the required signed-in Windows desktop acceptance.
 
 ## One-click Start
 

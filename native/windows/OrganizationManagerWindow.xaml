@@ -1,0 +1,101 @@
+<Window
+    x:Class="AssignmentNative.OrganizationManagerWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:core="using:AssignmentNative.Core"
+    Title="Courses, projects &amp; tags">
+
+    <Grid Padding="20" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Organization"
+                   FontSize="24"
+                   FontWeight="SemiBold"/>
+
+        <Pivot Grid.Row="1">
+            <!-- Courses -->
+            <PivotItem Header="Courses">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListView x:Name="CourseList"
+                              DisplayMemberPath="Name"
+                              SelectionChanged="CourseList_SelectionChanged"/>
+                    <StackPanel Grid.Column="1" Spacing="10">
+                        <TextBox x:Name="CourseNameBox" Header="Name" MaxLength="120"/>
+                        <TextBox x:Name="CourseColorBox" Header="Color (#RRGGBB)" MaxLength="7"/>
+                        <TextBox x:Name="CourseTeacherBox" Header="Teacher"/>
+                        <TextBox x:Name="CourseSemesterBox" Header="Semester"/>
+                        <CheckBox x:Name="CourseArchivedBox" Content="Archived"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Click="SaveCourse_Click"/>
+                            <Button Content="New" Click="NewCourse_Click"/>
+                            <Button Content="Delete" Click="DeleteCourse_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </PivotItem>
+
+            <!-- Projects -->
+            <PivotItem Header="Projects">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListView x:Name="ProjectList"
+                              DisplayMemberPath="Name"
+                              SelectionChanged="ProjectList_SelectionChanged"/>
+                    <StackPanel Grid.Column="1" Spacing="10">
+                        <TextBox x:Name="ProjectNameBox" Header="Name" MaxLength="255"/>
+                        <ComboBox x:Name="ProjectCourseBox" Header="Course" HorizontalAlignment="Stretch"/>
+                        <TextBox x:Name="ProjectDescriptionBox"
+                                 Header="Description"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MinHeight="80"
+                                 MaxHeight="160"/>
+                        <ComboBox x:Name="ProjectStatusBox" Header="Status" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="Active" Tag="active"/>
+                            <ComboBoxItem Content="On hold" Tag="on_hold"/>
+                            <ComboBoxItem Content="Completed" Tag="completed"/>
+                            <ComboBoxItem Content="Archived" Tag="archived"/>
+                        </ComboBox>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Click="SaveProject_Click"/>
+                            <Button Content="New" Click="NewProject_Click"/>
+                            <Button Content="Delete" Click="DeleteProject_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </PivotItem>
+
+            <!-- Tags -->
+            <PivotItem Header="Tags">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListView x:Name="TagList"
+                              DisplayMemberPath="Name"
+                              SelectionChanged="TagList_SelectionChanged"/>
+                    <StackPanel Grid.Column="1" Spacing="10">
+                        <TextBox x:Name="TagNameBox" Header="Name" MaxLength="80"/>
+                        <TextBox x:Name="TagColorBox" Header="Color (#RRGGBB)" MaxLength="7"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Click="SaveTag_Click"/>
+                            <Button Content="New" Click="NewTag_Click"/>
+                            <Button Content="Delete" Click="DeleteTag_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </PivotItem>
+        </Pivot>
+    </Grid>
+</Window>

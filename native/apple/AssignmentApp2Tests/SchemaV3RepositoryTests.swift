@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SQLite3
 import Testing
@@ -396,6 +397,81 @@ struct SchemaV3RepositoryTests {
             try SQLiteSupport.configure(database, writable: false)
             try SQLiteSchemaV3.validate(on: database)
         }
+    }
+
+    @Test("Attachment payload import, hashing, rollback, deletion, and orphan cleanup")
+    func attachmentPayloadLifecycle() throws {
+        let temporary = try V3TemporaryDatabase(fileName: "attachment-files.db")
+        defer { temporary.cleanup() }
+        let tasks = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+        let task = try tasks.create(.init(courseName: "Art", title: "作品集 🎨"))
+        let organization = try SQLiteOrganizationRepository(databaseURL: temporary.databaseURL)
+        let store = AttachmentFileStore(databaseURL: temporary.databaseURL)
+        let source = temporary.directoryURL.appendingPathComponent("报告 final.txt")
+        let payload = Data("中英文, emoji 🧪, and special characters <>&".utf8)
+        try payload.write(to: source, options: .atomic)
+
+        let attachment = try store.importFile(
+            from: source,
+            assignmentID: task.id,
+            mimeType: "text/plain",
+            repository: organization
+        )
+        let managedURL = try store.payloadURL(for: attachment)
+        let presentationURL = try store.presentationURL(for: attachment)
+        #expect(try Data(contentsOf: managedURL) == payload)
+        #expect(presentationURL.lastPathComponent == "报告 final.txt")
+        #expect(try Data(contentsOf: presentationURL) == payload)
+        #expect(attachment.byteSize == payload.count)
+        #expect(attachment.sha256 == SHA256.hash(data: payload).map {
+            String(format: "%02x", $0)
+        }.joined())
+
+        let stagingURL = temporary.directoryURL
+            .appendingPathComponent(".attachment-staging", isDirectory: true)
+        let tombstoneURL = stagingURL
+            .appendingPathComponent("\(attachment.uuid.uuidString.lowercased()).deleted")
+        try FileManager.default.moveItem(at: managedURL, to: tombstoneURL)
+        let partialURL = stagingURL.appendingPathComponent("interrupted.partial")
+        try Data("partial".utf8).write(to: partialURL)
+        let restored = try store.reconcile(
+            activeAttachments: organization.fetchAllAttachments(includeDeleted: false)
+        )
+        #expect(restored.missingPayloadNames.isEmpty)
+        #expect(try Data(contentsOf: managedURL) == payload)
+        #expect(!FileManager.default.fileExists(atPath: tombstoneURL.path))
+        #expect(!FileManager.default.fileExists(atPath: partialURL.path))
+
+        let orphanUUID = UUID().uuidString.lowercased()
+        let orphanURL = temporary.directoryURL
+            .appendingPathComponent("attachments", isDirectory: true)
+            .appendingPathComponent(orphanUUID)
+        try Data("orphan".utf8).write(to: orphanURL)
+        let reconciliation = try store.reconcile(
+            activeAttachments: organization.fetchAllAttachments(includeDeleted: false)
+        )
+        #expect(reconciliation.removedOrphanCount == 1)
+        #expect(!FileManager.default.fileExists(atPath: orphanURL.path))
+
+        do {
+            _ = try store.importFile(
+                from: source,
+                assignmentID: Int64.max,
+                mimeType: "text/plain",
+                repository: organization
+            )
+            Issue.record("Import with a missing task should fail")
+        } catch {
+            let storedFiles = try FileManager.default.contentsOfDirectory(
+                at: temporary.directoryURL.appendingPathComponent("attachments"),
+                includingPropertiesForKeys: nil
+            )
+            #expect(storedFiles.map(\.lastPathComponent) == [managedURL.lastPathComponent])
+        }
+
+        try store.deleteFileAndMetadata(attachment, repository: organization)
+        #expect(!FileManager.default.fileExists(atPath: managedURL.path))
+        #expect(try organization.fetchAllAttachments(includeDeleted: false).isEmpty)
     }
 
     @Test("Concurrent repository initialization serializes migration")

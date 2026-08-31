@@ -32,6 +32,7 @@ protocol OrganizationRepository: AnyObject {
     func restoreSubtask(id: Int64) throws -> AssignmentSubtask
 
     func fetchAttachments(assignmentID: Int64, includeDeleted: Bool) throws -> [AttachmentMetadata]
+    func fetchAllAttachments(includeDeleted: Bool) throws -> [AttachmentMetadata]
     func createAttachmentMetadata(_ draft: AttachmentMetadataDraft) throws -> AttachmentMetadata
     func updateAttachmentMetadata(_ attachment: AttachmentMetadata) throws -> AttachmentMetadata
     func deleteAttachmentMetadata(id: Int64) throws

@@ -314,6 +314,9 @@ struct AssignmentSettingsView: View {
     @Binding var displayMode: DisplayMode
     @Binding var theme: AppTheme
     let databaseLocation: String
+    let notificationAuthorization: AssignmentNotificationAuthorization
+    let onRequestNotifications: () -> Void
+    let onRefreshNotifications: () -> Void
     let onReload: () -> Void
 
     var body: some View {
@@ -344,6 +347,33 @@ struct AssignmentSettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            Section("Reminders") {
+                LabeledContent("System notifications") {
+                    Text(notificationAuthorization.title)
+                        .foregroundStyle(notificationAuthorization.canSchedule ? .green : .secondary)
+                }
+
+                if notificationAuthorization == .notDetermined {
+                    Button(
+                        "Allow Notifications",
+                        systemImage: "bell.badge",
+                        action: onRequestNotifications
+                    )
+                } else {
+                    Button(
+                        "Refresh Permission Status",
+                        systemImage: "arrow.clockwise",
+                        action: onRefreshNotifications
+                    )
+                }
+
+                if notificationAuthorization == .denied {
+                    Text("Notifications are denied in System Settings. Tasks and reminder records continue to work normally.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Local Data") {
                 LabeledContent("Database") {
                     Text(databaseLocation)
@@ -358,5 +388,8 @@ struct AssignmentSettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
+        .task {
+            onRefreshNotifications()
+        }
     }
 }

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from urllib.parse import unquote
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -12,7 +15,8 @@ from shared.schema_v3 import (
 )
 
 from .. import models, repositories, schemas
-from ..database import get_db
+from ..database import DATABASE_PATH, get_db
+from ..services.attachment_store import AttachmentStore, AttachmentStoreError
 from ..services.task_state import (
     canonical_utc_now,
     recalculate_assignment_from_active_subtasks,
@@ -22,6 +26,18 @@ from .assignments import get_assignment_or_404
 
 
 router = APIRouter(tags=["task organization"])
+attachment_store = AttachmentStore(DATABASE_PATH)
+SAFE_INLINE_ATTACHMENT_TYPES = frozenset(
+    {
+        "application/pdf",
+        "image/gif",
+        "image/heic",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "text/plain",
+    }
+)
 
 
 def _commit_or_conflict(db: Session, detail: str) -> None:
@@ -75,6 +91,17 @@ def _attachment_or_404(
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
     return attachment
+
+
+def _attachment_response(attachment: models.Attachment) -> dict[str, object]:
+    values = schemas.AttachmentRead.model_validate(attachment).model_dump()
+    try:
+        values["payload_available"] = (
+            attachment_store.available_path(attachment.uuid) is not None
+        )
+    except AttachmentStoreError:
+        values["payload_available"] = False
+    return values
 
 
 def _reminder_or_404(
@@ -553,6 +580,52 @@ def create_attachment(
     return attachment
 
 
+@router.post(
+    "/assignments/{assignment_id}/attachments/file",
+    response_model=schemas.AttachmentRead,
+    status_code=201,
+)
+async def upload_attachment_file(
+    assignment_id: int,
+    request: Request,
+    x_attachment_name: str = Header(..., max_length=1024),
+    x_attachment_mime: str | None = Header(default=None, max_length=255),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    get_assignment_or_404(db, assignment_id)
+    file_name = unquote(x_attachment_name)
+    attachment_uuid = new_v3_uuid()
+    try:
+        payload = await attachment_store.store_stream(attachment_uuid, request.stream())
+    except AttachmentStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        validated = schemas.AttachmentCreate(
+            file_name=file_name,
+            mime_type=x_attachment_mime,
+            byte_size=payload.byte_size,
+            sha256=payload.sha256,
+        )
+    except ValueError as exc:
+        attachment_store.remove_payload(attachment_uuid)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    attachment = models.Attachment(
+        uuid=attachment_uuid,
+        assignment_id=assignment_id,
+        relative_path=attachment_storage_relative_path(attachment_uuid),
+        **validated.model_dump(),
+    )
+    db.add(attachment)
+    try:
+        _commit_or_conflict(db, "Attachment file could not be recorded")
+        db.refresh(attachment)
+    except Exception:
+        attachment_store.remove_payload(attachment_uuid)
+        raise
+    return _attachment_response(attachment)
+
+
 @router.get(
     "/assignments/{assignment_id}/attachments",
     response_model=list[schemas.AttachmentRead],
@@ -560,9 +633,9 @@ def create_attachment(
 def list_attachments(
     assignment_id: int,
     db: Session = Depends(get_db),
-) -> list[models.Attachment]:
+) -> list[dict[str, object]]:
     get_assignment_or_404(db, assignment_id)
-    return list(
+    attachments = list(
         db.scalars(
             select(models.Attachment)
             .where(
@@ -571,6 +644,41 @@ def list_attachments(
             )
             .order_by(models.Attachment.id)
         ).all()
+    )
+    return [_attachment_response(attachment) for attachment in attachments]
+
+
+@router.get(
+    "/assignments/{assignment_id}/attachments/{attachment_id}/file",
+    response_class=FileResponse,
+)
+def read_attachment_file(
+    assignment_id: int,
+    attachment_id: int,
+    download: bool = False,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    attachment = _attachment_or_404(db, assignment_id, attachment_id)
+    try:
+        path = attachment_store.available_path(attachment.uuid)
+    except AttachmentStoreError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if path is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Attachment metadata exists, but the local file is missing",
+        )
+    normalized_mime = (attachment.mime_type or "").partition(";")[0].strip().lower()
+    force_download = download or normalized_mime not in SAFE_INLINE_ATTACHMENT_TYPES
+    return FileResponse(
+        path,
+        media_type=attachment.mime_type or "application/octet-stream",
+        filename=attachment.file_name,
+        content_disposition_type="attachment" if force_download else "inline",
+        headers={
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -583,9 +691,19 @@ def delete_attachment(
     db: Session = Depends(get_db),
 ) -> Response:
     attachment = _attachment_or_404(db, assignment_id, attachment_id)
+    try:
+        staged = attachment_store.stage_delete(attachment.uuid)
+    except AttachmentStoreError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     attachment.deleted_at = canonical_utc_now()
     _touch(attachment)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        attachment_store.rollback_delete(staged)
+        raise
+    attachment_store.finish_delete(staged)
     return Response(status_code=204)
 
 

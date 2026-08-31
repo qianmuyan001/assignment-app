@@ -14,8 +14,52 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
   progress, all-day dates, time zones, and soft deletion.
 - Added Phase 1 repositories and API endpoints for Backend, iPadOS/Mac Catalyst,
   and Windows Core. User-facing native organization screens remain Phase 2.
-- Added 57 shared contract tests, 46 Apple unit tests on Catalyst, 47 Windows
-  Core tests, and cross-language schema validation fixtures.
+- Added 57 shared contract tests, 47 Apple unit tests on both iPad Simulator and
+  Catalyst, 48 Windows Core tests, and cross-language schema validation
+  fixtures.
+- Phase 2 — task-organization & reminder UI across all three platforms, built as a
+  UI layer over the merged Phase 1 schema-v3 data layer (no schema changes):
+  - Web: static client wired to the organization REST surface (courses, projects,
+    tags, subtasks, attachments, reminders) and the assignment detail panel.
+  - Apple (SwiftUI): `OrganizationManagerView` for course/project/tag CRUD;
+    `TaskEditorView` extended with pro-mode course/project/tag pickers and
+    subtask/reminder/attachment sections; `AssignmentViewModel` owns the
+    organization repository and reconciles tags; `AssignmentDraft` carries
+    `courseID`/`projectID`/`tagIDs`; `SQLiteAssignmentRepository.create` now binds
+    `project_id`.
+  - Windows (WinUI 3): `TaskEditorDialog` extended with pro-mode course/project/tag
+    pickers and subtask/reminder/attachment sections (child editing for existing
+    assignments), `OrganizationManagerWindow` for course/project/tag CRUD, and
+    `MainWindow` opens it and reconciles tags after save.
+  - All platforms persist `course_id`/`project_id` through the Phase 1
+    repositories; tags reconcile through the task-tag link table; subtask-driven
+    parent progress/status remains derived.
+- Phase 2.5 closeout (schema remains v3):
+  - Apple compilation fixes align project/tag repository calls with their real
+    protocols and import `UniformTypeIdentifiers` for the file picker. The Apple
+    CI workflow now publishes its temporary DerivedData path through
+    `$GITHUB_ENV` instead of using an invalid job-level expression.
+  - Apple, Windows, and Web now keep attachment bytes in the managed
+    `attachments/<UUID>` directory while SQLite stores metadata only. Imports
+    use staging plus atomic rename, compute real SHA-256, roll payload changes
+    back when metadata writes fail, reject unsafe paths, report missing files,
+    and reconcile partial deletes and orphan files after restart.
+  - Apple and Windows implement native notification authorization/status,
+    one-shot scheduling, rescheduling, cancellation, disable, and startup
+    reconciliation. Completing or deleting a task, changing its deadline, or
+    deleting/disabling a reminder cancels or replaces native requests. A denied
+    or unavailable notification service is surfaced without blocking task CRUD.
+  - Windows now reconciles managed attachment files during application startup,
+    treats active reparse-point payloads as missing/unsafe, preserves extensionless
+    names during export, edits reminder times in a non-nested Flyout, refreshes
+    notifications after subtask-derived completion, and retries notification
+    registration after transient failures.
+  - Web attachment responses prevent active content from executing in the app's
+    origin: only a small safe inline MIME allowlist is previewed; other payloads
+    download with sandbox and content-type protections.
+  - Phase 3A is intentionally not started because the strict Gate A still lacks
+    a real Windows x64 WinUI build, self-contained publish, and signed-in desktop
+    launch/interaction result.
 
 ### Fixed
 
@@ -121,13 +165,18 @@ is currently no `v2.0.0` Git tag or GitHub Release.
   a Developer ID Application identity, hardened runtime review, notarization,
   and stapling; physical iPad distribution needs an Apple development/team
   signing configuration.
-- The optional Catalyst UI-automation target can hang before the runner connects
-  under the current Xcode 27 beta host. It is excluded from the shared scheme's
-  default Test action. Current source contains 32 stable unit tests; the older
-  2026-08-07 package contains 25 per platform and is not current-SHA evidence.
-- WinUI source and Core tests are ready, but the self-contained x64 directory
-  must be produced and launch-verified on Windows because the Windows App SDK
-  XAML compiler has native Windows dependencies.
+- The shared Apple unit suite contains 47 tests and the separate iPad UI smoke
+  suite contains 3. Both passed locally on the fixed iPadOS 18.5 simulator;
+  the 47 tests also passed on Catalyst. Catalyst UI automation was not used as
+  acceptance evidence; the packaged app has a separate process/schema smoke.
+- Schema v3 can retain validated recurrence rules, but the current Apple and
+  Windows native notification adapters schedule only the first occurrence.
+  New recurring-reminder editing is not exposed until recurrence is implemented
+  end to end.
+- Windows Core contains 48 passing tests on the macOS host, but the WinUI
+  self-contained x64 directory must still be produced and launch-verified on
+  Windows because the Windows App SDK XAML compiler has native Windows
+  dependencies.
 
 ## [1.0.0] - 2026-08-06
 

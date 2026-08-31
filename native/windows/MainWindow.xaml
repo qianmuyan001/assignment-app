@@ -76,13 +76,18 @@
                                    TextWrapping="Wrap"/>
                         <TextBlock x:Name="AssignmentCount" Opacity="0.62"/>
                     </StackPanel>
-                    <Button x:Name="AddAssignmentButton"
-                            Grid.Column="1"
-                            Content="Add assignment"
-                            Click="AddAssignment_Click"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Padding="14,8"
-                            IsEnabled="False"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="AddAssignmentButton"
+                                Content="Add assignment"
+                                Click="AddAssignment_Click"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Padding="14,8"
+                                IsEnabled="False"/>
+                        <Button x:Name="ManageOrganizationButton"
+                                Content="Courses &amp; tags"
+                                Click="ManageOrganization_Click"
+                                Padding="14,8"/>
+                    </StackPanel>
                 </Grid>
 
                 <InfoBar x:Name="ErrorBar"
@@ -392,6 +397,23 @@
                 <StackPanel Padding="28,22" Spacing="16" MaxWidth="760"
                             HorizontalAlignment="Left">
                     <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold"/>
+                    <Border Style="{StaticResource TaskCardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="System notifications" FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock x:Name="NotificationStatusText"
+                                       Text="Checking Windows settings…"
+                                       TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="Refresh status"
+                                        Click="RefreshNotificationStatus_Click"/>
+                                <Button Content="Open notification settings"
+                                        Click="OpenNotificationSettings_Click"/>
+                            </StackPanel>
+                            <TextBlock Text="If notifications are blocked, tasks and reminder records continue to work normally."
+                                       TextWrapping="Wrap" FontSize="12" Opacity="0.65"/>
+                        </StackPanel>
+                    </Border>
                     <Border Style="{StaticResource TaskCardStyle}">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Task display" FontSize="18"
