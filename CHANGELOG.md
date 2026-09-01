@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-01
+
+This release line preserves the existing `v1.0.0` tag and packages the current
+cross-platform source snapshot as the 1.1 update. Historical 2.0 development
+baseline entries remain below for traceability; no `v2.0.0` tag was created.
+
+### Release notes
+
+- Packages the Phase 2.5 organization, attachment, reminder, native Apple, and
+  native Windows capabilities already present in the accepted source snapshot.
+- Includes a self-contained Windows x64 test package and isolated launch smoke.
+- Restores visible Windows scheduled reminder banners with a stable AUMID,
+  Start menu identity, COM toast activation, and Reminder action payloads.
+- Adds running-app notification activation and task-focused navigation.
+- Synchronizes root, Apple, and Windows release metadata at 1.1.0 on the
+  dedicated `release/1.1` branch without moving or replacing `v1.0.0`.
+
 ### Added
 
 - Added the shared SQLite schema v3 contract and additive v1/v2-to-v3 migration
