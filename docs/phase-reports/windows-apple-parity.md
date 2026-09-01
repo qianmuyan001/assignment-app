@@ -2,37 +2,36 @@
 
 Date: 2026-09-01
 
-Baseline scope: current Phase 2.5 source, version 2.0.0, Schema v3.
+Baseline scope: current Phase 2.5 source, version 1.1.0, Schema v3.
 
-Overall result: **source and automated-domain parity are substantially aligned;
-runtime acceptance parity is not yet closed.**
+Overall result: **source, domain, build, and tested desktop interaction parity
+are aligned; Windows Preview runtime parity is not declared because portable
+notification cold activation is still open.**
 
-| Capability | Apple | Windows | Current parity | Remaining evidence |
-| --- | --- | --- | --- | --- |
-| Schema and migrations | Schema v3 repository and migration tests | Same Schema v3 contract and fail-closed migration behavior | Aligned | None for current schema; do not invent v4 |
-| Basic task CRUD | SwiftUI task flows | Native WinUI task flows | Source/test aligned | Finish Windows done/delete manual matrix |
-| Status and progress | todo/in_progress/done plus subtask-derived progress | Same storage/UI mapping and derivation | Aligned | Final manual cross-view confirmation |
-| Due date/course/description/link/priority | Implemented | Implemented and desktop editor exercised | Aligned | None material |
-| Smart lists/search/filter/sort | Implemented | Implemented; sidebar/search desktop evidence captured | Aligned | Complete keyboard/Tab-order pass |
-| Simple/professional modes | Hidden fields preserved | Hidden fields preserved; setting persisted | Aligned | Repeat dark-theme manual pass |
-| Courses/projects/tags | Native organization repository/UI | Native Core repository and WinUI manager | Source/test aligned | Full Windows project/tag CRUD desktop pass |
-| Subtasks | CRUD and derived parent progress | CRUD and derived parent progress | Aligned | Windows add exercised; finish edit/delete manual pass |
-| Attachments | Managed file store, hashing, open/share/delete/reconcile | Managed file store, hashing, open/export/delete/reconcile and reparse defense | Aligned | Apple full manual package pass remains historical blocker |
-| Reminder records | Exact UTC trigger; one-shot scheduling | Same Schema v3 semantics | Aligned | Recurrence intentionally deferred |
-| Notification permission/status | UserNotifications status | Stable `Assignment App` sender is enabled; banners, center, sound, and important delivery verified | Aligned in capability | None material |
-| Schedule/cancel/reconcile | Implemented | Scheduled Reminder banner and running-app activation verified; cancel/reconcile implemented | Mostly aligned | Cold-start routing not repeated against an isolated desktop environment |
-| Navigation behavior | Apple compact/expanded patterns | Native NavigationView compact/expanded, persistent and adaptive | Equivalent, platform-native | Narrator/high-DPI manual pass |
-| Search interaction | Expand/focus/clear/Escape | Equivalent WinUI interaction exercised | Aligned | None material |
-| Accessibility | SwiftUI labels and prior UI smoke evidence | WinUI automation names/tooltips and keyboard checks | Partial evidence parity | VoiceOver/Narrator and Reduce Motion dedicated passes |
-| Build | Apple iPad/Catalyst source and tests reported passing at baseline | Windows Debug/Release x64 pass with 0 warnings/errors | Platform evidence present | Reports bind to different host runs by design |
-| Packaging | Local Catalyst debug artifact, not formal release | Self-contained x64 test package, not signed or installed | Equivalent preview posture | Signing/installer/Store require separate authorization |
-| Desktop launch/persistence | Catalyst package smoke reported | Published EXE and isolated DB smoke passed; settings restart exercised | Aligned for tested paths | Exhaustive persistence matrix remains |
-| Phase 3A / Schema v4 | No trustworthy implementation baseline found | No implementation started | Aligned absence | End Phase 2.5 here |
+| Capability | Apple Phase 2.5 | Windows 1.1 | Parity decision |
+| --- | --- | --- | --- |
+| Schema and migration | Schema v3 | Same v3 contract, backup, fail-closed migration | Aligned |
+| Task CRUD and fields | Implemented | Implemented; actual add/edit/delete/complete passed | Aligned |
+| Status and progress | todo/in_progress/done; child-derived progress | Same mapping; stale-editor reset fixed and retested | Aligned |
+| Smart lists/search/filter/sort | Implemented | Implemented; desktop and Core evidence passed | Aligned |
+| Simple/professional/theme | Hidden fields preserved | Same; professional and dark theme persist | Aligned |
+| Courses/projects/tags | Implemented | CRUD passed in native manager and isolated SQLite | Aligned |
+| Subtasks | CRUD and parent derivation | Add/edit/complete/delete and save persistence passed | Aligned |
+| Attachments | Managed file lifecycle | Equivalent hash/open/export/delete/reconcile and reparse defense | Aligned |
+| Reminder records | UTC one-shot trigger | Same Schema v3 semantics | Aligned |
+| Notification delivery | Native Apple delivery | Visible Windows banner/card passed with High priority | Capability aligned |
+| Notification activation | App routing | Warm activation passed; portable moved-path cold activation open | **Runtime evidence gap** |
+| Navigation | Apple-native sidebar behavior | WinUI NavigationView compact/expanded/adaptive and persistent | Equivalent, platform-native |
+| Search interaction | Expand/focus/clear/Escape | Equivalent WinUI behavior passed | Aligned |
+| Accessibility | SwiftUI labels | Narrator runtime, named Tab order, Tooltip, 150% DPI passed | Aligned for tested flows |
+| Reduce Motion | System preference | No custom animation overrides; system WinUI motion applies | Aligned |
+| Build/package | Apple preview build | Debug/Release and clean self-contained x64 smoke passed | Equivalent preview posture |
+| Phase 3A / Schema v4 | No trustworthy baseline found | Not implemented | Aligned absence |
 
-## Field and rule mapping
+## Shared rules
 
-Both clients use the shared Phase 2.5 assignment shape and Schema v3
-organization tables. They share:
+Both clients use the shared Phase 2.5 assignment and Schema v3 organization
+contracts:
 
 - title, course, description, source link, status, priority, due wall time, and
   timezone semantics;
@@ -42,47 +41,49 @@ organization tables. They share:
 - soft deletion, hidden-field preservation, parent progress derivation, safe
   attachment paths, SHA-256 metadata, and canonical UTC reminder triggers.
 
-Neither platform may claim recurring native delivery merely because
-`repeat_rule` is retained in Schema v3. Only the one-shot trigger is in the
-accepted Phase 2.5 behavior.
+`repeat_rule` remains preserved and validated, but native recurrence is not a
+Phase 2.5 capability on either side of this matrix.
 
 ## Platform differences
 
-- Apple uses SwiftUI, UserNotifications, QuickLook/share flows, and Apple-native
-  sidebar/window behavior.
-- Windows uses WinUI 3 NavigationView, Windows file pickers/launcher, native
-  toast APIs, Mica/Acrylic-compatible system materials, and Windows focus rules.
-- Equivalent capability is required; pixel-level SwiftUI or Liquid Glass
-  imitation is not.
+- Apple uses SwiftUI, UserNotifications, QuickLook/share flows, and native
+  Apple window/sidebar behavior.
+- Windows uses WinUI 3 NavigationView, Windows file pickers and Launcher,
+  native toast APIs, system materials, and Windows focus rules.
+- Equivalent user capability is required; Windows does not imitate SwiftUI,
+  Liquid Glass, or macOS window behavior pixel for pixel.
 
-## Evidence summary
+## Evidence
 
-Windows automated evidence:
+Windows final automated evidence:
 
-- shared 57/57;
-- backend 19/19;
-- Windows Core 50/50;
-- Pylint errors-only and version sync passed;
-- Debug and Release x64 passed with no warnings or errors;
-- self-contained publish and isolated launch smoke passed.
+- Shared: 57/57;
+- Backend: 19/19;
+- Windows Core: 50/50;
+- version sync, Pylint errors-only, and dotnet format passed;
+- Debug and Release x64: 0 warnings/errors;
+- clean self-contained publish and isolated launch smoke passed at source
+  `623fbb30b8f7400c8e88b37c497a10dc2915ef9e`.
 
-Windows desktop evidence covers navigation, adaptive layout, search, settings
-persistence, task editing, one subtask, attachment import/export/delete with
-matching SHA-256, organization manager launch, notification status, scheduled
-visible delivery, and running-app activation.
+Windows desktop evidence covers task/status/delete persistence, full
+organization CRUD, subtask CRUD and derived progress, attachments, navigation,
+search, settings/theme persistence, keyboard and named focus order, Narrator,
+150% DPI, visible scheduled notification delivery, and warm activation.
 
-The remaining Windows gaps are cold-start notification routing and the complete
-manual organization/status/delete/accessibility/high-DPI matrix. The Apple Phase
-2.5 report also retains manual organization/attachment/notification and
-accessibility gaps. Consequently no cross-platform Preview parity claim is made.
+The one remaining Windows runtime evidence gap is cold activation after a
+portable executable moves between directories during the same Windows logon.
+The current session retained the prior CLSID server path even after registry,
+shortcut, and official toolkit uninstall/re-registration updates. A fresh-logon
+or stable-install-path rerun is required.
 
 ## Decision
 
-Do not start Phase 3A or Schema v4 migration work from planning text alone.
-There is no trustworthy newer Apple implementation baseline to port.
+Do not start Phase 3A or Schema v4 implementation from planning text. There is
+no trustworthy newer Apple implementation baseline to port.
 
 Current wording:
 
-> Windows source and automated-domain behavior match the current Apple Phase
-> 2.5 baseline. Runtime acceptance is partially open on both platform evidence
-> sets, so Windows Preview parity is not yet declared.
+> Windows 1.1 implements and passes the current Apple Phase 2.5 domain and
+> tested desktop capability matrix. Windows Preview parity remains undeclared
+> until portable notification cold activation is verified from a fresh session
+> or stable installation directory.
