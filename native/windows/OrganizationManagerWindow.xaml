@@ -11,90 +11,90 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Organization"
+        <TextBlock x:Uid="OrganizationTitle" Text="Organization"
                    FontSize="24"
                    FontWeight="SemiBold"/>
 
         <Pivot Grid.Row="1">
             <!-- Courses -->
-            <PivotItem Header="Courses">
+            <PivotItem x:Uid="CoursesTab" Header="Courses">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListView x:Name="CourseList"
+                    <ListView x:Name="CourseList" x:Uid="CoursesList"
                               AutomationProperties.Name="Courses"
                               DisplayMemberPath="Name"
                               SelectionChanged="CourseList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
-                        <TextBox x:Name="CourseNameBox" Header="Name" MaxLength="120"/>
-                        <TextBox x:Name="CourseColorBox" Header="Color (#RRGGBB)" MaxLength="7"/>
-                        <TextBox x:Name="CourseTeacherBox" Header="Teacher"/>
-                        <TextBox x:Name="CourseSemesterBox" Header="Semester"/>
-                        <CheckBox x:Name="CourseArchivedBox" Content="Archived"/>
+                        <TextBox x:Name="CourseNameBox" x:Uid="NameField" Header="Name" MaxLength="120"/>
+                        <TextBox x:Name="CourseColorBox" x:Uid="ColorField" Header="Color (#RRGGBB)" MaxLength="7"/>
+                        <TextBox x:Name="CourseTeacherBox" x:Uid="TeacherField" Header="Teacher"/>
+                        <TextBox x:Name="CourseSemesterBox" x:Uid="SemesterField" Header="Semester"/>
+                        <CheckBox x:Name="CourseArchivedBox" x:Uid="ArchivedField" Content="Archived"/>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" AutomationProperties.Name="Save course" Click="SaveCourse_Click"/>
-                            <Button Content="New" AutomationProperties.Name="New course" Click="NewCourse_Click"/>
-                            <Button Content="Delete" AutomationProperties.Name="Delete course" Click="DeleteCourse_Click"/>
+                            <Button x:Uid="SaveCourseButton" Content="Save" AutomationProperties.Name="Save course" Click="SaveCourse_Click"/>
+                            <Button x:Uid="NewCourseButton" Content="New" AutomationProperties.Name="New course" Click="NewCourse_Click"/>
+                            <Button x:Uid="DeleteCourseButton" Content="Delete" AutomationProperties.Name="Delete course" Click="DeleteCourse_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
             </PivotItem>
 
             <!-- Projects -->
-            <PivotItem Header="Projects">
+            <PivotItem x:Uid="ProjectsTab" Header="Projects">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListView x:Name="ProjectList"
+                    <ListView x:Name="ProjectList" x:Uid="ProjectsList"
                               AutomationProperties.Name="Projects"
                               DisplayMemberPath="Name"
                               SelectionChanged="ProjectList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
-                        <TextBox x:Name="ProjectNameBox" Header="Name" MaxLength="255"/>
-                        <ComboBox x:Name="ProjectCourseBox" Header="Course" HorizontalAlignment="Stretch"/>
-                        <TextBox x:Name="ProjectDescriptionBox"
+                        <TextBox x:Name="ProjectNameBox" x:Uid="NameField" Header="Name" MaxLength="255"/>
+                        <ComboBox x:Name="ProjectCourseBox" x:Uid="CourseField" Header="Course" HorizontalAlignment="Stretch"/>
+                        <TextBox x:Name="ProjectDescriptionBox" x:Uid="DescriptionField"
                                  Header="Description"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
                                  MinHeight="80"
                                  MaxHeight="160"/>
-                        <ComboBox x:Name="ProjectStatusBox" Header="Status" HorizontalAlignment="Stretch">
-                            <ComboBoxItem Content="Active" Tag="active"/>
-                            <ComboBoxItem Content="On hold" Tag="on_hold"/>
-                            <ComboBoxItem Content="Completed" Tag="completed"/>
-                            <ComboBoxItem Content="Archived" Tag="archived"/>
+                        <ComboBox x:Name="ProjectStatusBox" x:Uid="ProjectStatusField" Header="Status" HorizontalAlignment="Stretch">
+                            <ComboBoxItem x:Uid="ProjectActive" Content="Active" Tag="active"/>
+                            <ComboBoxItem x:Uid="ProjectOnHold" Content="On hold" Tag="on_hold"/>
+                            <ComboBoxItem x:Uid="ProjectCompleted" Content="Completed" Tag="completed"/>
+                            <ComboBoxItem x:Uid="ProjectArchived" Content="Archived" Tag="archived"/>
                         </ComboBox>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" AutomationProperties.Name="Save project" Click="SaveProject_Click"/>
-                            <Button Content="New" AutomationProperties.Name="New project" Click="NewProject_Click"/>
-                            <Button Content="Delete" AutomationProperties.Name="Delete project" Click="DeleteProject_Click"/>
+                            <Button x:Uid="SaveProjectButton" Content="Save" AutomationProperties.Name="Save project" Click="SaveProject_Click"/>
+                            <Button x:Uid="NewProjectButton" Content="New" AutomationProperties.Name="New project" Click="NewProject_Click"/>
+                            <Button x:Uid="DeleteProjectButton" Content="Delete" AutomationProperties.Name="Delete project" Click="DeleteProject_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
             </PivotItem>
 
             <!-- Tags -->
-            <PivotItem Header="Tags">
+            <PivotItem x:Uid="TagsTab" Header="Tags">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListView x:Name="TagList"
+                    <ListView x:Name="TagList" x:Uid="TagsList"
                               AutomationProperties.Name="Tags"
                               DisplayMemberPath="Name"
                               SelectionChanged="TagList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
-                        <TextBox x:Name="TagNameBox" Header="Name" MaxLength="80"/>
-                        <TextBox x:Name="TagColorBox" Header="Color (#RRGGBB)" MaxLength="7"/>
+                        <TextBox x:Name="TagNameBox" x:Uid="NameField" Header="Name" MaxLength="80"/>
+                        <TextBox x:Name="TagColorBox" x:Uid="ColorField" Header="Color (#RRGGBB)" MaxLength="7"/>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" AutomationProperties.Name="Save tag" Click="SaveTag_Click"/>
-                            <Button Content="New" AutomationProperties.Name="New tag" Click="NewTag_Click"/>
-                            <Button Content="Delete" AutomationProperties.Name="Delete tag" Click="DeleteTag_Click"/>
+                            <Button x:Uid="SaveTagButton" Content="Save" AutomationProperties.Name="Save tag" Click="SaveTag_Click"/>
+                            <Button x:Uid="NewTagButton" Content="New" AutomationProperties.Name="New tag" Click="NewTag_Click"/>
+                            <Button x:Uid="DeleteTagButton" Content="Delete" AutomationProperties.Name="Delete tag" Click="DeleteTag_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>

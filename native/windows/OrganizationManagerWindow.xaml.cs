@@ -16,6 +16,7 @@ public sealed partial class OrganizationManagerWindow : Window
     public OrganizationManagerWindow(ITaskOrganizationRepository organization)
     {
         InitializeComponent();
+        Title = AppText.Get("OrganizationWindowTitle");
         AppWindow.Resize(new Windows.Graphics.SizeInt32(900, 620));
         _organization = organization;
         LoadAll();
@@ -27,7 +28,7 @@ public sealed partial class OrganizationManagerWindow : Window
         CourseList.ItemsSource = _courses;
 
         ProjectCourseBox.Items.Clear();
-        ProjectCourseBox.Items.Add(new ComboBoxItem { Content = "(No course)", Tag = 0L });
+        ProjectCourseBox.Items.Add(new ComboBoxItem { Content = AppText.Get("NoCourse"), Tag = 0L });
         foreach (var course in _courses)
         {
             ProjectCourseBox.Items.Add(new ComboBoxItem { Content = course.Name, Tag = course.Id });
@@ -106,7 +107,7 @@ public sealed partial class OrganizationManagerWindow : Window
         var name = CourseNameBox.Text.Trim();
         if (name.Length == 0)
         {
-            ShowNotice("A course name is required.");
+            ShowNotice(AppText.Get("CourseNameRequired"));
             return;
         }
         var draft = new CourseDraft(
@@ -124,7 +125,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The course could not be saved: {error.Message}");
+            ShowNotice(AppText.Format("CourseSaveError", error.Message));
         }
     }
 
@@ -147,7 +148,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The course could not be deleted: {error.Message}");
+            ShowNotice(AppText.Format("CourseDeleteError", error.Message));
         }
     }
 
@@ -156,7 +157,7 @@ public sealed partial class OrganizationManagerWindow : Window
         var name = ProjectNameBox.Text.Trim();
         if (name.Length == 0)
         {
-            ShowNotice("A project name is required.");
+            ShowNotice(AppText.Get("ProjectNameRequired"));
             return;
         }
         long? courseId = ProjectCourseBox.SelectedItem is ComboBoxItem { Tag: long id } && id != 0L
@@ -176,7 +177,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The project could not be saved: {error.Message}");
+            ShowNotice(AppText.Format("ProjectSaveError", error.Message));
         }
     }
 
@@ -199,7 +200,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The project could not be deleted: {error.Message}");
+            ShowNotice(AppText.Format("ProjectDeleteError", error.Message));
         }
     }
 
@@ -208,7 +209,7 @@ public sealed partial class OrganizationManagerWindow : Window
         var name = TagNameBox.Text.Trim();
         if (name.Length == 0)
         {
-            ShowNotice("A tag name is required.");
+            ShowNotice(AppText.Get("TagNameRequired"));
             return;
         }
         var draft = new TagDraft(name, Clean(TagColorBox.Text));
@@ -221,7 +222,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The tag could not be saved: {error.Message}");
+            ShowNotice(AppText.Format("TagSaveError", error.Message));
         }
     }
 
@@ -244,7 +245,7 @@ public sealed partial class OrganizationManagerWindow : Window
         }
         catch (System.Exception error)
         {
-            ShowNotice($"The tag could not be deleted: {error.Message}");
+            ShowNotice(AppText.Format("TagDeleteError", error.Message));
         }
     }
 
@@ -280,9 +281,9 @@ public sealed partial class OrganizationManagerWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = root.XamlRoot,
-            Title = "Organization",
+            Title = AppText.Get("Organization"),
             Content = message,
-            CloseButtonText = "OK"
+            CloseButtonText = AppText.Get("OK")
         };
         await dialog.ShowAsync();
     }

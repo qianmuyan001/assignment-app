@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="MainWindow.Title" xml:space="preserve"><value>Assignments</value></data>
+  <data name="AppWindowTitle" xml:space="preserve"><value>Assignments</value></data>
+  <data name="OrganizationWindowTitle" xml:space="preserve"><value>Courses, projects &amp; tags</value></data>
+  <data name="AppName.Text" xml:space="preserve"><value>Assignments</value></data>
+  <data name="AppSubtitle.Text" xml:space="preserve"><value>Local task workspace</value></data>
+  <data name="NavigationStyleLabel.Text" xml:space="preserve"><value>Compact navigation</value></data>
+  <data name="NavAll.Content" xml:space="preserve"><value>All Assignments</value></data>
+  <data name="NavToday.Content" xml:space="preserve"><value>Today</value></data>
+  <data name="NavWeek.Content" xml:space="preserve"><value>This Week</value></data>
+  <data name="NavOverdue.Content" xml:space="preserve"><value>Overdue</value></data>
+  <data name="NavCompleted.Content" xml:space="preserve"><value>Completed</value></data>
+  <data name="NavSources.Content" xml:space="preserve"><value>Sources</value></data>
+  <data name="PageTitle.Text" xml:space="preserve"><value>All Assignments</value></data>
+  <data name="AddAssignmentButton.Content" xml:space="preserve"><value>Add assignment</value></data>
+  <data name="ManageOrganizationButton.Content" xml:space="preserve"><value>Courses &amp; tags</value></data>
+  <data name="ErrorBar.Title" xml:space="preserve"><value>Could not load assignments</value></data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve"><value>Search title, course, or description</value></data>
+  <data name="StatusFilterBox.Header" xml:space="preserve"><value>Status</value></data>
+  <data name="StatusAll.Content" xml:space="preserve"><value>All statuses</value></data>
+  <data name="StatusTodo.Content" xml:space="preserve"><value>To do</value></data>
+  <data name="StatusInProgress.Content" xml:space="preserve"><value>In progress</value></data>
+  <data name="StatusDone.Content" xml:space="preserve"><value>Done</value></data>
+  <data name="CourseFilterBox.Header" xml:space="preserve"><value>Course</value></data>
+  <data name="PriorityFilterBox.Header" xml:space="preserve"><value>Priority</value></data>
+  <data name="PriorityAll.Content" xml:space="preserve"><value>All priorities</value></data>
+  <data name="PriorityHigh.Content" xml:space="preserve"><value>High</value></data>
+  <data name="PriorityMedium.Content" xml:space="preserve"><value>Medium</value></data>
+  <data name="PriorityLow.Content" xml:space="preserve"><value>Low</value></data>
+  <data name="SortBox.Header" xml:space="preserve"><value>Sort</value></data>
+  <data name="SortDueDate.Content" xml:space="preserve"><value>Due date</value></data>
+  <data name="SortPriority.Content" xml:space="preserve"><value>Priority</value></data>
+  <data name="ClearFiltersButton.Content" xml:space="preserve"><value>Clear</value></data>
+  <data name="OpenSourceLinkButton.Content" xml:space="preserve"><value>Open source link</value></data>
+  <data name="EditAssignmentButton.Content" xml:space="preserve"><value>Edit</value></data>
+  <data name="MarkDoneButton.Content" xml:space="preserve"><value>Mark done</value></data>
+  <data name="EmptyStateTitle.Text" xml:space="preserve"><value>No assignments here</value></data>
+  <data name="EmptyStateMessage.Text" xml:space="preserve"><value>Add an assignment or change the filters.</value></data>
+  <data name="LoadingAssignments.Text" xml:space="preserve"><value>Loading assignments…</value></data>
+  <data name="SourceConnectorTitle.Text" xml:space="preserve"><value>Secure Source Connector</value></data>
+  <data name="SourceConnectorSubtitle.Text" xml:space="preserve"><value>Sign in first, then let the local model extract assignments.</value></data>
+  <data name="LocalOnly.Text" xml:space="preserve"><value>Local only</value></data>
+  <data name="SourceNameBox.PlaceholderText" xml:space="preserve"><value>Source name · e.g. Canvas</value></data>
+  <data name="CourseHintBox.PlaceholderText" xml:space="preserve"><value>Course hint · optional</value></data>
+  <data name="InteractiveLogin.Content" xml:space="preserve"><value>Interactive login</value></data>
+  <data name="CredentialFill.Content" xml:space="preserve"><value>Credential Locker fill</value></data>
+  <data name="AddressBox.PlaceholderText" xml:space="preserve"><value>https://your-school.example</value></data>
+  <data name="OpenAddressButton.Content" xml:space="preserve"><value>Open</value></data>
+  <data name="CredentialButton.Content" xml:space="preserve"><value>Credential</value></data>
+  <data name="BrowserTitle.Text" xml:space="preserve"><value>No page loaded</value></data>
+  <data name="AutoFillToggle.Header" xml:space="preserve"><value>Auto-fill exact origin</value></data>
+  <data name="ScanButton.Content" xml:space="preserve"><value>Scan current page</value></data>
+  <data name="SettingsTitle.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="NotificationsTitle.Text" xml:space="preserve"><value>System notifications</value></data>
+  <data name="NotificationStatusText.Text" xml:space="preserve"><value>Checking Windows settings…</value></data>
+  <data name="RefreshNotificationButton.Content" xml:space="preserve"><value>Refresh status</value></data>
+  <data name="OpenNotificationSettingsButton.Content" xml:space="preserve"><value>Open notification settings</value></data>
+  <data name="SendTestNotificationButton.Content" xml:space="preserve"><value>Send test reminder</value></data>
+  <data name="NotificationHelp.Text" xml:space="preserve"><value>If notifications are blocked, tasks and reminder records continue to work normally.</value></data>
+  <data name="TaskDisplayTitle.Text" xml:space="preserve"><value>Task display</value></data>
+  <data name="DisplayModeBox.Header" xml:space="preserve"><value>Mode</value></data>
+  <data name="DisplaySimple.Content" xml:space="preserve"><value>Simple</value></data>
+  <data name="DisplayProfessional.Content" xml:space="preserve"><value>Professional</value></data>
+  <data name="DisplayModeHelp.Text" xml:space="preserve"><value>Simple shows the title, course, due time, and status. Professional also shows the description, priority, and source link. Hidden fields are never cleared.</value></data>
+  <data name="ThemeBox.Header" xml:space="preserve"><value>Appearance</value></data>
+  <data name="ThemeSystem.Content" xml:space="preserve"><value>Use system setting</value></data>
+  <data name="ThemeLight.Content" xml:space="preserve"><value>Light</value></data>
+  <data name="ThemeDark.Content" xml:space="preserve"><value>Dark</value></data>
+  <data name="LanguageSectionTitle.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="LanguageBox.Header" xml:space="preserve"><value>Application language</value></data>
+  <data name="LanguageEnglish.Content" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageChinese.Content" xml:space="preserve"><value>Simplified Chinese</value></data>
+  <data name="LanguageHelp.Text" xml:space="preserve"><value>The interface updates immediately. Task data is not changed.</value></data>
+  <data name="LocalAiTitle.Text" xml:space="preserve"><value>Local AI</value></data>
+  <data name="AiEndpointBox.Header" xml:space="preserve"><value>Loopback endpoint</value></data>
+  <data name="CheckAiButton.Content" xml:space="preserve"><value>Check connection</value></data>
+  <data name="AiStatusText.Text" xml:space="preserve"><value>Not checked</value></data>
+  <data name="AiHelp.Text" xml:space="preserve"><value>Only localhost and loopback IP addresses are accepted.</value></data>
+  <data name="LocalDataTitle.Text" xml:space="preserve"><value>Local data</value></data>
+  <data name="LocalDataHelp.Text" xml:space="preserve"><value>Task data stays in SQLite on this PC. Versioned migrations create a recoverable backup before changing an existing database.</value></data>
+  <data name="PrivacyTitle.Text" xml:space="preserve"><value>Privacy</value></data>
+  <data name="PrivacyPasswords.Text" xml:space="preserve"><value>• Passwords stay in Windows Credential Locker</value></data>
+  <data name="PrivacyContent.Text" xml:space="preserve"><value>• Course content stays on this PC</value></data>
+  <data name="PrivacyBrowser.Text" xml:space="preserve"><value>• The local model cannot control the login browser</value></data>
+  <data name="TaskEditorDialog.Title" xml:space="preserve"><value>Assignment</value></data>
+  <data name="TaskEditorDialog.PrimaryButtonText" xml:space="preserve"><value>Save</value></data>
+  <data name="TaskEditorDialog.CloseButtonText" xml:space="preserve"><value>Cancel</value></data>
+  <data name="EditorTitleBox.Header" xml:space="preserve"><value>Title</value></data>
+  <data name="EditorTitleBox.PlaceholderText" xml:space="preserve"><value>What needs to be done?</value></data>
+  <data name="EditorCourseBox.Header" xml:space="preserve"><value>Course</value></data>
+  <data name="EditorCourseBox.PlaceholderText" xml:space="preserve"><value>Course name (type, or pick below)</value></data>
+  <data name="EditorCoursePicker.Header" xml:space="preserve"><value>Pick an existing course</value></data>
+  <data name="EditorProjectPicker.Header" xml:space="preserve"><value>Project</value></data>
+  <data name="EditorTags.Text" xml:space="preserve"><value>Tags</value></data>
+  <data name="EditorHasDueDate.Content" xml:space="preserve"><value>Set a due date and time</value></data>
+  <data name="EditorDueDate.Header" xml:space="preserve"><value>Due date</value></data>
+  <data name="EditorDueTime.Header" xml:space="preserve"><value>Due time</value></data>
+  <data name="EditorStatusBox.Header" xml:space="preserve"><value>Status</value></data>
+  <data name="EditorDescriptionBox.Header" xml:space="preserve"><value>Description</value></data>
+  <data name="EditorDescriptionBox.PlaceholderText" xml:space="preserve"><value>Notes, requirements, or context</value></data>
+  <data name="EditorPriorityBox.Header" xml:space="preserve"><value>Priority</value></data>
+  <data name="EditorLinkBox.Header" xml:space="preserve"><value>Source link</value></data>
+  <data name="EditorSubtasks.Text" xml:space="preserve"><value>Subtasks</value></data>
+  <data name="EditorNewSubtask.PlaceholderText" xml:space="preserve"><value>Add a subtask</value></data>
+  <data name="EditorAddSubtaskButton.Content" xml:space="preserve"><value>Add</value></data>
+  <data name="EditorReminders.Text" xml:space="preserve"><value>Reminders</value></data>
+  <data name="EditorReminderDate.Header" xml:space="preserve"><value>Date</value></data>
+  <data name="EditorReminderTime.Header" xml:space="preserve"><value>Time</value></data>
+  <data name="EditorAddReminderButton.Content" xml:space="preserve"><value>Add reminder</value></data>
+  <data name="EditorAttachments.Text" xml:space="preserve"><value>Attachments</value></data>
+  <data name="EditorAddAttachmentButton.Content" xml:space="preserve"><value>Add attachment…</value></data>
+  <data name="EditorModeHelp.Text" xml:space="preserve"><value>Professional fields are hidden in simple mode but their saved values are preserved.</value></data>
+  <data name="OrganizationWindow.Title" xml:space="preserve"><value>Courses, projects &amp; tags</value></data>
+  <data name="OrganizationTitle.Text" xml:space="preserve"><value>Organization</value></data>
+  <data name="CoursesTab.Header" xml:space="preserve"><value>Courses</value></data>
+  <data name="ProjectsTab.Header" xml:space="preserve"><value>Projects</value></data>
+  <data name="TagsTab.Header" xml:space="preserve"><value>Tags</value></data>
+  <data name="NameField.Header" xml:space="preserve"><value>Name</value></data>
+  <data name="ColorField.Header" xml:space="preserve"><value>Color (#RRGGBB)</value></data>
+  <data name="TeacherField.Header" xml:space="preserve"><value>Teacher</value></data>
+  <data name="SemesterField.Header" xml:space="preserve"><value>Semester</value></data>
+  <data name="ArchivedField.Content" xml:space="preserve"><value>Archived</value></data>
+  <data name="CourseField.Header" xml:space="preserve"><value>Course</value></data>
+  <data name="DescriptionField.Header" xml:space="preserve"><value>Description</value></data>
+  <data name="ProjectStatusField.Header" xml:space="preserve"><value>Status</value></data>
+  <data name="ProjectActive.Content" xml:space="preserve"><value>Active</value></data>
+  <data name="ProjectOnHold.Content" xml:space="preserve"><value>On hold</value></data>
+  <data name="ProjectCompleted.Content" xml:space="preserve"><value>Completed</value></data>
+  <data name="ProjectArchived.Content" xml:space="preserve"><value>Archived</value></data>
+  <data name="SaveCourseButton.Content" xml:space="preserve"><value>Save</value></data>
+  <data name="NewCourseButton.Content" xml:space="preserve"><value>New</value></data>
+  <data name="DeleteCourseButton.Content" xml:space="preserve"><value>Delete</value></data>
+  <data name="SaveProjectButton.Content" xml:space="preserve"><value>Save</value></data>
+  <data name="NewProjectButton.Content" xml:space="preserve"><value>New</value></data>
+  <data name="DeleteProjectButton.Content" xml:space="preserve"><value>Delete</value></data>
+  <data name="SaveTagButton.Content" xml:space="preserve"><value>Save</value></data>
+  <data name="NewTagButton.Content" xml:space="preserve"><value>New</value></data>
+  <data name="DeleteTagButton.Content" xml:space="preserve"><value>Delete</value></data>
+  <data name="Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="AllCourses" xml:space="preserve"><value>All courses</value></data>
+  <data name="NoProject" xml:space="preserve"><value>(No project)</value></data>
+  <data name="CustomCourse" xml:space="preserve"><value>(Custom — type above)</value></data>
+  <data name="DynamicStatusTodo" xml:space="preserve"><value>To do</value></data>
+  <data name="DynamicStatusInProgress" xml:space="preserve"><value>In progress</value></data>
+  <data name="DynamicStatusDone" xml:space="preserve"><value>Done</value></data>
+  <data name="NoDescription" xml:space="preserve"><value>No description</value></data>
+  <data name="PriorityDisplay" xml:space="preserve"><value>{0} priority</value></data>
+  <data name="DynamicPriorityLow" xml:space="preserve"><value>Low</value></data>
+  <data name="DynamicPriorityMedium" xml:space="preserve"><value>Medium</value></data>
+  <data name="DynamicPriorityHigh" xml:space="preserve"><value>High</value></data>
+  <data name="NoDueDate" xml:space="preserve"><value>No due date</value></data>
+  <data name="AllDay" xml:space="preserve"><value>All day</value></data>
+  <data name="AssignmentCount" xml:space="preserve"><value>{0} assignments</value></data>
+  <data name="AssignmentCountOne" xml:space="preserve"><value>1 assignment</value></data>
+  <data name="ShowNavigationLabels" xml:space="preserve"><value>Show navigation labels</value></data>
+  <data name="UseCompactNavigation" xml:space="preserve"><value>Use compact navigation</value></data>
+  <data name="AddAssignmentTitle" xml:space="preserve"><value>Add assignment</value></data>
+  <data name="EditAssignmentTitle" xml:space="preserve"><value>Edit assignment</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Export" xml:space="preserve"><value>Export</value></data>
+  <data name="Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="Disable" xml:space="preserve"><value>Disable</value></data>
+  <data name="EditTime" xml:space="preserve"><value>Edit time</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Organization" xml:space="preserve"><value>Organization</value></data>
+  <data name="NoticeTitle" xml:space="preserve"><value>Assignments</value></data>
+  <data name="NotificationTestTitle" xml:space="preserve"><value>Assignment App test reminder</value></data>
+  <data name="NotificationTestMessage" xml:space="preserve"><value>Windows scheduled notifications and activation are working.</value></data>
+  <data name="NotificationTaskMessage" xml:space="preserve"><value>{0} · Due {1}</value></data>
+  <data name="NotificationOpenButton" xml:space="preserve"><value>Open Assignment App</value></data>
+  <data name="NotificationAllowed" xml:space="preserve"><value>Allowed</value></data>
+  <data name="NotificationRegistered" xml:space="preserve"><value>Registered with Windows</value></data>
+  <data name="NotificationUnavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="NotificationUnavailableWindows" xml:space="preserve"><value>Unavailable on this Windows installation</value></data>
+  <data name="NotificationDisabledApp" xml:space="preserve"><value>Disabled for Assignment App</value></data>
+  <data name="NotificationDisabledUser" xml:space="preserve"><value>Disabled for this Windows user</value></data>
+  <data name="NotificationDisabledPolicy" xml:space="preserve"><value>Disabled by Group Policy</value></data>
+  <data name="NotificationDisabledManifest" xml:space="preserve"><value>Disabled by app manifest</value></data>
+  <data name="NotificationBlockedApp" xml:space="preserve"><value>Notifications are disabled for Assignment App</value></data>
+  <data name="NotificationBlockedUser" xml:space="preserve"><value>Notifications are disabled for this Windows user</value></data>
+  <data name="NotificationBlockedPolicy" xml:space="preserve"><value>Notifications are disabled by Group Policy</value></data>
+  <data name="NotificationBlockedManifest" xml:space="preserve"><value>Notifications are disabled by the app manifest</value></data>
+  <data name="NotificationUnknown" xml:space="preserve"><value>Notification availability could not be determined</value></data>
+  <data name="NotificationFailure" xml:space="preserve"><value>Last operation failed ({0}, 0x{1})</value></data>
+  <data name="SettingsLoadError" xml:space="preserve"><value>Settings could not be loaded. Defaults are being used.</value></data>
+  <data name="SchemaVersion" xml:space="preserve"><value>Schema version {0}</value></data>
+  <data name="SchemaVersionBackup" xml:space="preserve"><value>Schema version {0} · migration backup: {1}</value></data>
+  <data name="DatabaseOpenError" xml:space="preserve"><value>The local database could not be opened safely. No task changes will be written. Check the message and restore from the migration backup if one is listed.</value></data>
+  <data name="AssignmentsLoadError" xml:space="preserve"><value>Assignments could not be loaded.</value></data>
+  <data name="FiltersApplyError" xml:space="preserve"><value>The current filters could not be applied.</value></data>
+  <data name="NoMatchingAssignments" xml:space="preserve"><value>No matching assignments</value></data>
+  <data name="NoAssignmentsHere" xml:space="preserve"><value>No assignments here</value></data>
+  <data name="ClearFiltersForTasks" xml:space="preserve"><value>Clear or change the filters to see more tasks.</value></data>
+  <data name="NoTasksToday" xml:space="preserve"><value>No tasks are due today.</value></data>
+  <data name="NoTasksWeek" xml:space="preserve"><value>No tasks are due in this calendar week.</value></data>
+  <data name="NothingOverdue" xml:space="preserve"><value>Nothing is overdue.</value></data>
+  <data name="CompletedTasksHere" xml:space="preserve"><value>Completed tasks will appear here.</value></data>
+  <data name="AddAssignmentGetStarted" xml:space="preserve"><value>Add an assignment to get started.</value></data>
+  <data name="NavTodayTitle" xml:space="preserve"><value>Today</value></data>
+  <data name="NavWeekTitle" xml:space="preserve"><value>This Week</value></data>
+  <data name="NavOverdueTitle" xml:space="preserve"><value>Overdue</value></data>
+  <data name="NavCompletedTitle" xml:space="preserve"><value>Completed</value></data>
+  <data name="NavAllTitle" xml:space="preserve"><value>All Assignments</value></data>
+  <data name="DatabaseUnavailableAdd" xml:space="preserve"><value>The database is unavailable, so the assignment cannot be added.</value></data>
+  <data name="DeleteAssignmentTitle" xml:space="preserve"><value>Delete this assignment?</value></data>
+  <data name="DeleteAssignmentGeneric" xml:space="preserve"><value>This removes it from the local assignment database.</value></data>
+  <data name="DeleteAssignmentNamed" xml:space="preserve"><value>“{0}” will be permanently removed from the local database.</value></data>
+  <data name="DatabaseUnavailableChanges" xml:space="preserve"><value>The database is unavailable. No changes were written.</value></data>
+  <data name="AssignmentSaveError" xml:space="preserve"><value>The assignment change could not be saved.</value></data>
+  <data name="TestReminderScheduled" xml:space="preserve"><value>Allowed · Test reminder scheduled for five seconds from now</value></data>
+  <data name="AttachmentFilesMissing" xml:space="preserve"><value>Some attachment files are missing from local storage: {0}</value></data>
+  <data name="AttachmentReconcileError" xml:space="preserve"><value>Attachment files could not be reconciled. Tasks remain available, but attachment cleanup needs attention.</value></data>
+  <data name="InvalidSourceLink" xml:space="preserve"><value>This assignment does not have a valid http or https source link.</value></data>
+  <data name="OpenSourceLinkError" xml:space="preserve"><value>Windows could not open the source link.</value></data>
+  <data name="AssignmentTagsSaveError" xml:space="preserve"><value>The assignment tags could not be saved.</value></data>
+  <data name="OrganizationUnavailable" xml:space="preserve"><value>The database is unavailable, so organization settings cannot be opened.</value></data>
+  <data name="SettingsSaveError" xml:space="preserve"><value>The setting could not be saved for the next launch.</value></data>
+  <data name="BlockedNonWebNavigation" xml:space="preserve"><value>Blocked a non-web navigation request.</value></data>
+  <data name="WebPage" xml:space="preserve"><value>Web page</value></data>
+  <data name="OpenHttpsLoginFirst" xml:space="preserve"><value>Open the HTTPS login page first.</value></data>
+  <data name="UsernameOrEmail" xml:space="preserve"><value>Username or email</value></data>
+  <data name="Password" xml:space="preserve"><value>Password</value></data>
+  <data name="ExactHttpsOrigin" xml:space="preserve"><value>Exact HTTPS origin: {0}</value></data>
+  <data name="CredentialLockerHelp" xml:space="preserve"><value>Stored in Windows Credential Locker. Filling never submits the form.</value></data>
+  <data name="SavedCredential" xml:space="preserve"><value>Saved credential</value></data>
+  <data name="FillExisting" xml:space="preserve"><value>Fill existing</value></data>
+  <data name="OpenLoginFirst" xml:space="preserve"><value>Open a login page first.</value></data>
+  <data name="NoCredentialSaved" xml:space="preserve"><value>No credential is saved for {0}.</value></data>
+  <data name="CredentialFilled" xml:space="preserve"><value>Username and password were filled. Review the page before signing in.</value></data>
+  <data name="ReadingLocally" xml:space="preserve"><value>Reading locally…</value></data>
+  <data name="ScanCurrentPage" xml:space="preserve"><value>Scan current page</value></data>
+  <data name="NoAssignmentsFoundOnPage" xml:space="preserve"><value>The local model found no assignments on this page.</value></data>
+  <data name="ReviewCandidates" xml:space="preserve"><value>Review {0} assignment candidates</value></data>
+  <data name="AddSelected" xml:space="preserve"><value>Add selected</value></data>
+  <data name="ImportedAssignmentsSaveError" xml:space="preserve"><value>Imported assignments could not be saved.</value></data>
+  <data name="AssignmentsImported" xml:space="preserve"><value>Added {0} assignments. Duplicates were skipped.</value></data>
+  <data name="AiReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="AiOffline" xml:space="preserve"><value>Offline</value></data>
+  <data name="Web" xml:space="preserve"><value>Web</value></data>
+  <data name="EditorAttachmentFilesMissing" xml:space="preserve"><value>Some attachment files are missing: {0}</value></data>
+  <data name="MarkSubtaskComplete" xml:space="preserve"><value>Mark {0} complete</value></data>
+  <data name="EditSubtask" xml:space="preserve"><value>Edit subtask {0}</value></data>
+  <data name="RemoveSubtask" xml:space="preserve"><value>Remove subtask {0}</value></data>
+  <data name="EditReminder" xml:space="preserve"><value>Edit reminder {0}</value></data>
+  <data name="ToggleReminder" xml:space="preserve"><value>{0} reminder {1}</value></data>
+  <data name="RemoveReminder" xml:space="preserve"><value>Remove reminder {0}</value></data>
+  <data name="AttachmentSize" xml:space="preserve"><value>{0} ({1} bytes)</value></data>
+  <data name="AttachmentUnavailable" xml:space="preserve"><value>{0} — local file missing or unsafe</value></data>
+  <data name="OpenAttachment" xml:space="preserve"><value>Open attachment {0}</value></data>
+  <data name="ExportAttachment" xml:space="preserve"><value>Export attachment {0}</value></data>
+  <data name="RemoveAttachment" xml:space="preserve"><value>Remove attachment {0}</value></data>
+  <data name="ReminderRepeats" xml:space="preserve"><value> · repeats {0}</value></data>
+  <data name="ReminderDisabled" xml:space="preserve"><value> (disabled)</value></data>
+  <data name="SubtaskAddError" xml:space="preserve"><value>The subtask could not be added: {0}</value></data>
+  <data name="SubtaskUpdateError" xml:space="preserve"><value>The subtask could not be updated: {0}</value></data>
+  <data name="SubtaskRemoveError" xml:space="preserve"><value>The subtask could not be removed: {0}</value></data>
+  <data name="Title" xml:space="preserve"><value>Title</value></data>
+  <data name="SubtaskTitle" xml:space="preserve"><value>Subtask title</value></data>
+  <data name="SaveSubtaskTitle" xml:space="preserve"><value>Save subtask title</value></data>
+  <data name="CancelSubtaskTitleEdit" xml:space="preserve"><value>Cancel subtask title edit</value></data>
+  <data name="EditSubtaskTitle" xml:space="preserve"><value>Edit subtask title</value></data>
+  <data name="ReminderSavedNotificationError" xml:space="preserve"><value>The reminder was saved, but Windows did not schedule the notification. {0}</value></data>
+  <data name="ReminderAddError" xml:space="preserve"><value>The reminder could not be added: {0}</value></data>
+  <data name="ReminderRemovedNotificationError" xml:space="preserve"><value>The reminder was removed, but its Windows notification could not be verified. {0}</value></data>
+  <data name="ReminderRemoveError" xml:space="preserve"><value>The reminder could not be removed: {0}</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Time" xml:space="preserve"><value>Time</value></data>
+  <data name="ReminderDate" xml:space="preserve"><value>Reminder date</value></data>
+  <data name="ReminderTime" xml:space="preserve"><value>Reminder time</value></data>
+  <data name="SaveReminderTime" xml:space="preserve"><value>Save reminder time</value></data>
+  <data name="CancelReminderTimeEdit" xml:space="preserve"><value>Cancel reminder time edit</value></data>
+  <data name="EditReminderTime" xml:space="preserve"><value>Edit reminder time</value></data>
+  <data name="ReminderTimeSavedNotificationError" xml:space="preserve"><value>The reminder time was saved, but Windows notification state could not be verified. {0}</value></data>
+  <data name="ReminderUpdateError" xml:space="preserve"><value>The reminder could not be updated: {0}</value></data>
+  <data name="ReminderUpdatedNotificationError" xml:space="preserve"><value>The reminder was updated, but Windows notification state could not be verified. {0}</value></data>
+  <data name="TaskNotificationRefreshError" xml:space="preserve"><value>The task was updated, but Windows notifications could not be refreshed.</value></data>
+  <data name="FilePickerOpenError" xml:space="preserve"><value>The file picker could not be opened: {0}</value></data>
+  <data name="AttachmentAddError" xml:space="preserve"><value>The attachment could not be added: {0}</value></data>
+  <data name="AttachmentRemoveError" xml:space="preserve"><value>The attachment could not be removed: {0}</value></data>
+  <data name="AttachmentNoOpenApp" xml:space="preserve"><value>Windows could not find an app to open this attachment.</value></data>
+  <data name="AttachmentOpenError" xml:space="preserve"><value>The attachment could not be opened: {0}</value></data>
+  <data name="Attachment" xml:space="preserve"><value>Attachment</value></data>
+  <data name="AttachmentExportError" xml:space="preserve"><value>The attachment could not be exported: {0}</value></data>
+  <data name="TitleCourseRequired" xml:space="preserve"><value>Title and course are required.</value></data>
+  <data name="TitleCourseTooLong" xml:space="preserve"><value>Title or course is too long.</value></data>
+  <data name="SourceLinkHttpOnly" xml:space="preserve"><value>Source link must use http or https.</value></data>
+  <data name="DueDateTimeRequired" xml:space="preserve"><value>Due date and time are required.</value></data>
+  <data name="NoCourse" xml:space="preserve"><value>(No course)</value></data>
+  <data name="CourseNameRequired" xml:space="preserve"><value>A course name is required.</value></data>
+  <data name="CourseSaveError" xml:space="preserve"><value>The course could not be saved: {0}</value></data>
+  <data name="CourseDeleteError" xml:space="preserve"><value>The course could not be deleted: {0}</value></data>
+  <data name="ProjectNameRequired" xml:space="preserve"><value>A project name is required.</value></data>
+  <data name="ProjectSaveError" xml:space="preserve"><value>The project could not be saved: {0}</value></data>
+  <data name="ProjectDeleteError" xml:space="preserve"><value>The project could not be deleted: {0}</value></data>
+  <data name="TagNameRequired" xml:space="preserve"><value>A tag name is required.</value></data>
+  <data name="TagSaveError" xml:space="preserve"><value>The tag could not be saved: {0}</value></data>
+  <data name="TagDeleteError" xml:space="preserve"><value>The tag could not be deleted: {0}</value></data>
+  <data name="NavigationStyleButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Use compact navigation</value></data>
+  <data name="NavigationStyleButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Use compact navigation</value></data>
+  <data name="SearchToggleButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Search assignments</value></data>
+  <data name="SearchToggleButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Search assignments</value></data>
+  <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Search assignments</value></data>
+  <data name="SearchCloseButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Clear and close search</value></data>
+  <data name="SearchCloseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Clear and close search</value></data>
+  <data name="ClearFiltersButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Clear filters</value></data>
+  <data name="AssignmentList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Assignments</value></data>
+  <data name="DeleteAssignmentButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Delete assignment</value></data>
+  <data name="DeleteAssignmentButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Delete assignment</value></data>
+  <data name="LoginModeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Login mode</value></data>
+  <data name="BrowserBackButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Back</value></data>
+  <data name="BrowserBackButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Go back</value></data>
+  <data name="BrowserForwardButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Forward</value></data>
+  <data name="BrowserForwardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Go forward</value></data>
+  <data name="BrowserReloadButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Reload</value></data>
+  <data name="BrowserReloadButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Reload page</value></data>
+  <data name="AddressBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Source address</value></data>
+  <data name="SourceBrowser.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Source browser</value></data>
+  <data name="SendTestNotificationButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Send a test reminder in five seconds</value></data>
+  <data name="EditorAddSubtaskButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Add subtask</value></data>
+  <data name="EditorReminderDate.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Reminder date</value></data>
+  <data name="EditorReminderTime.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Reminder time</value></data>
+  <data name="CoursesList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Courses</value></data>
+  <data name="ProjectsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Projects</value></data>
+  <data name="TagsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Tags</value></data>
+  <data name="SaveCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save course</value></data>
+  <data name="NewCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>New course</value></data>
+  <data name="DeleteCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Delete course</value></data>
+  <data name="SaveProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save project</value></data>
+  <data name="NewProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>New project</value></data>
+  <data name="DeleteProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Delete project</value></data>
+  <data name="SaveTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save tag</value></data>
+  <data name="NewTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>New tag</value></data>
+  <data name="DeleteTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Delete tag</value></data>
+</root>

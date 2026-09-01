@@ -34,12 +34,14 @@ public sealed partial class MainWindow : Window
     private bool _searchExpanded;
     private bool _updatingControls;
     private long? _pendingNotificationAssignmentId;
+    private OrganizationManagerWindow? _organizationWindow;
 
     private const double CompactNavigationThreshold = 760;
 
     public MainWindow()
     {
         InitializeComponent();
+        Title = AppText.Get("AppWindowTitle");
         RootGrid.AddHandler(
             UIElement.PointerPressedEvent,
             new PointerEventHandler(RootGrid_PointerPressed),
@@ -47,6 +49,7 @@ public sealed partial class MainWindow : Window
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 780));
         Navigation.SelectedItem = Navigation.MenuItems[0];
+        Closed += (_, _) => CloseAuxiliaryWindows();
     }
 
     private async void RootGrid_Loaded(object sender, RoutedEventArgs e)
@@ -71,7 +74,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             _settings = new AppSettings();
-            ShowError("Settings could not be loaded. Defaults are being used.", error);
+            ShowError(AppText.Get("SettingsLoadError"), error);
         }
 
         _updatingControls = true;
@@ -88,6 +91,15 @@ public sealed partial class MainWindow : Window
                 AppTheme.Dark => "dark",
                 _ => "system"
             });
+        SelectByTag(
+            LanguageBox,
+            _settings.Language == AppLanguage.SimplifiedChinese
+                ? "zh-CN"
+                : "en-US");
+        if (Navigation.SettingsItem is NavigationViewItem settingsItem)
+        {
+            settingsItem.Content = AppText.Get("Settings");
+        }
         _updatingControls = false;
         ApplyTheme();
         ApplyNavigationPaneMode(RootGrid.ActualWidth);
@@ -101,8 +113,8 @@ public sealed partial class MainWindow : Window
             _database = await Task.Run(() => new AssignmentDatabase());
             DatabasePathText.Text = _database.DatabasePath;
             DatabaseVersionText.Text = _database.LastBackupPath is { Length: > 0 } backupPath
-                ? $"Schema version {_database.SchemaVersion} · migration backup: {backupPath}"
-                : $"Schema version {_database.SchemaVersion}";
+                ? AppText.Format("SchemaVersionBackup", _database.SchemaVersion, backupPath)
+                : AppText.Format("SchemaVersion", _database.SchemaVersion);
             AddAssignmentButton.IsEnabled = true;
             await ReconcileAttachmentFilesAsync(_database);
             await ReloadAssignmentsAsync(showLoading: false);
@@ -115,10 +127,7 @@ public sealed partial class MainWindow : Window
             _database = null;
             _allAssignments = [];
             AssignmentRows.Clear();
-            ShowError(
-                "The local database could not be opened safely. No task changes will be written. " +
-                "Check the message and restore from the migration backup if one is listed.",
-                error);
+            ShowError(AppText.Get("DatabaseOpenError"), error);
         }
         finally
         {
@@ -148,7 +157,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
-            ShowError("Assignments could not be loaded.", error);
+            ShowError(AppText.Get("AssignmentsLoadError"), error);
         }
         finally
         {
@@ -195,7 +204,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             visible = [];
-            ShowError("The current filters could not be applied.", error);
+            ShowError(AppText.Get("FiltersApplyError"), error);
         }
 
         AssignmentRows.Clear();
@@ -205,8 +214,8 @@ public sealed partial class MainWindow : Window
         }
 
         AssignmentCount.Text = AssignmentRows.Count == 1
-            ? "1 assignment"
-            : $"{AssignmentRows.Count} assignments";
+            ? AppText.Get("AssignmentCountOne")
+            : AppText.Format("AssignmentCount", AssignmentRows.Count);
         UpdateEmptyState();
     }
 
@@ -236,16 +245,17 @@ public sealed partial class MainWindow : Window
             SelectedFilterTag(StatusFilterBox) is not null ||
             SelectedFilterTag(CourseFilterBox) is not null ||
             SelectedFilterTag(PriorityFilterBox) is not null;
-        EmptyStateTitle.Text = hasFilters ? "No matching assignments" : "No assignments here";
+        EmptyStateTitle.Text = AppText.Get(
+            hasFilters ? "NoMatchingAssignments" : "NoAssignmentsHere");
         EmptyStateMessage.Text = hasFilters
-            ? "Clear or change the filters to see more tasks."
+            ? AppText.Get("ClearFiltersForTasks")
             : _filter switch
             {
-                "today" => "No tasks are due today.",
-                "week" => "No tasks are due in this calendar week.",
-                "overdue" => "Nothing is overdue.",
-                "completed" => "Completed tasks will appear here.",
-                _ => "Add an assignment to get started."
+                "today" => AppText.Get("NoTasksToday"),
+                "week" => AppText.Get("NoTasksWeek"),
+                "overdue" => AppText.Get("NothingOverdue"),
+                "completed" => AppText.Get("CompletedTasksHere"),
+                _ => AppText.Get("AddAssignmentGetStarted")
             };
     }
 
@@ -253,7 +263,7 @@ public sealed partial class MainWindow : Window
     {
         _updatingControls = true;
         CourseFilterBox.Items.Clear();
-        CourseFilterBox.Items.Add(new ComboBoxItem { Content = "All courses", Tag = "all" });
+        CourseFilterBox.Items.Add(new ComboBoxItem { Content = AppText.Get("AllCourses"), Tag = "all" });
         CourseFilterBox.SelectedIndex = 0;
         _updatingControls = false;
     }
@@ -270,7 +280,7 @@ public sealed partial class MainWindow : Window
 
         _updatingControls = true;
         CourseFilterBox.Items.Clear();
-        CourseFilterBox.Items.Add(new ComboBoxItem { Content = "All courses", Tag = "all" });
+        CourseFilterBox.Items.Add(new ComboBoxItem { Content = AppText.Get("AllCourses"), Tag = "all" });
         foreach (var course in courses)
         {
             CourseFilterBox.Items.Add(new ComboBoxItem { Content = course, Tag = course });
@@ -320,11 +330,11 @@ public sealed partial class MainWindow : Window
         _filter = tag;
         PageTitle.Text = tag switch
         {
-            "today" => "Today",
-            "week" => "This Week",
-            "overdue" => "Overdue",
-            "completed" => "Completed",
-            _ => "All Assignments"
+            "today" => AppText.Get("NavTodayTitle"),
+            "week" => AppText.Get("NavWeekTitle"),
+            "overdue" => AppText.Get("NavOverdueTitle"),
+            "completed" => AppText.Get("NavCompletedTitle"),
+            _ => AppText.Get("NavAllTitle")
         };
         ShowPanel("assignments");
         ApplyFilter();
@@ -430,7 +440,7 @@ public sealed partial class MainWindow : Window
     {
         if (_database is null)
         {
-            ShowError("The database is unavailable, so the assignment cannot be added.");
+            ShowError(AppText.Get("DatabaseUnavailableAdd"));
             return;
         }
 
@@ -500,12 +510,12 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = "Delete this assignment?",
+            Title = AppText.Get("DeleteAssignmentTitle"),
             Content = assignment is null
-                ? "This removes it from the local assignment database."
-                : $"“{assignment.Title}” will be permanently removed from the local database.",
-            PrimaryButtonText = "Delete",
-            CloseButtonText = "Cancel",
+                ? AppText.Get("DeleteAssignmentGeneric")
+                : AppText.Format("DeleteAssignmentNamed", assignment.Title),
+            PrimaryButtonText = AppText.Get("Delete"),
+            CloseButtonText = AppText.Get("Cancel"),
             DefaultButton = ContentDialogButton.Close
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
@@ -519,7 +529,7 @@ public sealed partial class MainWindow : Window
         var database = _database;
         if (database is null)
         {
-            ShowError("The database is unavailable. No changes were written.");
+            ShowError(AppText.Get("DatabaseUnavailableChanges"));
             return;
         }
 
@@ -533,7 +543,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
-            ShowError("The assignment change could not be saved.", error);
+            ShowError(AppText.Get("AssignmentSaveError"), error);
         }
         finally
         {
@@ -559,7 +569,7 @@ public sealed partial class MainWindow : Window
         var scheduled = WindowsNotificationScheduler.Shared.ScheduleTestNotification(
             TimeSpan.FromSeconds(5));
         NotificationStatusText.Text = scheduled
-            ? "Allowed · Test reminder scheduled for five seconds from now"
+            ? AppText.Get("TestReminderScheduled")
             : WindowsNotificationScheduler.Shared.Status;
     }
 
@@ -618,17 +628,14 @@ public sealed partial class MainWindow : Window
                     database.Organization.FetchAllAttachments()));
             if (result.MissingPayloadNames.Count > 0)
             {
-                ShowError(
-                    "Some attachment files are missing from local storage: " +
-                    string.Join(", ", result.MissingPayloadNames));
+                ShowError(AppText.Format(
+                    "AttachmentFilesMissing",
+                    string.Join(", ", result.MissingPayloadNames)));
             }
         }
         catch (Exception error)
         {
-            ShowError(
-                "Attachment files could not be reconciled. Tasks remain available, " +
-                "but attachment cleanup needs attention.",
-                error);
+            ShowError(AppText.Get("AttachmentReconcileError"), error);
         }
     }
 
@@ -638,13 +645,13 @@ public sealed partial class MainWindow : Window
             !Uri.TryCreate(link, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            ShowError("This assignment does not have a valid http or https source link.");
+            ShowError(AppText.Get("InvalidSourceLink"));
             return;
         }
 
         if (!await Windows.System.Launcher.LaunchUriAsync(uri))
         {
-            ShowError("Windows could not open the source link.");
+            ShowError(AppText.Get("OpenSourceLinkError"));
         }
     }
 
@@ -679,6 +686,37 @@ public sealed partial class MainWindow : Window
         SaveSettings();
     }
 
+    private void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingControls || !_rootLoaded)
+        {
+            return;
+        }
+
+        var language = SelectedTag(LanguageBox, "en-US") == "zh-CN"
+            ? AppLanguage.SimplifiedChinese
+            : AppLanguage.English;
+        if (_settings.Language == language)
+        {
+            return;
+        }
+
+        _settings.Language = language;
+        if (!SaveSettings())
+        {
+            _settings.Language = AppText.Language;
+            _updatingControls = true;
+            SelectByTag(
+                LanguageBox,
+                _settings.Language == AppLanguage.SimplifiedChinese
+                    ? "zh-CN"
+                    : "en-US");
+            _updatingControls = false;
+            return;
+        }
+        (Application.Current as App)?.SwitchLanguage(language, this);
+    }
+
     private void NavigationStyle_Click(object sender, RoutedEventArgs e)
     {
         _settings.NavigationPaneMode = _settings.NavigationPaneMode == NavigationPaneMode.Compact
@@ -702,8 +740,8 @@ public sealed partial class MainWindow : Window
         NavigationStyleLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
 
         var action = _settings.NavigationPaneMode == NavigationPaneMode.Compact
-            ? "Show navigation labels"
-            : "Use compact navigation";
+            ? AppText.Get("ShowNavigationLabels")
+            : AppText.Get("UseCompactNavigation");
         NavigationStyleLabel.Text = action;
         ToolTipService.SetToolTip(NavigationStyleButton, action);
         AutomationProperties.SetName(NavigationStyleButton, action);
@@ -737,7 +775,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
-            ShowError("The assignment tags could not be saved.", error);
+            ShowError(AppText.Get("AssignmentTagsSaveError"), error);
         }
     }
 
@@ -745,11 +783,29 @@ public sealed partial class MainWindow : Window
     {
         if (_database is null)
         {
-            ShowError("The database is unavailable, so organization settings cannot be opened.");
+            ShowError(AppText.Get("OrganizationUnavailable"));
             return;
         }
-        var window = new OrganizationManagerWindow(_database.Organization);
-        window.Activate();
+        if (_organizationWindow is null)
+        {
+            var window = new OrganizationManagerWindow(_database.Organization);
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_organizationWindow, window))
+                {
+                    _organizationWindow = null;
+                }
+            };
+            _organizationWindow = window;
+        }
+        _organizationWindow.Activate();
+    }
+
+    internal void CloseAuxiliaryWindows()
+    {
+        var window = _organizationWindow;
+        _organizationWindow = null;
+        window?.Close();
     }
 
     private void ApplyTheme()
@@ -762,15 +818,17 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    private void SaveSettings()
+    private bool SaveSettings()
     {
         try
         {
             _settingsStore.Save(_settings);
+            return true;
         }
         catch (Exception error)
         {
-            ShowError("The setting could not be saved for the next launch.", error);
+            ShowError(AppText.Get("SettingsSaveError"), error);
+            return false;
         }
     }
 
@@ -856,7 +914,7 @@ public sealed partial class MainWindow : Window
             destination.Scheme is not ("http" or "https"))
         {
             args.Cancel = true;
-            _ = ShowNoticeAsync("Blocked a non-web navigation request.");
+            _ = ShowNoticeAsync(AppText.Get("BlockedNonWebNavigation"));
             return;
         }
         ScanButton.IsEnabled = false;
@@ -868,7 +926,7 @@ public sealed partial class MainWindow : Window
         Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs args)
     {
         BrowserLocation.Text = Browser.Source?.AbsoluteUri ?? "";
-        BrowserTitle.Text = Browser.CoreWebView2?.DocumentTitle ?? "Web page";
+        BrowserTitle.Text = Browser.CoreWebView2?.DocumentTitle ?? AppText.Get("WebPage");
         ScanButton.IsEnabled = args.IsSuccess;
         if (args.IsSuccess && AutoFillToggle.IsOn && LoginModeBox.SelectedIndex == 1)
         {
@@ -898,23 +956,25 @@ public sealed partial class MainWindow : Window
         var current = _browser?.CurrentUri;
         if (current is null)
         {
-            await ShowNoticeAsync("Open the HTTPS login page first.");
+            await ShowNoticeAsync(AppText.Get("OpenHttpsLoginFirst"));
             return;
         }
 
-        var username = new TextBox { Header = "Username or email" };
-        var password = new PasswordBox { Header = "Password" };
+        var username = new TextBox { Header = AppText.Get("UsernameOrEmail") };
+        var password = new PasswordBox { Header = AppText.Get("Password") };
         var form = new StackPanel { Spacing = 12 };
         form.Children.Add(new TextBlock
         {
-            Text = $"Exact HTTPS origin: {CredentialVaultService.ExactSecureOrigin(current)}",
+            Text = AppText.Format(
+                "ExactHttpsOrigin",
+                CredentialVaultService.ExactSecureOrigin(current)),
             Opacity = 0.65
         });
         form.Children.Add(username);
         form.Children.Add(password);
         form.Children.Add(new TextBlock
         {
-            Text = "Stored in Windows Credential Locker. Filling never submits the form.",
+            Text = AppText.Get("CredentialLockerHelp"),
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
             Opacity = 0.65
@@ -923,11 +983,11 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = "Saved credential",
+            Title = AppText.Get("SavedCredential"),
             Content = form,
-            PrimaryButtonText = "Save",
-            SecondaryButtonText = "Fill existing",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = AppText.Get("Save"),
+            SecondaryButtonText = AppText.Get("FillExisting"),
+            CloseButtonText = AppText.Get("Cancel"),
             DefaultButton = ContentDialogButton.Primary
         };
         var result = await dialog.ShowAsync();
@@ -951,15 +1011,14 @@ public sealed partial class MainWindow : Window
         await RunSafelyAsync(async () =>
         {
             var current = _browser?.CurrentUri
-                ?? throw new InvalidOperationException("Open a login page first.");
+                ?? throw new InvalidOperationException(AppText.Get("OpenLoginFirst"));
             var credential = _credentials.Retrieve(current)
                 ?? throw new InvalidOperationException(
-                    $"No credential is saved for {current.IdnHost}.");
+                    AppText.Format("NoCredentialSaved", current.IdnHost));
             await _browser!.FillAsync(credential);
             if (showNotice)
             {
-                await ShowNoticeAsync(
-                    "Username and password were filled. Review the page before signing in.");
+                await ShowNoticeAsync(AppText.Get("CredentialFilled"));
             }
         }, showError: showNotice);
     }
@@ -970,7 +1029,7 @@ public sealed partial class MainWindow : Window
         {
             await ApplyAiEndpointAsync();
             ScanButton.IsEnabled = false;
-            ScanButton.Content = "Reading locally…";
+            ScanButton.Content = AppText.Get("ReadingLocally");
             var page = await _browser!.CapturePageAsync();
             var source = string.IsNullOrWhiteSpace(SourceNameBox.Text)
                 ? page.UriHost()
@@ -981,7 +1040,7 @@ public sealed partial class MainWindow : Window
                 CourseHintBox.Text.Trim());
             await ReviewCandidatesAsync(candidates, page, source);
         });
-        ScanButton.Content = "Scan current page";
+        ScanButton.Content = AppText.Get("ScanCurrentPage");
         ScanButton.IsEnabled = _browser?.CurrentUri is not null;
     }
 
@@ -992,7 +1051,7 @@ public sealed partial class MainWindow : Window
     {
         if (candidates.Count == 0)
         {
-            await ShowNoticeAsync("The local model found no assignments on this page.");
+            await ShowNoticeAsync(AppText.Get("NoAssignmentsFoundOnPage"));
             return;
         }
 
@@ -1007,10 +1066,10 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = $"Review {candidates.Count} assignment candidates",
+            Title = AppText.Format("ReviewCandidates", candidates.Count),
             Content = list,
-            PrimaryButtonText = "Add selected",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = AppText.Get("AddSelected"),
+            CloseButtonText = AppText.Get("Cancel"),
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || _database is null)
@@ -1033,14 +1092,14 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
-            ShowError("Imported assignments could not be saved.", error);
+            ShowError(AppText.Get("ImportedAssignmentsSaveError"), error);
             return;
         }
         finally
         {
             SetLoading(false);
         }
-        await ShowNoticeAsync($"Added {inserted} assignments. Duplicates were skipped.");
+        await ShowNoticeAsync(AppText.Format("AssignmentsImported", inserted));
     }
 
     private async void CheckAi_Click(object sender, RoutedEventArgs e)
@@ -1048,7 +1107,9 @@ public sealed partial class MainWindow : Window
         await RunSafelyAsync(async () =>
         {
             await ApplyAiEndpointAsync();
-            AiStatusText.Text = await _parser.IsAvailableAsync() ? "Ready" : "Offline";
+            AiStatusText.Text = await _parser.IsAvailableAsync()
+                ? AppText.Get("AiReady")
+                : AppText.Get("AiOffline");
         });
     }
 
@@ -1078,9 +1139,9 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = "Assignments",
+            Title = AppText.Get("NoticeTitle"),
             Content = message,
-            CloseButtonText = "OK"
+            CloseButtonText = AppText.Get("OK")
         };
         await dialog.ShowAsync();
     }
@@ -1091,5 +1152,5 @@ internal static class CapturedPageExtensions
     public static string UriHost(this CapturedPage page) =>
         Uri.TryCreate(page.Url, UriKind.Absolute, out var uri)
             ? uri.IdnHost
-            : "Web";
+            : AppText.Get("Web");
 }

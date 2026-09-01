@@ -426,13 +426,15 @@ internal static class Program
         {
             DetailMode = AssignmentDisplayMode.Professional,
             Theme = AppTheme.Dark,
-            NavigationPaneMode = NavigationPaneMode.Compact
+            NavigationPaneMode = NavigationPaneMode.Compact,
+            Language = AppLanguage.SimplifiedChinese
         });
 
         var restored = settingsStore.Load();
         Equal(AssignmentDisplayMode.Professional, restored.DetailMode);
         Equal(AppTheme.Dark, restored.Theme);
         Equal(NavigationPaneMode.Compact, restored.NavigationPaneMode);
+        Equal(AppLanguage.SimplifiedChinese, restored.Language);
     }
 
     private static void SettingsPathOverrideIsolates()

@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml;
+using AssignmentNative.Core;
 using AssignmentNative.Services;
 using CommunityToolkit.WinUI.Notifications;
+using Microsoft.Windows.Globalization;
 
 namespace AssignmentNative;
 
@@ -12,6 +14,7 @@ public partial class App : Application
     public App()
     {
         ApplyAcceptancePathOverrides();
+        ApplySavedLanguage();
         ResetToastRegistrationForAcceptance();
         InitializeComponent();
         WindowsNotificationScheduler.Shared.Activated += NotificationScheduler_Activated;
@@ -23,6 +26,35 @@ public partial class App : Application
             System.Diagnostics.Debug.WriteLine(
                 $"Unhandled exception type: {args.Exception.GetType().Name}");
         };
+    }
+
+    private static void ApplySavedLanguage()
+    {
+        AppLanguage language;
+        try
+        {
+            language = new AppSettingsStore().Load().Language;
+        }
+        catch
+        {
+            language = AppLanguage.English;
+        }
+        ApplicationLanguages.PrimaryLanguageOverride = AppText.LanguageTag(language);
+        AppText.SetLanguage(language);
+    }
+
+    public void SwitchLanguage(AppLanguage language, MainWindow sourceWindow)
+    {
+        if (!ReferenceEquals(_window, sourceWindow)) return;
+
+        ApplicationLanguages.PrimaryLanguageOverride = AppText.LanguageTag(language);
+        AppText.SetLanguage(language);
+
+        var replacement = new MainWindow();
+        _window = replacement;
+        replacement.Activate();
+        sourceWindow.CloseAuxiliaryWindows();
+        sourceWindow.Close();
     }
 
     private static void ResetToastRegistrationForAcceptance()

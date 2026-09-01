@@ -25,18 +25,25 @@ public sealed class TaskRowViewModel
 
     public string StatusDisplay => _item.Status switch
     {
-        TaskStatuses.InProgress => "In progress",
-        TaskStatuses.Done => "Done",
-        _ => "To do"
+        TaskStatuses.InProgress => AppText.Get("DynamicStatusInProgress"),
+        TaskStatuses.Done => AppText.Get("DynamicStatusDone"),
+        _ => AppText.Get("DynamicStatusTodo")
     };
 
-    public string DueDisplay => TaskDueDisplayFormatter.Format(_item);
+    public string DueDisplay => AppText.FormatDue(_item);
 
     public string DescriptionDisplay => string.IsNullOrWhiteSpace(_item.Description)
-        ? "No description"
+        ? AppText.Get("NoDescription")
         : _item.Description!;
 
-    public string PriorityDisplay => $"{char.ToUpperInvariant(_item.Priority[0])}{_item.Priority[1..]} priority";
+    public string PriorityDisplay => AppText.Format(
+        "PriorityDisplay",
+        AppText.Get(_item.Priority switch
+        {
+            TaskPriorities.High => "DynamicPriorityHigh",
+            TaskPriorities.Low => "DynamicPriorityLow",
+            _ => "DynamicPriorityMedium"
+        }));
 
     public Visibility ProfessionalVisibility { get; }
 

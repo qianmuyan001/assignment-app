@@ -223,9 +223,16 @@ public enum NavigationPaneMode
     Compact
 }
 
+public enum AppLanguage
+{
+    English,
+    SimplifiedChinese
+}
+
 public sealed class AppSettings
 {
     public AssignmentDisplayMode DetailMode { get; set; } = AssignmentDisplayMode.Simple;
     public AppTheme Theme { get; set; } = AppTheme.System;
     public NavigationPaneMode NavigationPaneMode { get; set; } = NavigationPaneMode.Expanded;
+    public AppLanguage Language { get; set; } = AppLanguage.English;
 }

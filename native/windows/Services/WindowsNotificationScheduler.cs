@@ -24,19 +24,19 @@ public sealed class WindowsNotificationScheduler
         {
             if (!Register())
             {
-                return _lastError ?? "Unavailable on this Windows installation";
+                return _lastError ?? AppText.Get("NotificationUnavailableWindows");
             }
 
             try
             {
                 var setting = CreateNotifier().Setting switch
                 {
-                    NotificationSetting.Enabled => "Allowed",
-                    NotificationSetting.DisabledForApplication => "Disabled for Assignment App",
-                    NotificationSetting.DisabledForUser => "Disabled for this Windows user",
-                    NotificationSetting.DisabledByGroupPolicy => "Disabled by Group Policy",
-                    NotificationSetting.DisabledByManifest => "Disabled by app manifest",
-                    _ => "Unavailable"
+                    NotificationSetting.Enabled => AppText.Get("NotificationAllowed"),
+                    NotificationSetting.DisabledForApplication => AppText.Get("NotificationDisabledApp"),
+                    NotificationSetting.DisabledForUser => AppText.Get("NotificationDisabledUser"),
+                    NotificationSetting.DisabledByGroupPolicy => AppText.Get("NotificationDisabledPolicy"),
+                    NotificationSetting.DisabledByManifest => AppText.Get("NotificationDisabledManifest"),
+                    _ => AppText.Get("NotificationUnavailable")
                 };
                 return _lastError is null ? setting : $"{setting} · {_lastError}";
             }
@@ -44,11 +44,11 @@ public sealed class WindowsNotificationScheduler
             {
                 // A newly registered unpackaged sender can return E_NOTFOUND until
                 // its first toast is sent, even though Show and scheduling work.
-                return _lastError is null ? "Registered with Windows" : _lastError;
+                return _lastError is null ? AppText.Get("NotificationRegistered") : _lastError;
             }
             catch (Exception error)
             {
-                return $"Unavailable on this Windows installation " +
+                return $"{AppText.Get("NotificationUnavailableWindows")} " +
                     $"({error.GetType().Name}, 0x{error.HResult:X8})";
             }
         }
@@ -141,8 +141,8 @@ public sealed class WindowsNotificationScheduler
             var notification = new ScheduledToastNotification(
                 CreatePayload(
                     assignmentId: 0,
-                    title: "Assignment App test reminder",
-                    message: "Windows scheduled notifications and activation are working."),
+                    title: AppText.Get("NotificationTestTitle"),
+                    message: AppText.Get("NotificationTestMessage")),
                 DateTimeOffset.Now.Add(delay))
             {
                 Tag = $"test-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
@@ -170,7 +170,7 @@ public sealed class WindowsNotificationScheduler
             CreatePayload(
                 task.Id,
                 task.Title,
-                $"{task.CourseName} · Due {TaskDueDisplayFormatter.Format(task)}"),
+                AppText.Format("NotificationTaskMessage", task.CourseName, AppText.FormatDue(task))),
             reminder.TriggerAtUtc)
         {
             Tag = Tag(reminder),
@@ -223,11 +223,11 @@ public sealed class WindowsNotificationScheduler
             if (setting == NotificationSetting.Enabled) return true;
             _lastError = setting switch
             {
-                NotificationSetting.DisabledForApplication => "Notifications are disabled for Assignment App",
-                NotificationSetting.DisabledForUser => "Notifications are disabled for this Windows user",
-                NotificationSetting.DisabledByGroupPolicy => "Notifications are disabled by Group Policy",
-                NotificationSetting.DisabledByManifest => "Notifications are disabled by the app manifest",
-                _ => "Notification availability could not be determined"
+                NotificationSetting.DisabledForApplication => AppText.Get("NotificationBlockedApp"),
+                NotificationSetting.DisabledForUser => AppText.Get("NotificationBlockedUser"),
+                NotificationSetting.DisabledByGroupPolicy => AppText.Get("NotificationBlockedPolicy"),
+                NotificationSetting.DisabledByManifest => AppText.Get("NotificationBlockedManifest"),
+                _ => AppText.Get("NotificationUnknown")
             };
             return false;
         }
@@ -244,7 +244,7 @@ public sealed class WindowsNotificationScheduler
             .AddText(title)
             .AddText(message)
             .SetScenario(AppNotificationScenario.Reminder)
-            .AddButton(new AppNotificationButton("Open Assignment App")
+            .AddButton(new AppNotificationButton(AppText.Get("NotificationOpenButton"))
                 .AddArgument("assignmentId", assignmentId.ToString()))
             .BuildNotification()
             .Payload;
@@ -273,7 +273,10 @@ public sealed class WindowsNotificationScheduler
     }
 
     private void RecordFailure(Exception error) =>
-        _lastError = $"Last operation failed ({error.GetType().Name}, 0x{error.HResult:X8})";
+        _lastError = AppText.Format(
+            "NotificationFailure",
+            error.GetType().Name,
+            error.HResult.ToString("X8"));
 }
 
 public sealed record NotificationActivationEventArgs(long? AssignmentId);

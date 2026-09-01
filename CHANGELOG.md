@@ -6,6 +6,33 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-01
+
+### Added
+
+- Added a persistent Windows application-language setting with English and
+  Simplified Chinese options and immediate main-window refresh.
+- Added complete WinUI localization resources for the main task workspace,
+  task editor, organization manager, task cards, validation and error states,
+  notification status and Toast payloads, tooltips, and Narrator names.
+- Added localized date, status, priority, reminder, attachment, and empty-state
+  formatting without changing SQLite Schema v3 or stored task values.
+
+### Fixed
+
+- Switched unpackaged WinUI localization to the Windows App SDK globalization
+  API, avoiding the startup crash caused by the package-identity UWP API.
+- Prevented duplicate organization-manager windows and closed auxiliary windows
+  during language changes so old-language UI cannot remain open.
+- Preserved the selected language across restart and restored the previous
+  selection when settings persistence fails.
+
+### Validation
+
+- Passed all 50 Windows Core tests, Debug and Release x64 builds, formatting,
+  self-contained x64 publish, isolated launch smoke, bidirectional live language
+  switching, restart persistence, and localized editor/organization UI checks.
+
 ## [1.1.0] - 2026-09-01
 
 This release line preserves the existing `v1.0.0` tag and packages the current

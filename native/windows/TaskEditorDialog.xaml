@@ -16,32 +16,32 @@
                        Foreground="IndianRed"
                        TextWrapping="Wrap"/>
 
-            <TextBox x:Name="TitleBox"
+            <TextBox x:Name="TitleBox" x:Uid="EditorTitleBox"
                      Header="Title"
                      MaxLength="255"
                      PlaceholderText="What needs to be done?"/>
-            <TextBox x:Name="CourseBox"
+            <TextBox x:Name="CourseBox" x:Uid="EditorCourseBox"
                      Header="Course"
                      MaxLength="120"
                      PlaceholderText="Course name (type, or pick below)"/>
 
             <!-- Organization (professional mode only) -->
             <StackPanel x:Name="OrganizationSection" Spacing="12" Visibility="Collapsed">
-                <ComboBox x:Name="CoursePickerBox"
+                <ComboBox x:Name="CoursePickerBox" x:Uid="EditorCoursePicker"
                           Header="Pick an existing course"
                           HorizontalAlignment="Stretch"
                           SelectionChanged="CoursePicker_SelectionChanged"/>
-                <ComboBox x:Name="ProjectPickerBox"
+                <ComboBox x:Name="ProjectPickerBox" x:Uid="EditorProjectPicker"
                           Header="Project"
                           HorizontalAlignment="Stretch"
                           SelectionChanged="ProjectPicker_SelectionChanged"/>
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Tags" FontSize="13" Opacity="0.8"/>
+                    <TextBlock x:Uid="EditorTags" Text="Tags" FontSize="13" Opacity="0.8"/>
                     <StackPanel x:Name="TagPanel" Orientation="Horizontal" Spacing="4"/>
                 </StackPanel>
             </StackPanel>
 
-            <CheckBox x:Name="HasDueDateBox"
+            <CheckBox x:Name="HasDueDateBox" x:Uid="EditorHasDueDate"
                       Content="Set a due date and time"
                       Checked="HasDueDate_Changed"
                       Unchecked="HasDueDate_Changed"/>
@@ -50,43 +50,43 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <DatePicker x:Name="DueDatePicker"
+                <DatePicker x:Name="DueDatePicker" x:Uid="EditorDueDate"
                             Header="Due date"
                             IsEnabled="False"
                             HorizontalAlignment="Stretch"/>
-                <TimePicker x:Name="DueTimePicker"
+                <TimePicker x:Name="DueTimePicker" x:Uid="EditorDueTime"
                             Grid.Column="1"
                             Header="Due time"
                             IsEnabled="False"
                             HorizontalAlignment="Stretch"/>
             </Grid>
 
-            <ComboBox x:Name="StatusBox"
+            <ComboBox x:Name="StatusBox" x:Uid="EditorStatusBox"
                       Header="Status"
                       SelectedIndex="0"
                       HorizontalAlignment="Stretch">
-                <ComboBoxItem Content="To do" Tag="todo"/>
-                <ComboBoxItem Content="In progress" Tag="in_progress"/>
-                <ComboBoxItem Content="Done" Tag="done"/>
+                <ComboBoxItem x:Uid="StatusTodo" Content="To do" Tag="todo"/>
+                <ComboBoxItem x:Uid="StatusInProgress" Content="In progress" Tag="in_progress"/>
+                <ComboBoxItem x:Uid="StatusDone" Content="Done" Tag="done"/>
             </ComboBox>
 
             <StackPanel x:Name="ProfessionalFields" Spacing="12">
-                <TextBox x:Name="DescriptionBox"
+                <TextBox x:Name="DescriptionBox" x:Uid="EditorDescriptionBox"
                          Header="Description"
                          PlaceholderText="Notes, requirements, or context"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          MinHeight="88"
                          MaxHeight="180"/>
-                <ComboBox x:Name="PriorityBox"
+                <ComboBox x:Name="PriorityBox" x:Uid="EditorPriorityBox"
                           Header="Priority"
                           SelectedIndex="1"
                           HorizontalAlignment="Stretch">
-                    <ComboBoxItem Content="Low" Tag="low"/>
-                    <ComboBoxItem Content="Medium" Tag="medium"/>
-                    <ComboBoxItem Content="High" Tag="high"/>
+                    <ComboBoxItem x:Uid="PriorityLow" Content="Low" Tag="low"/>
+                    <ComboBoxItem x:Uid="PriorityMedium" Content="Medium" Tag="medium"/>
+                    <ComboBoxItem x:Uid="PriorityHigh" Content="High" Tag="high"/>
                 </ComboBox>
-                <TextBox x:Name="LinkBox"
+                <TextBox x:Name="LinkBox" x:Uid="EditorLinkBox"
                          Header="Source link"
                          MaxLength="1000"
                          PlaceholderText="https://…"/>
@@ -94,18 +94,18 @@
 
             <!-- Subtasks (professional mode, existing assignment only) -->
             <StackPanel x:Name="SubtasksSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Subtasks" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock x:Uid="EditorSubtasks" Text="Subtasks" FontSize="15" FontWeight="SemiBold"/>
                 <StackPanel x:Name="SubtasksList" Spacing="6"/>
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="NewSubtaskBox"
+                    <TextBox x:Name="NewSubtaskBox" x:Uid="EditorNewSubtask"
                              PlaceholderText="Add a subtask"
                              MaxLength="255"
                              KeyDown="NewSubtask_KeyDown"/>
-                    <Button Grid.Column="1"
+                    <Button Grid.Column="1" x:Uid="EditorAddSubtaskButton"
                             Content="Add"
                             AutomationProperties.Name="Add subtask"
                             Click="AddSubtask_Click"/>
@@ -114,38 +114,38 @@
 
             <!-- Reminders (professional mode, existing assignment only) -->
             <StackPanel x:Name="RemindersSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Reminders" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock x:Uid="EditorReminders" Text="Reminders" FontSize="15" FontWeight="SemiBold"/>
                 <StackPanel x:Name="RemindersList" Spacing="6"/>
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <DatePicker x:Name="NewReminderDatePicker"
+                    <DatePicker x:Name="NewReminderDatePicker" x:Uid="EditorReminderDate"
                                 Header="Date"
                                 AutomationProperties.Name="Reminder date"
                                 HorizontalAlignment="Stretch"/>
-                    <TimePicker x:Name="NewReminderTimePicker"
+                    <TimePicker x:Name="NewReminderTimePicker" x:Uid="EditorReminderTime"
                                 Grid.Column="1"
                                 Header="Time"
                                 AutomationProperties.Name="Reminder time"
                                 HorizontalAlignment="Stretch"/>
                 </Grid>
-                <Button Content="Add reminder"
+                <Button x:Uid="EditorAddReminderButton" Content="Add reminder"
                         HorizontalAlignment="Left"
                         Click="AddReminder_Click"/>
             </StackPanel>
 
             <!-- Attachments (professional mode, existing assignment only) -->
             <StackPanel x:Name="AttachmentsSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Attachments" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock x:Uid="EditorAttachments" Text="Attachments" FontSize="15" FontWeight="SemiBold"/>
                 <StackPanel x:Name="AttachmentsList" Spacing="6"/>
-                <Button Content="Add attachment…"
+                <Button x:Uid="EditorAddAttachmentButton" Content="Add attachment…"
                         HorizontalAlignment="Left"
                         Click="AddAttachment_Click"/>
             </StackPanel>
 
-            <TextBlock x:Name="ModeHelpText"
+            <TextBlock x:Name="ModeHelpText" x:Uid="EditorModeHelp"
                        Text="Professional fields are hidden in simple mode but their saved values are preserved."
                        FontSize="12"
                        Opacity="0.65"

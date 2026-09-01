@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="MainWindow.Title" xml:space="preserve"><value>作业管理</value></data>
+  <data name="AppWindowTitle" xml:space="preserve"><value>作业管理</value></data>
+  <data name="OrganizationWindowTitle" xml:space="preserve"><value>课程、项目与标签</value></data>
+  <data name="AppName.Text" xml:space="preserve"><value>作业管理</value></data>
+  <data name="AppSubtitle.Text" xml:space="preserve"><value>本地任务工作区</value></data>
+  <data name="NavigationStyleLabel.Text" xml:space="preserve"><value>紧凑导航</value></data>
+  <data name="NavAll.Content" xml:space="preserve"><value>全部作业</value></data>
+  <data name="NavToday.Content" xml:space="preserve"><value>今天</value></data>
+  <data name="NavWeek.Content" xml:space="preserve"><value>本周</value></data>
+  <data name="NavOverdue.Content" xml:space="preserve"><value>已逾期</value></data>
+  <data name="NavCompleted.Content" xml:space="preserve"><value>已完成</value></data>
+  <data name="NavSources.Content" xml:space="preserve"><value>来源</value></data>
+  <data name="PageTitle.Text" xml:space="preserve"><value>全部作业</value></data>
+  <data name="AddAssignmentButton.Content" xml:space="preserve"><value>添加作业</value></data>
+  <data name="ManageOrganizationButton.Content" xml:space="preserve"><value>课程与标签</value></data>
+  <data name="ErrorBar.Title" xml:space="preserve"><value>无法加载作业</value></data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve"><value>搜索标题、课程或描述</value></data>
+  <data name="StatusFilterBox.Header" xml:space="preserve"><value>状态</value></data>
+  <data name="StatusAll.Content" xml:space="preserve"><value>全部状态</value></data>
+  <data name="StatusTodo.Content" xml:space="preserve"><value>待办</value></data>
+  <data name="StatusInProgress.Content" xml:space="preserve"><value>进行中</value></data>
+  <data name="StatusDone.Content" xml:space="preserve"><value>已完成</value></data>
+  <data name="CourseFilterBox.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="PriorityFilterBox.Header" xml:space="preserve"><value>优先级</value></data>
+  <data name="PriorityAll.Content" xml:space="preserve"><value>全部优先级</value></data>
+  <data name="PriorityHigh.Content" xml:space="preserve"><value>高</value></data>
+  <data name="PriorityMedium.Content" xml:space="preserve"><value>中</value></data>
+  <data name="PriorityLow.Content" xml:space="preserve"><value>低</value></data>
+  <data name="SortBox.Header" xml:space="preserve"><value>排序</value></data>
+  <data name="SortDueDate.Content" xml:space="preserve"><value>截止日期</value></data>
+  <data name="SortPriority.Content" xml:space="preserve"><value>优先级</value></data>
+  <data name="ClearFiltersButton.Content" xml:space="preserve"><value>清除</value></data>
+  <data name="OpenSourceLinkButton.Content" xml:space="preserve"><value>打开来源链接</value></data>
+  <data name="EditAssignmentButton.Content" xml:space="preserve"><value>编辑</value></data>
+  <data name="MarkDoneButton.Content" xml:space="preserve"><value>标记完成</value></data>
+  <data name="EmptyStateTitle.Text" xml:space="preserve"><value>这里还没有作业</value></data>
+  <data name="EmptyStateMessage.Text" xml:space="preserve"><value>添加作业或调整筛选条件。</value></data>
+  <data name="LoadingAssignments.Text" xml:space="preserve"><value>正在加载作业…</value></data>
+  <data name="SourceConnectorTitle.Text" xml:space="preserve"><value>安全来源连接器</value></data>
+  <data name="SourceConnectorSubtitle.Text" xml:space="preserve"><value>先登录，再让本地模型提取作业。</value></data>
+  <data name="LocalOnly.Text" xml:space="preserve"><value>仅限本机</value></data>
+  <data name="SourceNameBox.PlaceholderText" xml:space="preserve"><value>来源名称，例如 Canvas</value></data>
+  <data name="CourseHintBox.PlaceholderText" xml:space="preserve"><value>课程提示（可选）</value></data>
+  <data name="InteractiveLogin.Content" xml:space="preserve"><value>交互式登录</value></data>
+  <data name="CredentialFill.Content" xml:space="preserve"><value>凭据管理器填充</value></data>
+  <data name="AddressBox.PlaceholderText" xml:space="preserve"><value>https://your-school.example</value></data>
+  <data name="OpenAddressButton.Content" xml:space="preserve"><value>打开</value></data>
+  <data name="CredentialButton.Content" xml:space="preserve"><value>凭据</value></data>
+  <data name="BrowserTitle.Text" xml:space="preserve"><value>尚未加载页面</value></data>
+  <data name="AutoFillToggle.Header" xml:space="preserve"><value>为此来源自动填充</value></data>
+  <data name="ScanButton.Content" xml:space="preserve"><value>扫描当前页面</value></data>
+  <data name="SettingsTitle.Text" xml:space="preserve"><value>设置</value></data>
+  <data name="NotificationsTitle.Text" xml:space="preserve"><value>系统通知</value></data>
+  <data name="NotificationStatusText.Text" xml:space="preserve"><value>正在检查 Windows 设置…</value></data>
+  <data name="RefreshNotificationButton.Content" xml:space="preserve"><value>刷新状态</value></data>
+  <data name="OpenNotificationSettingsButton.Content" xml:space="preserve"><value>打开通知设置</value></data>
+  <data name="SendTestNotificationButton.Content" xml:space="preserve"><value>发送测试提醒</value></data>
+  <data name="NotificationHelp.Text" xml:space="preserve"><value>即使通知被阻止，任务和提醒记录仍可正常使用。</value></data>
+  <data name="TaskDisplayTitle.Text" xml:space="preserve"><value>任务显示</value></data>
+  <data name="DisplayModeBox.Header" xml:space="preserve"><value>模式</value></data>
+  <data name="DisplaySimple.Content" xml:space="preserve"><value>简易</value></data>
+  <data name="DisplayProfessional.Content" xml:space="preserve"><value>专业</value></data>
+  <data name="DisplayModeHelp.Text" xml:space="preserve"><value>简易模式显示标题、课程、截止时间和状态；专业模式还会显示描述、优先级和来源链接。隐藏字段不会被清空。</value></data>
+  <data name="ThemeBox.Header" xml:space="preserve"><value>外观</value></data>
+  <data name="ThemeSystem.Content" xml:space="preserve"><value>使用系统设置</value></data>
+  <data name="ThemeLight.Content" xml:space="preserve"><value>浅色</value></data>
+  <data name="ThemeDark.Content" xml:space="preserve"><value>深色</value></data>
+  <data name="LanguageSectionTitle.Text" xml:space="preserve"><value>语言</value></data>
+  <data name="LanguageBox.Header" xml:space="preserve"><value>应用语言</value></data>
+  <data name="LanguageEnglish.Content" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageChinese.Content" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageHelp.Text" xml:space="preserve"><value>界面会立即更新，任务数据不会发生变化。</value></data>
+  <data name="LocalAiTitle.Text" xml:space="preserve"><value>本地 AI</value></data>
+  <data name="AiEndpointBox.Header" xml:space="preserve"><value>回环地址</value></data>
+  <data name="CheckAiButton.Content" xml:space="preserve"><value>检查连接</value></data>
+  <data name="AiStatusText.Text" xml:space="preserve"><value>尚未检查</value></data>
+  <data name="AiHelp.Text" xml:space="preserve"><value>仅接受 localhost 和回环 IP 地址。</value></data>
+  <data name="LocalDataTitle.Text" xml:space="preserve"><value>本地数据</value></data>
+  <data name="LocalDataHelp.Text" xml:space="preserve"><value>任务数据保存在本机的 SQLite 数据库中。版本迁移会在更改现有数据库前创建可恢复的备份。</value></data>
+  <data name="PrivacyTitle.Text" xml:space="preserve"><value>隐私</value></data>
+  <data name="PrivacyPasswords.Text" xml:space="preserve"><value>• 密码保存在 Windows 凭据管理器中</value></data>
+  <data name="PrivacyContent.Text" xml:space="preserve"><value>• 课程内容保留在此电脑上</value></data>
+  <data name="PrivacyBrowser.Text" xml:space="preserve"><value>• 本地模型无法控制登录浏览器</value></data>
+  <data name="TaskEditorDialog.Title" xml:space="preserve"><value>作业</value></data>
+  <data name="TaskEditorDialog.PrimaryButtonText" xml:space="preserve"><value>保存</value></data>
+  <data name="TaskEditorDialog.CloseButtonText" xml:space="preserve"><value>取消</value></data>
+  <data name="EditorTitleBox.Header" xml:space="preserve"><value>标题</value></data>
+  <data name="EditorTitleBox.PlaceholderText" xml:space="preserve"><value>需要完成什么？</value></data>
+  <data name="EditorCourseBox.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="EditorCourseBox.PlaceholderText" xml:space="preserve"><value>输入课程名称，或从下方选择</value></data>
+  <data name="EditorCoursePicker.Header" xml:space="preserve"><value>选择已有课程</value></data>
+  <data name="EditorProjectPicker.Header" xml:space="preserve"><value>项目</value></data>
+  <data name="EditorTags.Text" xml:space="preserve"><value>标签</value></data>
+  <data name="EditorHasDueDate.Content" xml:space="preserve"><value>设置截止日期和时间</value></data>
+  <data name="EditorDueDate.Header" xml:space="preserve"><value>截止日期</value></data>
+  <data name="EditorDueTime.Header" xml:space="preserve"><value>截止时间</value></data>
+  <data name="EditorStatusBox.Header" xml:space="preserve"><value>状态</value></data>
+  <data name="EditorDescriptionBox.Header" xml:space="preserve"><value>描述</value></data>
+  <data name="EditorDescriptionBox.PlaceholderText" xml:space="preserve"><value>备注、要求或相关背景</value></data>
+  <data name="EditorPriorityBox.Header" xml:space="preserve"><value>优先级</value></data>
+  <data name="EditorLinkBox.Header" xml:space="preserve"><value>来源链接</value></data>
+  <data name="EditorSubtasks.Text" xml:space="preserve"><value>子任务</value></data>
+  <data name="EditorNewSubtask.PlaceholderText" xml:space="preserve"><value>添加子任务</value></data>
+  <data name="EditorAddSubtaskButton.Content" xml:space="preserve"><value>添加</value></data>
+  <data name="EditorReminders.Text" xml:space="preserve"><value>提醒</value></data>
+  <data name="EditorReminderDate.Header" xml:space="preserve"><value>日期</value></data>
+  <data name="EditorReminderTime.Header" xml:space="preserve"><value>时间</value></data>
+  <data name="EditorAddReminderButton.Content" xml:space="preserve"><value>添加提醒</value></data>
+  <data name="EditorAttachments.Text" xml:space="preserve"><value>附件</value></data>
+  <data name="EditorAddAttachmentButton.Content" xml:space="preserve"><value>添加附件…</value></data>
+  <data name="EditorModeHelp.Text" xml:space="preserve"><value>简易模式会隐藏专业字段，但不会删除其已保存的内容。</value></data>
+  <data name="OrganizationWindow.Title" xml:space="preserve"><value>课程、项目与标签</value></data>
+  <data name="OrganizationTitle.Text" xml:space="preserve"><value>组织管理</value></data>
+  <data name="CoursesTab.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="ProjectsTab.Header" xml:space="preserve"><value>项目</value></data>
+  <data name="TagsTab.Header" xml:space="preserve"><value>标签</value></data>
+  <data name="NameField.Header" xml:space="preserve"><value>名称</value></data>
+  <data name="ColorField.Header" xml:space="preserve"><value>颜色 (#RRGGBB)</value></data>
+  <data name="TeacherField.Header" xml:space="preserve"><value>教师</value></data>
+  <data name="SemesterField.Header" xml:space="preserve"><value>学期</value></data>
+  <data name="ArchivedField.Content" xml:space="preserve"><value>已归档</value></data>
+  <data name="CourseField.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="DescriptionField.Header" xml:space="preserve"><value>描述</value></data>
+  <data name="ProjectStatusField.Header" xml:space="preserve"><value>状态</value></data>
+  <data name="ProjectActive.Content" xml:space="preserve"><value>进行中</value></data>
+  <data name="ProjectOnHold.Content" xml:space="preserve"><value>已暂停</value></data>
+  <data name="ProjectCompleted.Content" xml:space="preserve"><value>已完成</value></data>
+  <data name="ProjectArchived.Content" xml:space="preserve"><value>已归档</value></data>
+  <data name="SaveCourseButton.Content" xml:space="preserve"><value>保存</value></data>
+  <data name="NewCourseButton.Content" xml:space="preserve"><value>新建</value></data>
+  <data name="DeleteCourseButton.Content" xml:space="preserve"><value>删除</value></data>
+  <data name="SaveProjectButton.Content" xml:space="preserve"><value>保存</value></data>
+  <data name="NewProjectButton.Content" xml:space="preserve"><value>新建</value></data>
+  <data name="DeleteProjectButton.Content" xml:space="preserve"><value>删除</value></data>
+  <data name="SaveTagButton.Content" xml:space="preserve"><value>保存</value></data>
+  <data name="NewTagButton.Content" xml:space="preserve"><value>新建</value></data>
+  <data name="DeleteTagButton.Content" xml:space="preserve"><value>删除</value></data>
+  <data name="Settings" xml:space="preserve"><value>设置</value></data>
+  <data name="AllCourses" xml:space="preserve"><value>全部课程</value></data>
+  <data name="NoProject" xml:space="preserve"><value>（无项目）</value></data>
+  <data name="CustomCourse" xml:space="preserve"><value>（自定义，请在上方输入）</value></data>
+  <data name="DynamicStatusTodo" xml:space="preserve"><value>待办</value></data>
+  <data name="DynamicStatusInProgress" xml:space="preserve"><value>进行中</value></data>
+  <data name="DynamicStatusDone" xml:space="preserve"><value>已完成</value></data>
+  <data name="NoDescription" xml:space="preserve"><value>暂无描述</value></data>
+  <data name="PriorityDisplay" xml:space="preserve"><value>{0}优先级</value></data>
+  <data name="DynamicPriorityLow" xml:space="preserve"><value>低</value></data>
+  <data name="DynamicPriorityMedium" xml:space="preserve"><value>中</value></data>
+  <data name="DynamicPriorityHigh" xml:space="preserve"><value>高</value></data>
+  <data name="NoDueDate" xml:space="preserve"><value>无截止日期</value></data>
+  <data name="AllDay" xml:space="preserve"><value>全天</value></data>
+  <data name="AssignmentCount" xml:space="preserve"><value>{0} 项作业</value></data>
+  <data name="AssignmentCountOne" xml:space="preserve"><value>1 项作业</value></data>
+  <data name="ShowNavigationLabels" xml:space="preserve"><value>显示导航文字</value></data>
+  <data name="UseCompactNavigation" xml:space="preserve"><value>使用紧凑导航</value></data>
+  <data name="AddAssignmentTitle" xml:space="preserve"><value>添加作业</value></data>
+  <data name="EditAssignmentTitle" xml:space="preserve"><value>编辑作业</value></data>
+  <data name="Save" xml:space="preserve"><value>保存</value></data>
+  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="Delete" xml:space="preserve"><value>删除</value></data>
+  <data name="Edit" xml:space="preserve"><value>编辑</value></data>
+  <data name="Remove" xml:space="preserve"><value>移除</value></data>
+  <data name="Open" xml:space="preserve"><value>打开</value></data>
+  <data name="Export" xml:space="preserve"><value>导出</value></data>
+  <data name="Enable" xml:space="preserve"><value>启用</value></data>
+  <data name="Disable" xml:space="preserve"><value>停用</value></data>
+  <data name="EditTime" xml:space="preserve"><value>编辑时间</value></data>
+  <data name="OK" xml:space="preserve"><value>确定</value></data>
+  <data name="Organization" xml:space="preserve"><value>组织管理</value></data>
+  <data name="NoticeTitle" xml:space="preserve"><value>作业管理</value></data>
+  <data name="NotificationTestTitle" xml:space="preserve"><value>作业管理测试提醒</value></data>
+  <data name="NotificationTestMessage" xml:space="preserve"><value>Windows 定时通知和点击激活功能正常。</value></data>
+  <data name="NotificationTaskMessage" xml:space="preserve"><value>{0} · 截止 {1}</value></data>
+  <data name="NotificationOpenButton" xml:space="preserve"><value>打开作业管理</value></data>
+  <data name="NotificationAllowed" xml:space="preserve"><value>已允许</value></data>
+  <data name="NotificationRegistered" xml:space="preserve"><value>已向 Windows 注册</value></data>
+  <data name="NotificationUnavailable" xml:space="preserve"><value>不可用</value></data>
+  <data name="NotificationUnavailableWindows" xml:space="preserve"><value>此 Windows 系统不可用</value></data>
+  <data name="NotificationDisabledApp" xml:space="preserve"><value>已为作业管理关闭</value></data>
+  <data name="NotificationDisabledUser" xml:space="preserve"><value>当前 Windows 用户已关闭</value></data>
+  <data name="NotificationDisabledPolicy" xml:space="preserve"><value>已被组策略关闭</value></data>
+  <data name="NotificationDisabledManifest" xml:space="preserve"><value>已被应用清单关闭</value></data>
+  <data name="NotificationBlockedApp" xml:space="preserve"><value>作业管理的通知已关闭</value></data>
+  <data name="NotificationBlockedUser" xml:space="preserve"><value>当前 Windows 用户的通知已关闭</value></data>
+  <data name="NotificationBlockedPolicy" xml:space="preserve"><value>通知已被组策略关闭</value></data>
+  <data name="NotificationBlockedManifest" xml:space="preserve"><value>通知已被应用清单关闭</value></data>
+  <data name="NotificationUnknown" xml:space="preserve"><value>无法确定通知是否可用</value></data>
+  <data name="NotificationFailure" xml:space="preserve"><value>上次操作失败（{0}，0x{1}）</value></data>
+  <data name="SettingsLoadError" xml:space="preserve"><value>无法加载设置，正在使用默认值。</value></data>
+  <data name="SchemaVersion" xml:space="preserve"><value>数据库结构版本 {0}</value></data>
+  <data name="SchemaVersionBackup" xml:space="preserve"><value>数据库结构版本 {0} · 迁移备份：{1}</value></data>
+  <data name="DatabaseOpenError" xml:space="preserve"><value>无法安全打开本地数据库，因此不会写入任务更改。请检查错误信息；如果列出了迁移备份，请从备份恢复。</value></data>
+  <data name="AssignmentsLoadError" xml:space="preserve"><value>无法加载作业。</value></data>
+  <data name="FiltersApplyError" xml:space="preserve"><value>无法应用当前筛选条件。</value></data>
+  <data name="NoMatchingAssignments" xml:space="preserve"><value>没有匹配的作业</value></data>
+  <data name="NoAssignmentsHere" xml:space="preserve"><value>这里还没有作业</value></data>
+  <data name="ClearFiltersForTasks" xml:space="preserve"><value>清除或更改筛选条件以查看更多任务。</value></data>
+  <data name="NoTasksToday" xml:space="preserve"><value>今天没有到期任务。</value></data>
+  <data name="NoTasksWeek" xml:space="preserve"><value>本周没有到期任务。</value></data>
+  <data name="NothingOverdue" xml:space="preserve"><value>没有逾期任务。</value></data>
+  <data name="CompletedTasksHere" xml:space="preserve"><value>已完成的任务会显示在这里。</value></data>
+  <data name="AddAssignmentGetStarted" xml:space="preserve"><value>添加一项作业以开始使用。</value></data>
+  <data name="NavTodayTitle" xml:space="preserve"><value>今天</value></data>
+  <data name="NavWeekTitle" xml:space="preserve"><value>本周</value></data>
+  <data name="NavOverdueTitle" xml:space="preserve"><value>已逾期</value></data>
+  <data name="NavCompletedTitle" xml:space="preserve"><value>已完成</value></data>
+  <data name="NavAllTitle" xml:space="preserve"><value>全部作业</value></data>
+  <data name="DatabaseUnavailableAdd" xml:space="preserve"><value>数据库不可用，无法添加作业。</value></data>
+  <data name="DeleteAssignmentTitle" xml:space="preserve"><value>删除这项作业？</value></data>
+  <data name="DeleteAssignmentGeneric" xml:space="preserve"><value>这会将其从本地作业数据库中移除。</value></data>
+  <data name="DeleteAssignmentNamed" xml:space="preserve"><value>“{0}”将从本地数据库中永久删除。</value></data>
+  <data name="DatabaseUnavailableChanges" xml:space="preserve"><value>数据库不可用，未写入任何更改。</value></data>
+  <data name="AssignmentSaveError" xml:space="preserve"><value>无法保存作业更改。</value></data>
+  <data name="TestReminderScheduled" xml:space="preserve"><value>已允许 · 测试提醒将在五秒后显示</value></data>
+  <data name="AttachmentFilesMissing" xml:space="preserve"><value>本地存储中缺少部分附件文件：{0}</value></data>
+  <data name="AttachmentReconcileError" xml:space="preserve"><value>无法核对附件文件。任务仍可使用，但附件清理需要处理。</value></data>
+  <data name="InvalidSourceLink" xml:space="preserve"><value>此作业没有有效的 http 或 https 来源链接。</value></data>
+  <data name="OpenSourceLinkError" xml:space="preserve"><value>Windows 无法打开来源链接。</value></data>
+  <data name="AssignmentTagsSaveError" xml:space="preserve"><value>无法保存作业标签。</value></data>
+  <data name="OrganizationUnavailable" xml:space="preserve"><value>数据库不可用，无法打开组织设置。</value></data>
+  <data name="SettingsSaveError" xml:space="preserve"><value>无法保存设置供下次启动使用。</value></data>
+  <data name="BlockedNonWebNavigation" xml:space="preserve"><value>已阻止非网页导航请求。</value></data>
+  <data name="WebPage" xml:space="preserve"><value>网页</value></data>
+  <data name="OpenHttpsLoginFirst" xml:space="preserve"><value>请先打开 HTTPS 登录页面。</value></data>
+  <data name="UsernameOrEmail" xml:space="preserve"><value>用户名或电子邮箱</value></data>
+  <data name="Password" xml:space="preserve"><value>密码</value></data>
+  <data name="ExactHttpsOrigin" xml:space="preserve"><value>精确 HTTPS 来源：{0}</value></data>
+  <data name="CredentialLockerHelp" xml:space="preserve"><value>凭据保存在 Windows 凭据管理器中。自动填充不会提交表单。</value></data>
+  <data name="SavedCredential" xml:space="preserve"><value>已保存的凭据</value></data>
+  <data name="FillExisting" xml:space="preserve"><value>填充已有凭据</value></data>
+  <data name="OpenLoginFirst" xml:space="preserve"><value>请先打开登录页面。</value></data>
+  <data name="NoCredentialSaved" xml:space="preserve"><value>没有为 {0} 保存凭据。</value></data>
+  <data name="CredentialFilled" xml:space="preserve"><value>用户名和密码已填充，请检查页面后再登录。</value></data>
+  <data name="ReadingLocally" xml:space="preserve"><value>正在本地读取…</value></data>
+  <data name="ScanCurrentPage" xml:space="preserve"><value>扫描当前页面</value></data>
+  <data name="NoAssignmentsFoundOnPage" xml:space="preserve"><value>本地模型未在此页面找到作业。</value></data>
+  <data name="ReviewCandidates" xml:space="preserve"><value>检查 {0} 个作业候选项</value></data>
+  <data name="AddSelected" xml:space="preserve"><value>添加所选项</value></data>
+  <data name="ImportedAssignmentsSaveError" xml:space="preserve"><value>无法保存导入的作业。</value></data>
+  <data name="AssignmentsImported" xml:space="preserve"><value>已添加 {0} 项作业，重复项已跳过。</value></data>
+  <data name="AiReady" xml:space="preserve"><value>已就绪</value></data>
+  <data name="AiOffline" xml:space="preserve"><value>离线</value></data>
+  <data name="Web" xml:space="preserve"><value>网页</value></data>
+  <data name="EditorAttachmentFilesMissing" xml:space="preserve"><value>缺少部分附件文件：{0}</value></data>
+  <data name="MarkSubtaskComplete" xml:space="preserve"><value>将子任务“{0}”标记为完成</value></data>
+  <data name="EditSubtask" xml:space="preserve"><value>编辑子任务“{0}”</value></data>
+  <data name="RemoveSubtask" xml:space="preserve"><value>移除子任务“{0}”</value></data>
+  <data name="EditReminder" xml:space="preserve"><value>编辑提醒 {0}</value></data>
+  <data name="ToggleReminder" xml:space="preserve"><value>{0}提醒 {1}</value></data>
+  <data name="RemoveReminder" xml:space="preserve"><value>移除提醒 {0}</value></data>
+  <data name="AttachmentSize" xml:space="preserve"><value>{0}（{1} 字节）</value></data>
+  <data name="AttachmentUnavailable" xml:space="preserve"><value>{0} — 本地文件缺失或不安全</value></data>
+  <data name="OpenAttachment" xml:space="preserve"><value>打开附件 {0}</value></data>
+  <data name="ExportAttachment" xml:space="preserve"><value>导出附件 {0}</value></data>
+  <data name="RemoveAttachment" xml:space="preserve"><value>移除附件 {0}</value></data>
+  <data name="ReminderRepeats" xml:space="preserve"><value> · 重复规则：{0}</value></data>
+  <data name="ReminderDisabled" xml:space="preserve"><value>（已停用）</value></data>
+  <data name="SubtaskAddError" xml:space="preserve"><value>无法添加子任务：{0}</value></data>
+  <data name="SubtaskUpdateError" xml:space="preserve"><value>无法更新子任务：{0}</value></data>
+  <data name="SubtaskRemoveError" xml:space="preserve"><value>无法移除子任务：{0}</value></data>
+  <data name="Title" xml:space="preserve"><value>标题</value></data>
+  <data name="SubtaskTitle" xml:space="preserve"><value>子任务标题</value></data>
+  <data name="SaveSubtaskTitle" xml:space="preserve"><value>保存子任务标题</value></data>
+  <data name="CancelSubtaskTitleEdit" xml:space="preserve"><value>取消编辑子任务标题</value></data>
+  <data name="EditSubtaskTitle" xml:space="preserve"><value>编辑子任务标题</value></data>
+  <data name="ReminderSavedNotificationError" xml:space="preserve"><value>提醒已保存，但 Windows 未能安排通知。{0}</value></data>
+  <data name="ReminderAddError" xml:space="preserve"><value>无法添加提醒：{0}</value></data>
+  <data name="ReminderRemovedNotificationError" xml:space="preserve"><value>提醒已移除，但无法验证其 Windows 通知状态。{0}</value></data>
+  <data name="ReminderRemoveError" xml:space="preserve"><value>无法移除提醒：{0}</value></data>
+  <data name="Date" xml:space="preserve"><value>日期</value></data>
+  <data name="Time" xml:space="preserve"><value>时间</value></data>
+  <data name="ReminderDate" xml:space="preserve"><value>提醒日期</value></data>
+  <data name="ReminderTime" xml:space="preserve"><value>提醒时间</value></data>
+  <data name="SaveReminderTime" xml:space="preserve"><value>保存提醒时间</value></data>
+  <data name="CancelReminderTimeEdit" xml:space="preserve"><value>取消编辑提醒时间</value></data>
+  <data name="EditReminderTime" xml:space="preserve"><value>编辑提醒时间</value></data>
+  <data name="ReminderTimeSavedNotificationError" xml:space="preserve"><value>提醒时间已保存，但无法验证 Windows 通知状态。{0}</value></data>
+  <data name="ReminderUpdateError" xml:space="preserve"><value>无法更新提醒：{0}</value></data>
+  <data name="ReminderUpdatedNotificationError" xml:space="preserve"><value>提醒已更新，但无法验证 Windows 通知状态。{0}</value></data>
+  <data name="TaskNotificationRefreshError" xml:space="preserve"><value>任务已更新，但无法刷新 Windows 通知。</value></data>
+  <data name="FilePickerOpenError" xml:space="preserve"><value>无法打开文件选择器：{0}</value></data>
+  <data name="AttachmentAddError" xml:space="preserve"><value>无法添加附件：{0}</value></data>
+  <data name="AttachmentRemoveError" xml:space="preserve"><value>无法移除附件：{0}</value></data>
+  <data name="AttachmentNoOpenApp" xml:space="preserve"><value>Windows 找不到可打开此附件的应用。</value></data>
+  <data name="AttachmentOpenError" xml:space="preserve"><value>无法打开附件：{0}</value></data>
+  <data name="Attachment" xml:space="preserve"><value>附件</value></data>
+  <data name="AttachmentExportError" xml:space="preserve"><value>无法导出附件：{0}</value></data>
+  <data name="TitleCourseRequired" xml:space="preserve"><value>标题和课程为必填项。</value></data>
+  <data name="TitleCourseTooLong" xml:space="preserve"><value>标题或课程名称过长。</value></data>
+  <data name="SourceLinkHttpOnly" xml:space="preserve"><value>来源链接必须使用 http 或 https。</value></data>
+  <data name="DueDateTimeRequired" xml:space="preserve"><value>必须填写截止日期和时间。</value></data>
+  <data name="NoCourse" xml:space="preserve"><value>（无课程）</value></data>
+  <data name="CourseNameRequired" xml:space="preserve"><value>必须填写课程名称。</value></data>
+  <data name="CourseSaveError" xml:space="preserve"><value>无法保存课程：{0}</value></data>
+  <data name="CourseDeleteError" xml:space="preserve"><value>无法删除课程：{0}</value></data>
+  <data name="ProjectNameRequired" xml:space="preserve"><value>必须填写项目名称。</value></data>
+  <data name="ProjectSaveError" xml:space="preserve"><value>无法保存项目：{0}</value></data>
+  <data name="ProjectDeleteError" xml:space="preserve"><value>无法删除项目：{0}</value></data>
+  <data name="TagNameRequired" xml:space="preserve"><value>必须填写标签名称。</value></data>
+  <data name="TagSaveError" xml:space="preserve"><value>无法保存标签：{0}</value></data>
+  <data name="TagDeleteError" xml:space="preserve"><value>无法删除标签：{0}</value></data>
+  <data name="NavigationStyleButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>使用紧凑导航</value></data>
+  <data name="NavigationStyleButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>使用紧凑导航</value></data>
+  <data name="SearchToggleButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>搜索作业</value></data>
+  <data name="SearchToggleButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>搜索作业</value></data>
+  <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>搜索作业</value></data>
+  <data name="SearchCloseButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除并关闭搜索</value></data>
+  <data name="SearchCloseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清除并关闭搜索</value></data>
+  <data name="ClearFiltersButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清除筛选条件</value></data>
+  <data name="AssignmentList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>作业列表</value></data>
+  <data name="DeleteAssignmentButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>删除作业</value></data>
+  <data name="DeleteAssignmentButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除作业</value></data>
+  <data name="LoginModeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>登录模式</value></data>
+  <data name="BrowserBackButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>后退</value></data>
+  <data name="BrowserBackButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>后退</value></data>
+  <data name="BrowserForwardButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>前进</value></data>
+  <data name="BrowserForwardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>前进</value></data>
+  <data name="BrowserReloadButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>重新加载</value></data>
+  <data name="BrowserReloadButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>重新加载页面</value></data>
+  <data name="AddressBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>来源地址</value></data>
+  <data name="SourceBrowser.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>来源浏览器</value></data>
+  <data name="SendTestNotificationButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>五秒后发送测试提醒</value></data>
+  <data name="EditorAddSubtaskButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>添加子任务</value></data>
+  <data name="EditorReminderDate.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>提醒日期</value></data>
+  <data name="EditorReminderTime.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>提醒时间</value></data>
+  <data name="CoursesList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>课程列表</value></data>
+  <data name="ProjectsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>项目列表</value></data>
+  <data name="TagsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>标签列表</value></data>
+  <data name="SaveCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存课程</value></data>
+  <data name="NewCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新建课程</value></data>
+  <data name="DeleteCourseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除课程</value></data>
+  <data name="SaveProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存项目</value></data>
+  <data name="NewProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新建项目</value></data>
+  <data name="DeleteProjectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除项目</value></data>
+  <data name="SaveTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存标签</value></data>
+  <data name="NewTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新建标签</value></data>
+  <data name="DeleteTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除标签</value></data>
+</root>
