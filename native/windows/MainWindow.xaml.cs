@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
     private bool _rootLoaded;
     private bool _searchExpanded;
     private bool _updatingControls;
+    private long? _pendingNotificationAssignmentId;
 
     private const double CompactNavigationThreshold = 760;
 
@@ -107,6 +108,7 @@ public sealed partial class MainWindow : Window
             await ReloadAssignmentsAsync(showLoading: false);
             ReconcileNotifications();
             NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
+            ScrollToPendingNotificationAssignment();
         }
         catch (Exception error)
         {
@@ -550,6 +552,44 @@ public sealed partial class MainWindow : Window
     {
         NotificationStatusText.Text = WindowsNotificationScheduler.Shared.Status;
         ReconcileNotifications();
+    }
+
+    private void SendTestNotification_Click(object sender, RoutedEventArgs e)
+    {
+        var scheduled = WindowsNotificationScheduler.Shared.ScheduleTestNotification(
+            TimeSpan.FromSeconds(5));
+        NotificationStatusText.Text = scheduled
+            ? "Allowed · Test reminder scheduled for five seconds from now"
+            : WindowsNotificationScheduler.Shared.Status;
+    }
+
+    public void OpenFromNotification(long? assignmentId)
+    {
+        _pendingNotificationAssignmentId = assignmentId;
+        if (!_rootLoaded || _database is null) return;
+
+        Navigation.SelectedItem = Navigation.MenuItems[0];
+        _filter = "all";
+        ShowPanel("assignments");
+        _updatingControls = true;
+        CollapseSearch(clearQuery: true);
+        StatusFilterBox.SelectedIndex = 0;
+        CourseFilterBox.SelectedIndex = 0;
+        PriorityFilterBox.SelectedIndex = 0;
+        _updatingControls = false;
+        ApplyFilter();
+        ScrollToPendingNotificationAssignment();
+    }
+
+    private void ScrollToPendingNotificationAssignment()
+    {
+        if (_pendingNotificationAssignmentId is not { } assignmentId) return;
+        var row = AssignmentRows.FirstOrDefault(item => item.Id == assignmentId);
+        if (row is null) return;
+
+        _pendingNotificationAssignmentId = null;
+        AssignmentList.ScrollIntoView(row);
+        AssignmentList.Focus(FocusState.Programmatic);
     }
 
     private void ReconcileNotifications()

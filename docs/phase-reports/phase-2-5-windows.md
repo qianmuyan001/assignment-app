@@ -39,8 +39,10 @@ This is a source-scope statement, not a final Preview acceptance claim.
 - Added automation names and stable focus targets for navigation, search, task
   actions, settings, reminder controls, attachments, and organization UI.
 - Replaced the self-contained-incompatible AppNotificationManager registration
-  path with `CommunityToolkit.WinUI.Notifications` 7.1.2 for unpackaged toast
-  registration and scheduling. The SQLite reminder contract remains unchanged.
+  path with an explicit stable AUMID, per-user Start menu shortcut, and COM toast
+  activator built on `CommunityToolkit.WinUI.Notifications` 7.1.2. Scheduled
+  reminders use the Reminder scenario, remain visible until handled, and carry
+  an action that activates the app. The SQLite reminder contract is unchanged.
 - Preserved the existing Phase 2.5 attachment safety, rollback, reconciliation,
   organization, migration, and task-domain implementations.
 
@@ -112,9 +114,10 @@ or migrated.
 | Attachment import/SHA/open/export/delete | Yes | Yes | Passed | real picker; stored/exported SHA-256 matched; UI delete removed payload and soft-deleted metadata |
 | Missing/orphan/reparse/rollback handling | Yes | Yes | Not all forced manually | covered by Core lifecycle tests |
 | Reminder add/edit/disable/remove | Yes | Yes | Partial | add and edit exercised through WinUI; records verified in SQLite |
-| Notification registration/status | Yes | Indirect | Passed | settings showed `Allowed` after custom probe registrations were removed |
-| Notification scheduling/system delivery | Yes | Indirect | Passed at platform level | event 3052 at 00:01:59 and 00:10:00; notification history contained tag `r3` |
-| Visible notification banner/card | Yes | No | **Not verified** | screenshots did not capture the Assignment notification card despite platform delivery/history evidence |
+| Notification registration/status | Yes | Indirect | Passed | stable `Assignment App` sender appears in Windows settings; banners, notification center, sound, and important delivery are enabled |
+| Notification scheduling/system delivery | Yes | Indirect | Passed | product test reminder scheduled through `ScheduledToastNotification` appeared after five seconds |
+| Visible notification banner/card | Yes | No | **Passed** | `notification-fix-20260901T1832Z/screenshots/scheduled-reminder-banner.png`; notification center priority set to High |
+| Notification activation | Yes | No | **Passed for running app** | clicking `Open Assignment App` brought PID 55268 to the foreground; cold-start task routing was not repeated against a non-isolated user environment |
 | Keyboard, focus, automation names | Yes | Partial | Passed for inspected flows | UI Automation tree and keyboard search checks |
 | Narrator, full Tab order, high DPI | Intended | No | **Not fully verified** | requires dedicated manual accessibility pass |
 
@@ -131,21 +134,29 @@ Important evidence includes `main-wide.png`, `main-compact.png`,
 `notification-delivery.log`, `notification-delivery-background.log`, and the
 notification-center screenshots.
 
+Notification-fix evidence root:
+
+```text
+artifacts/windows/notification-fix-20260901T1832Z/screenshots/
+```
+
 ## Notification finding
 
 The unpackaged self-contained AppNotificationManager path failed on this host
 because it depends on Windows App SDK singleton registration that is not part of
-the portable publish directory. The compatibility notifier now reports
-`Allowed`, accepts schedule/cancel/reconcile operations, and survives application
-exit. Windows PushNotification-Platform event 3052 twice recorded delivery to
-session 1 for the current executable; an independent history read returned the
-scheduled `r3` notification.
+the portable publish directory. The former path-derived compatibility identity
+accepted notifications but left them as hidden history rather than visible
+cards. The corrected implementation installs a stable `qianmuyan001.AssignmentApp`
+AUMID and `ToastActivatorCLSID` on an `Assignment App` Start menu shortcut before
+registering the COM activator. Reminder payloads include an action button and
+`SuppressPopup=false`.
 
-However, neither the real-time screenshot nor the subsequently opened
-notification center showed the Assignment card. Do Not Disturb was inspected
-and restored to its original off state. Because the user's acceptance criterion
-requires actual visible receipt, this report does not promote platform-delivery
-evidence to a visible-notification pass.
+The product's five-second scheduled test then produced a persistent visible
+banner under the `Assignment App` sender. Clicking the action brought the
+already-running application to the foreground. Windows settings were inspected
+for this exact stable identity: banners, notification center, sound, and
+important delivery during Do Not Disturb are on, and notification-center
+priority is High. Global Do Not Disturb remains off.
 
 References used during diagnosis:
 
@@ -168,10 +179,10 @@ Automated tests, Windows Debug/Release builds, self-contained publish, isolated
 published-EXE startup, core task/editor flows, attachment lifecycle, navigation,
 search, and notification platform delivery passed.
 
-Gate W1 remains **not passed** because visible notification receipt, the complete
-organization CRUD matrix, full task completion/deletion interaction, Narrator,
-high-DPI, and exhaustive keyboard/Tab-order acceptance are not all closed with
-matching evidence. Therefore this report does **not** claim:
+Gate W1 remains **not passed** because the complete organization CRUD matrix,
+full task completion/deletion interaction, Narrator, high-DPI, exhaustive
+keyboard/Tab-order acceptance, and cold-start notification routing are not all
+closed with matching evidence. Therefore this report does **not** claim:
 
 > Windows Preview 已追平当前 Apple 版本。
 

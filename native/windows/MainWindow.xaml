@@ -464,6 +464,9 @@
                                         Click="RefreshNotificationStatus_Click"/>
                                 <Button Content="Open notification settings"
                                         Click="OpenNotificationSettings_Click"/>
+                                <Button Content="Send test reminder"
+                                        AutomationProperties.Name="Send a test reminder in five seconds"
+                                        Click="SendTestNotification_Click"/>
                             </StackPanel>
                             <TextBlock Text="If notifications are blocked, tasks and reminder records continue to work normally."
                                        TextWrapping="Wrap" FontSize="12" Opacity="0.65"/>

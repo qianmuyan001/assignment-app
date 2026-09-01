@@ -5,11 +5,13 @@ namespace AssignmentNative;
 
 public partial class App : Application
 {
-    private Window? _window;
+    private MainWindow? _window;
+    private long? _pendingAssignmentId;
 
     public App()
     {
         InitializeComponent();
+        WindowsNotificationScheduler.Shared.Activated += NotificationScheduler_Activated;
         WindowsNotificationScheduler.Shared.Register();
         UnhandledException += (_, args) =>
         {
@@ -24,5 +26,26 @@ public partial class App : Application
     {
         _window = new MainWindow();
         _window.Activate();
+        if (_pendingAssignmentId is not null)
+        {
+            _window.OpenFromNotification(_pendingAssignmentId);
+            _pendingAssignmentId = null;
+        }
+    }
+
+    private void NotificationScheduler_Activated(
+        object? sender,
+        NotificationActivationEventArgs args)
+    {
+        _pendingAssignmentId = args.AssignmentId;
+        var window = _window;
+        if (window is null) return;
+
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            window.Activate();
+            window.OpenFromNotification(args.AssignmentId);
+            _pendingAssignmentId = null;
+        });
     }
 }

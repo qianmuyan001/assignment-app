@@ -19,8 +19,8 @@ runtime acceptance parity is not yet closed.**
 | Subtasks | CRUD and derived parent progress | CRUD and derived parent progress | Aligned | Windows add exercised; finish edit/delete manual pass |
 | Attachments | Managed file store, hashing, open/share/delete/reconcile | Managed file store, hashing, open/export/delete/reconcile and reparse defense | Aligned | Apple full manual package pass remains historical blocker |
 | Reminder records | Exact UTC trigger; one-shot scheduling | Same Schema v3 semantics | Aligned | Recurrence intentionally deferred |
-| Notification permission/status | UserNotifications status | Native Windows status reports `Allowed` | Aligned in capability | Dedicated final visual acceptance |
-| Schedule/cancel/reconcile | Implemented | Implemented; platform delivery and history proven | Mostly aligned | Visible Windows banner/card not captured |
+| Notification permission/status | UserNotifications status | Stable `Assignment App` sender is enabled; banners, center, sound, and important delivery verified | Aligned in capability | None material |
+| Schedule/cancel/reconcile | Implemented | Scheduled Reminder banner and running-app activation verified; cancel/reconcile implemented | Mostly aligned | Cold-start routing not repeated against an isolated desktop environment |
 | Navigation behavior | Apple compact/expanded patterns | Native NavigationView compact/expanded, persistent and adaptive | Equivalent, platform-native | Narrator/high-DPI manual pass |
 | Search interaction | Expand/focus/clear/Escape | Equivalent WinUI interaction exercised | Aligned | None material |
 | Accessibility | SwiftUI labels and prior UI smoke evidence | WinUI automation names/tooltips and keyboard checks | Partial evidence parity | VoiceOver/Narrator and Reduce Motion dedicated passes |
@@ -68,12 +68,12 @@ Windows automated evidence:
 
 Windows desktop evidence covers navigation, adaptive layout, search, settings
 persistence, task editing, one subtask, attachment import/export/delete with
-matching SHA-256, organization manager launch, notification status, scheduling,
-platform delivery events, and history.
+matching SHA-256, organization manager launch, notification status, scheduled
+visible delivery, and running-app activation.
 
-The remaining Windows gaps are visible notification receipt and the complete
-manual organization/status/delete/accessibility/high-DPI matrix. The Apple
-Phase 2.5 report also retains manual organization/attachment/notification and
+The remaining Windows gaps are cold-start notification routing and the complete
+manual organization/status/delete/accessibility/high-DPI matrix. The Apple Phase
+2.5 report also retains manual organization/attachment/notification and
 accessibility gaps. Consequently no cross-platform Preview parity claim is made.
 
 ## Decision
