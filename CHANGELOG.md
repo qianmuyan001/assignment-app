@@ -6,7 +6,7 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-09-01
+## [2.1.0] - 2026-09-01
 
 ### Added
 

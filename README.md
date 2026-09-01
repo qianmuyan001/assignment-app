@@ -6,11 +6,11 @@ This project has a FastAPI backend, a SQLite database, a web client, and active
 native Apple and Windows clients for managing school assignments. The retired
 Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 
-Current source version: **1.2.0** on the `release/1.2` release line. The existing
+Current source version: **2.1.0** on the `release/2.1` release line. The existing
 `v1.0.0` and `v1.1.0` tags remain unchanged. See [CHANGELOG.md](CHANGELOG.md) for source
 history. Versions follow [Semantic Versioning](https://semver.org/).
 
-## Assignment App 1.2
+## Assignment App 2.1
 
 The repository contains the shared task contract, a versioned SQLite v3
 migration, and Apple, Windows, and Web implementations of the task-management
