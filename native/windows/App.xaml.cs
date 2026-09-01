@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using AssignmentNative.Services;
+using CommunityToolkit.WinUI.Notifications;
 
 namespace AssignmentNative;
 
@@ -10,6 +11,8 @@ public partial class App : Application
 
     public App()
     {
+        ApplyAcceptancePathOverrides();
+        ResetToastRegistrationForAcceptance();
         InitializeComponent();
         WindowsNotificationScheduler.Shared.Activated += NotificationScheduler_Activated;
         WindowsNotificationScheduler.Shared.Register();
@@ -20,6 +23,48 @@ public partial class App : Application
             System.Diagnostics.Debug.WriteLine(
                 $"Unhandled exception type: {args.Exception.GetType().Name}");
         };
+    }
+
+    private static void ResetToastRegistrationForAcceptance()
+    {
+        if (Environment.GetCommandLineArgs().Any(argument =>
+                string.Equals(
+                    argument,
+                    "--acceptance-reset-toast-registration",
+                    StringComparison.Ordinal)))
+        {
+            ToastNotificationManagerCompat.Uninstall();
+        }
+    }
+
+    private static void ApplyAcceptancePathOverrides()
+    {
+        var arguments = Environment.GetCommandLineArgs();
+        ApplyAcceptancePathOverride(
+            arguments,
+            "--acceptance-database-path",
+            "ASSIGNMENT_DB_PATH");
+        ApplyAcceptancePathOverride(
+            arguments,
+            "--acceptance-settings-path",
+            "ASSIGNMENT_SETTINGS_PATH");
+    }
+
+    private static void ApplyAcceptancePathOverride(
+        IReadOnlyList<string> arguments,
+        string option,
+        string environmentVariable)
+    {
+        for (var index = 1; index < arguments.Count - 1; index++)
+        {
+            if (!string.Equals(arguments[index], option, StringComparison.Ordinal)) continue;
+            var path = arguments[index + 1];
+            if (Path.IsPathFullyQualified(path))
+            {
+                Environment.SetEnvironmentVariable(environmentVariable, Path.GetFullPath(path));
+            }
+            return;
+        }
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

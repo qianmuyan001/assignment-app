@@ -64,4 +64,7 @@ public sealed class TaskRowViewModel
             TaskPriorities.Low => Colors.SeaGreen,
             _ => Colors.DarkGoldenrod
         });
+
+    public override string ToString() =>
+        $"{Title}, {CourseName}, {StatusDisplay}, {DueDisplay}";
 }

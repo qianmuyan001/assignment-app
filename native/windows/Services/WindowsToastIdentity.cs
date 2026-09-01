@@ -43,7 +43,7 @@ internal static class WindowsToastIdentity
         {
             var link = (IShellLinkW)shellObject;
             link.SetPath(executablePath);
-            link.SetArguments("");
+            link.SetArguments(AcceptanceArguments());
             link.SetWorkingDirectory(Path.GetDirectoryName(executablePath)!);
             link.SetDescription("Assignment App");
             link.SetIconLocation(executablePath, 0);
@@ -65,6 +65,7 @@ internal static class WindowsToastIdentity
             }
 
             SHChangeNotify(existed ? 0x00002000u : 0x00000002u, 0x0005, shortcutPath, IntPtr.Zero);
+            SHChangeNotify(0x08000000u, 0, null, IntPtr.Zero);
         }
         finally
         {
@@ -72,11 +73,35 @@ internal static class WindowsToastIdentity
         }
     }
 
+    private static string AcceptanceArguments()
+    {
+        var arguments = new List<string>();
+        AddAcceptanceArgument(
+            arguments,
+            "--acceptance-database-path",
+            Environment.GetEnvironmentVariable("ASSIGNMENT_DB_PATH"));
+        AddAcceptanceArgument(
+            arguments,
+            "--acceptance-settings-path",
+            Environment.GetEnvironmentVariable("ASSIGNMENT_SETTINGS_PATH"));
+        return string.Join(" ", arguments);
+    }
+
+    private static void AddAcceptanceArgument(
+        ICollection<string> arguments,
+        string option,
+        string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path)) return;
+        arguments.Add(option);
+        arguments.Add($"\"{Path.GetFullPath(path)}\"");
+    }
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern void SHChangeNotify(
         uint eventId,
         uint flags,
-        [MarshalAs(UnmanagedType.LPWStr)] string item1,
+        [MarshalAs(UnmanagedType.LPWStr)] string? item1,
         IntPtr item2);
 
     [ComImport]

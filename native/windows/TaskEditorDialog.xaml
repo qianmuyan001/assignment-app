@@ -107,6 +107,7 @@
                              KeyDown="NewSubtask_KeyDown"/>
                     <Button Grid.Column="1"
                             Content="Add"
+                            AutomationProperties.Name="Add subtask"
                             Click="AddSubtask_Click"/>
                 </Grid>
             </StackPanel>

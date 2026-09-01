@@ -589,7 +589,17 @@ public sealed partial class MainWindow : Window
 
         _pendingNotificationAssignmentId = null;
         AssignmentList.ScrollIntoView(row);
-        AssignmentList.Focus(FocusState.Programmatic);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (AssignmentList.ContainerFromItem(row) is ListViewItem container)
+            {
+                container.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                AssignmentList.Focus(FocusState.Programmatic);
+            }
+        });
     }
 
     private void ReconcileNotifications()

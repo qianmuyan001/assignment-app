@@ -37,6 +37,8 @@ public sealed partial class TaskEditorDialog : ContentDialog
     private long? _selectedCourseId;
     private long? _selectedProjectId;
     private readonly HashSet<long> _selectedTagIds = new();
+    private string? _derivedSubtaskStatus;
+    private int? _derivedSubtaskProgress;
     private bool _populating;
 
     public AssignmentDraft? Result { get; private set; }
@@ -250,7 +252,10 @@ public sealed partial class TaskEditorDialog : ContentDialog
         }
     }
 
-    private void RenderSubtasks(IReadOnlyList<SubtaskItem> subtasks)
+    private void RenderSubtasks(
+        IReadOnlyList<SubtaskItem> subtasks,
+        bool synchronizeState = true,
+        bool resetWhenEmpty = false)
     {
         SubtasksList.Children.Clear();
         foreach (var subtask in subtasks)
@@ -276,11 +281,48 @@ public sealed partial class TaskEditorDialog : ContentDialog
                 Tag = subtask,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            var edit = new Button
+            {
+                Content = "Edit",
+                Tag = subtask,
+                VerticalAlignment = VerticalAlignment.Center
+            };
             AutomationProperties.SetName(check, $"Mark {subtask.Title} complete");
+            AutomationProperties.SetName(edit, $"Edit subtask {subtask.Title}");
             AutomationProperties.SetName(remove, $"Remove subtask {subtask.Title}");
+            edit.Click += EditSubtask_Click;
             remove.Click += RemoveSubtask_Click;
 
-            SubtasksList.Children.Add(BuildRow(check, title, remove));
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            actions.Children.Add(edit);
+            actions.Children.Add(remove);
+            SubtasksList.Children.Add(BuildRow(check, title, actions));
+        }
+
+        if (!synchronizeState) return;
+        if (subtasks.Count == 0)
+        {
+            _derivedSubtaskStatus = resetWhenEmpty ? TaskStatuses.Todo : null;
+            _derivedSubtaskProgress = resetWhenEmpty ? 0 : null;
+        }
+        else
+        {
+            var completed = subtasks.Count(item => item.Status == TaskStatuses.Done);
+            _derivedSubtaskProgress = completed * 100 / subtasks.Count;
+            _derivedSubtaskStatus = completed == subtasks.Count
+                ? TaskStatuses.Done
+                : completed > 0 || subtasks.Any(item => item.Status == TaskStatuses.InProgress)
+                    ? TaskStatuses.InProgress
+                    : TaskStatuses.Todo;
+        }
+        if (_derivedSubtaskStatus is not null)
+        {
+            SelectByTag(StatusBox, _derivedSubtaskStatus);
         }
     }
 
@@ -515,13 +557,73 @@ public sealed partial class TaskEditorDialog : ContentDialog
         }
     }
 
+    private void EditSubtask_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SubtaskItem subtask } editButton || _existing is null) return;
+        var titleBox = new TextBox
+        {
+            Header = "Title",
+            Text = subtask.Title,
+            MaxLength = 255,
+            MinWidth = 280
+        };
+        AutomationProperties.SetName(titleBox, "Subtask title");
+        var save = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        var cancel = new Button { Content = "Cancel" };
+        AutomationProperties.SetName(save, "Save subtask title");
+        AutomationProperties.SetName(cancel, "Cancel subtask title edit");
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        actions.Children.Add(cancel);
+        actions.Children.Add(save);
+        var fields = new StackPanel { Spacing = 8, MinWidth = 280 };
+        fields.Children.Add(titleBox);
+        fields.Children.Add(actions);
+        var flyout = new Flyout { Content = fields };
+        AutomationProperties.SetName(fields, "Edit subtask title");
+        cancel.Click += (_, _) => flyout.Hide();
+        save.Click += (_, _) =>
+        {
+            var title = titleBox.Text.Trim();
+            if (title.Length == 0) return;
+            try
+            {
+                _organization.UpdateSubtask(
+                    subtask.Id,
+                    new SubtaskDraft(
+                        subtask.AssignmentId,
+                        title,
+                        subtask.Status,
+                        subtask.SortOrder));
+                RenderSubtasks(
+                    _organization.FetchSubtasks(_existing.Id),
+                    synchronizeState: false);
+                ReconcileNotificationsAfterChildChange();
+                flyout.Hide();
+            }
+            catch (Exception error)
+            {
+                ShowNotice($"The subtask could not be updated: {error.Message}");
+            }
+        };
+        flyout.ShowAt(editButton);
+        titleBox.Focus(FocusState.Programmatic);
+        titleBox.SelectAll();
+    }
+
     private void RemoveSubtask_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: SubtaskItem subtask } || _existing is null) return;
         try
         {
             _organization.DeleteSubtask(subtask.Id);
-            RenderSubtasks(_organization.FetchSubtasks(_existing.Id));
+            RenderSubtasks(
+                _organization.FetchSubtasks(_existing.Id),
+                resetWhenEmpty: true);
             ReconcileNotificationsAfterChildChange();
         }
         catch (Exception error)
@@ -869,6 +971,12 @@ public sealed partial class TaskEditorDialog : ContentDialog
             link);
         draft.CourseId = _selectedCourseId;
         draft.ProjectId = _selectedProjectId;
+        if (_derivedSubtaskStatus is not null)
+        {
+            draft.ProgressPercent = draft.Status == _derivedSubtaskStatus
+                ? _derivedSubtaskProgress
+                : null;
+        }
         Result = draft;
     }
 

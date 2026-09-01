@@ -24,6 +24,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <ListView x:Name="CourseList"
+                              AutomationProperties.Name="Courses"
                               DisplayMemberPath="Name"
                               SelectionChanged="CourseList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
@@ -33,9 +34,9 @@
                         <TextBox x:Name="CourseSemesterBox" Header="Semester"/>
                         <CheckBox x:Name="CourseArchivedBox" Content="Archived"/>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" Click="SaveCourse_Click"/>
-                            <Button Content="New" Click="NewCourse_Click"/>
-                            <Button Content="Delete" Click="DeleteCourse_Click"/>
+                            <Button Content="Save" AutomationProperties.Name="Save course" Click="SaveCourse_Click"/>
+                            <Button Content="New" AutomationProperties.Name="New course" Click="NewCourse_Click"/>
+                            <Button Content="Delete" AutomationProperties.Name="Delete course" Click="DeleteCourse_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -49,6 +50,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <ListView x:Name="ProjectList"
+                              AutomationProperties.Name="Projects"
                               DisplayMemberPath="Name"
                               SelectionChanged="ProjectList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
@@ -67,9 +69,9 @@
                             <ComboBoxItem Content="Archived" Tag="archived"/>
                         </ComboBox>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" Click="SaveProject_Click"/>
-                            <Button Content="New" Click="NewProject_Click"/>
-                            <Button Content="Delete" Click="DeleteProject_Click"/>
+                            <Button Content="Save" AutomationProperties.Name="Save project" Click="SaveProject_Click"/>
+                            <Button Content="New" AutomationProperties.Name="New project" Click="NewProject_Click"/>
+                            <Button Content="Delete" AutomationProperties.Name="Delete project" Click="DeleteProject_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -83,15 +85,16 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <ListView x:Name="TagList"
+                              AutomationProperties.Name="Tags"
                               DisplayMemberPath="Name"
                               SelectionChanged="TagList_SelectionChanged"/>
                     <StackPanel Grid.Column="1" Spacing="10">
                         <TextBox x:Name="TagNameBox" Header="Name" MaxLength="80"/>
                         <TextBox x:Name="TagColorBox" Header="Color (#RRGGBB)" MaxLength="7"/>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" Click="SaveTag_Click"/>
-                            <Button Content="New" Click="NewTag_Click"/>
-                            <Button Content="Delete" Click="DeleteTag_Click"/>
+                            <Button Content="Save" AutomationProperties.Name="Save tag" Click="SaveTag_Click"/>
+                            <Button Content="New" AutomationProperties.Name="New tag" Click="NewTag_Click"/>
+                            <Button Content="Delete" AutomationProperties.Name="Delete tag" Click="DeleteTag_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
