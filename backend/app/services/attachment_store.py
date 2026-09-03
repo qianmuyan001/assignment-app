@@ -1,15 +1,51 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import sqlite3
+import time
 from collections.abc import AsyncIterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 from uuid import UUID, uuid4
 
 
 MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024
+
+# Windows reports a sharing violation (WinError 32 or 33) while a payload is
+# still held open by a streaming download, an antivirus scan, or the search
+# indexer. Those locks clear within milliseconds, so payload mutations retry
+# briefly instead of failing the request.
+_RETRYABLE_ERRNOS = frozenset({errno.EACCES, errno.EPERM, errno.EBUSY})
+_RETRYABLE_WINERRORS = frozenset({32, 33})
+_RETRY_ATTEMPTS = 8
+_RETRY_BASE_DELAY = 0.05
+
+_T = TypeVar("_T")
+
+
+def _is_transient_lock(exc: OSError) -> bool:
+    if exc.errno in _RETRYABLE_ERRNOS:
+        return True
+    return getattr(exc, "winerror", None) in _RETRYABLE_WINERRORS
+
+
+def _retry_on_lock(
+    operation: Callable[[], _T],
+    attempts: int = _RETRY_ATTEMPTS,
+) -> _T:
+    """Run a filesystem mutation, retrying transient Windows sharing locks."""
+    for attempt in range(attempts):
+        try:
+            return operation()
+        except OSError as exc:
+            if attempt == attempts - 1 or not _is_transient_lock(exc):
+                raise
+            time.sleep(_RETRY_BASE_DELAY * (attempt + 1))
+    raise AssertionError("retry loop exited without a result")
 
 
 class AttachmentStoreError(RuntimeError):
@@ -97,15 +133,20 @@ class AttachmentStore:
         if source.is_symlink() or not source.is_file():
             raise AttachmentStoreError("attachment payload is not a regular file")
         staged = self.staging_root / f"{attachment_uuid}.deleted"
-        staged.unlink(missing_ok=True)
-        os.replace(source, staged)
+        try:
+            _retry_on_lock(lambda: staged.unlink(missing_ok=True))
+            _retry_on_lock(lambda: os.replace(source, staged))
+        except OSError as exc:
+            raise AttachmentStoreError(
+                f"attachment payload is locked by another process: {exc}"
+            ) from exc
         return source, staged
 
     @staticmethod
     def finish_delete(staged: tuple[Path, Path] | None) -> None:
         if staged is not None:
             try:
-                staged[1].unlink(missing_ok=True)
+                _retry_on_lock(lambda: staged[1].unlink(missing_ok=True))
             except OSError:
                 # Metadata is already committed. Reconciliation removes this
                 # tombstone on the next startup instead of reporting a false
@@ -115,10 +156,11 @@ class AttachmentStore:
     @staticmethod
     def rollback_delete(staged: tuple[Path, Path] | None) -> None:
         if staged is not None and staged[1].exists():
-            os.replace(staged[1], staged[0])
+            _retry_on_lock(lambda: os.replace(staged[1], staged[0]))
 
     def remove_payload(self, attachment_uuid: str) -> None:
-        self.payload_path(attachment_uuid).unlink(missing_ok=True)
+        path = self.payload_path(attachment_uuid)
+        _retry_on_lock(lambda: path.unlink(missing_ok=True))
 
     def reconcile(self, active_uuids: set[str]) -> tuple[int, list[str]]:
         self.prepare()

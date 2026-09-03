@@ -18,10 +18,17 @@ and Phase 2 organization workflow. They use the same task fields, status and
 priority mappings, UUID lineage, courses, projects, tags, subtasks, attachment
 metadata, reminders, date-list rules, fixtures, and acceptance cases. Phase 2.5
 adds managed attachment payloads and native notification scheduling without a
-schema change. Its strict cross-platform gate remains open until WinUI is built,
-published, and interactively launched on a real Windows x64 desktop; Phase 3A
-has therefore not started. See
-[the Phase 2.5 report](docs/phase-reports/phase-2-5.md).
+schema change. Version 2.1.0 adds a persistent application-language setting with
+English and Simplified Chinese WinUI resources.
+
+Its strict cross-platform gate required a signed-in Windows x64 desktop result.
+WinUI has since been built, published, and interactively launched on a real
+Windows x64 desktop, and most of the manual acceptance matrix passed. One item
+remains open: notification activation from a cold start, with the app fully
+exited, still needs re-verification after a Windows sign-in cycle. Phase 3A has
+not started because no Apple Schema v4 baseline exists to port. See
+[the Phase 2.5 report](docs/phase-reports/phase-2-5.md) and
+[the Windows acceptance report](docs/phase-reports/phase-2-5-windows.md).
 
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
@@ -84,7 +91,7 @@ SQLite assignment schema without replacing or deleting the database.
 | --- | --- | --- | --- |
 | Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | Phase 2.5 source locally built, tested, launch-smoked; dirty Debug evidence only |
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source and Core tests; real Windows x64 build/publish/launch unverified |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source; 50/50 Core tests; Debug and Release x64 builds; self-contained x64 publish and signed-in desktop launch verified; cold-start notification activation pending |
 
 Phase 2 organization screens exist on Apple, Windows, and Web. Phase 2.5 stores
 attachment bytes outside SQLite at the database sibling key

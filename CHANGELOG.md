@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Fixed
+
+- Retry transient Windows file-sharing violations when attachment payloads are
+  mutated, on both WinUI (`AttachmentFileStore`) and backend
+  (`attachment_store`) paths. Payloads briefly stay locked while an external
+  viewer, antivirus scanner, or the search indexer still holds them open;
+  those locks clear within milliseconds, so mutations now retry with a short
+  backoff instead of failing the whole import, export, delete, or
+  reconciliation step.
+- Raise a clear `attachment payload is locked by another process` error when
+  the retry budget is exhausted, instead of surfacing a bare `OSError`.
+
+### Documentation
+
+- Corrected the Windows status in the README, which still claimed the real
+  Windows x64 build, publish, and launch were unverified.
+
 ## [2.1.0] - 2026-09-01
 
 ### Added

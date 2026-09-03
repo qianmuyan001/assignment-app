@@ -44,7 +44,7 @@ public sealed class AttachmentFileStore
             {
                 digest = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
             }
-            File.Move(staged, destination);
+            RunWithFileLockRetry(() => File.Move(staged, destination));
             try
             {
                 var metadata = repository.CreateAttachment(new AttachmentMetadataDraft(
@@ -55,13 +55,13 @@ public sealed class AttachmentFileStore
             }
             catch
             {
-                File.Delete(destination);
+                RunWithFileLockRetry(() => File.Delete(destination));
                 throw;
             }
         }
         catch
         {
-            File.Delete(staged);
+            RunWithFileLockRetry(() => File.Delete(staged));
             throw;
         }
     }
@@ -92,8 +92,8 @@ public sealed class AttachmentFileStore
         {
             if (IsReparsePoint(source))
                 throw new IOException("Attachment payload must not be a symbolic link.");
-            File.Delete(staged);
-            File.Move(source, staged);
+            RunWithFileLockRetry(() => File.Delete(staged));
+            RunWithFileLockRetry(() => File.Move(source, staged));
         }
         try
         {
@@ -101,12 +101,13 @@ public sealed class AttachmentFileStore
         }
         catch
         {
-            if (hadPayload && File.Exists(staged)) File.Move(staged, source);
+            if (hadPayload && File.Exists(staged))
+                RunWithFileLockRetry(() => File.Move(staged, source));
             throw;
         }
         if (hadPayload)
         {
-            try { File.Delete(staged); }
+            try { RunWithFileLockRetry(() => File.Delete(staged)); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
@@ -176,9 +177,36 @@ public sealed class AttachmentFileStore
             }
             var destination = PayloadPath(uuid);
             if (active.Contains(uuid) && !File.Exists(destination))
-                File.Move(path, destination);
+                RunWithFileLockRetry(() => File.Move(path, destination));
             else
-                File.Delete(path);
+                RunWithFileLockRetry(() => File.Delete(path));
+        }
+    }
+
+    // Windows reports a sharing violation while a payload is still open in an
+    // external viewer, an antivirus scan, or the search indexer. Those locks
+    // clear within milliseconds, so payload mutations retry briefly instead of
+    // failing the whole operation.
+    private const int FileRetryAttempts = 6;
+    private const int FileRetryBaseDelayMs = 40;
+
+    private static void RunWithFileLockRetry(Action operation)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                operation();
+                return;
+            }
+            catch (IOException) when (attempt < FileRetryAttempts - 1)
+            {
+                Thread.Sleep(FileRetryBaseDelayMs * (attempt + 1));
+            }
+            catch (UnauthorizedAccessException) when (attempt < FileRetryAttempts - 1)
+            {
+                Thread.Sleep(FileRetryBaseDelayMs * (attempt + 1));
+            }
         }
     }
 
