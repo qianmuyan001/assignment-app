@@ -6,6 +6,7 @@ enum AssignmentPreferenceKeys {
     static let displayMode = "assignmentApp.displayMode"
     static let theme = "assignmentApp.theme"
     static let sidebarDisplayStyle = "assignmentApp.sidebarDisplayStyle"
+    static let calendarShowsCompleted = "assignmentApp.calendarShowsCompleted"
 }
 
 
@@ -25,6 +26,9 @@ struct ContentView: View {
     @State private var activeAlert: ContentAlert?
     @State private var searchPresentation: SearchPresentationState = .closed
     @State private var didApplyUITestOverrides = false
+    @State private var isShowingOnboarding = false
+    @AppStorage(OnboardingState.completedKey)
+    private var didCompleteOnboarding = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -41,6 +45,8 @@ struct ContentView: View {
             NavigationStack {
                 if viewModel.selection == .settings {
                     settingsContent
+                } else if viewModel.selection.isDedicatedPage {
+                    dedicatedContent
                 } else {
                     assignmentContent
                 }
@@ -52,9 +58,58 @@ struct ContentView: View {
             editor(for: presentation)
         }
         .alert(item: $activeAlert, content: alert)
+        .sheet(isPresented: $isShowingOnboarding) {
+            OnboardingView(
+                isReopenedFromSettings: didCompleteOnboarding,
+                onRequestNotifications: viewModel.requestNotificationAuthorization,
+                onFinish: {
+                    didCompleteOnboarding = true
+                    UserDefaults.standard.set(
+                        OnboardingState.currentVersion,
+                        forKey: OnboardingState.versionKey
+                    )
+                    isShowingOnboarding = false
+                }
+            )
+            // No identifier is stamped on the sheet either, for the reason
+            // given in `OnboardingView`: one set on a container is copied onto
+            // everything the container hosts, which drowns out the identifiers
+            // of the controls inside it.
+        }
         .onAppear {
             applyUITestOverridesIfNeeded()
             presentDeferredError()
+        }
+        .task {
+            // First launch only. `didCompleteOnboarding` is written the moment
+            // the walkthrough ends — skipped or not — so it never reappears on
+            // its own afterwards.
+            //
+            // The UI-test flags are read at the point of use so the decision
+            // is atomic with the work that depends on it. A walkthrough that
+            // has already been completed can also be forced back open from
+            // Settings, so tests that only need the post-onboarding surface
+            // do not have to depend on simulator history.
+            #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            let environment = ProcessInfo.processInfo.environment
+            if arguments.contains("-assignmentApp.uiTestSkipOnboarding") { return }
+            // `UserDefaults` outlive both a test run and the simulator itself,
+            // so once the walkthrough has been completed anywhere on a
+            // long-lived device the first-launch path — the one real users
+            // actually get — becomes unreachable. This drops the flag before
+            // the decision below is taken, so a test can stand in the shoes of
+            // a person opening the app for the first time.
+            if arguments.contains("-assignmentApp.uiTestResetOnboarding") {
+                didCompleteOnboarding = false
+            }
+            let forced = arguments.contains("-assignmentApp.uiTestShowOnboarding")
+                || environment["ASSIGNMENT_UI_FORCE_ONBOARDING"] == "1"
+            #else
+            let forced = false
+            #endif
+            guard forced || !didCompleteOnboarding else { return }
+            isShowingOnboarding = true
         }
         .onChange(of: viewModel.errorMessage) { _, message in
             guard editorPresentation == nil, let message else { return }
@@ -81,7 +136,7 @@ struct ContentView: View {
             assignmentResults
         }
         .navigationTitle(
-            searchPresentation.isExpanded ? "" : viewModel.selection.title
+            searchPresentation.isExpanded ? "" : viewModel.selection.localizedTitle
         )
         .simultaneousGesture(
             TapGesture().onEnded {
@@ -135,22 +190,53 @@ struct ContentView: View {
                     }
                 }
             }
-        } else if viewModel.visibleAssignments.isEmpty {
+        } else if viewModel.visibleAssignments.isEmpty
+                    && viewModel.selection != .today {
             emptyState
         } else {
+            // Today always renders the list, even with no tasks: the overview
+            // card at the top is the page's reason to exist, and it carries the
+            // "nothing due today" hint itself.
             assignmentList
         }
     }
 
     private var assignmentList: some View {
-        List(viewModel.visibleAssignments) { assignment in
-            AssignmentRow(
-                assignment: assignment,
-                displayMode: displayMode,
-                onEdit: { showEditor(for: assignment) },
-                onToggleCompletion: { viewModel.toggleCompletion(assignment) }
-            )
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+        List {
+            if viewModel.selection == .today {
+                Section {
+                    TodayOverviewCard(
+                        overview: viewModel.todayOverview,
+                        displayMode: displayMode,
+                        courseName: { viewModel.learningStore.courseName($0) },
+                        onOpenTask: { showEditor(for: $0) },
+                        onShowTimetable: { viewModel.selection = .timetable },
+                        onShowExams: { viewModel.selection = .exams },
+                        onShowOverdue: { viewModel.selection = .overdue }
+                    )
+                }
+            }
+
+            Section {
+                ForEach(viewModel.visibleAssignments) { assignment in
+                    row(for: assignment)
+                }
+            }
+        }
+        .listStyle(.inset)
+        .refreshable {
+            viewModel.reload()
+        }
+    }
+
+    private func row(for assignment: Assignment) -> some View {
+        AssignmentRow(
+            assignment: assignment,
+            displayMode: displayMode,
+            onEdit: { showEditor(for: assignment) },
+            onToggleCompletion: { viewModel.toggleCompletion(assignment) }
+        )
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 Button {
                     viewModel.toggleCompletion(assignment)
                 } label: {
@@ -184,7 +270,7 @@ struct ContentView: View {
                             viewModel.setStatus(status, for: assignment)
                         } label: {
                             Label(
-                                status.title,
+                                status.localizedTitle,
                                 systemImage: assignment.status == status
                                     ? "checkmark"
                                     : status.systemImage
@@ -199,11 +285,6 @@ struct ContentView: View {
                     activeAlert = .delete(assignment)
                 }
             }
-        }
-        .listStyle(.inset)
-        .refreshable {
-            viewModel.reload()
-        }
     }
 
     @ViewBuilder
@@ -243,7 +324,9 @@ struct ContentView: View {
     }
 
     private var emptyStateTitle: String {
-        viewModel.hasActiveFilters ? "No Matching Tasks" : viewModel.selection.emptyTitle
+        viewModel.hasActiveFilters
+        ? L10n.tr("No Matching Tasks")
+        : viewModel.selection.localizedEmptyTitle
     }
 
     private var emptyStateSystemImage: String {
@@ -252,8 +335,8 @@ struct ContentView: View {
 
     private var emptyStateDescription: String {
         viewModel.hasActiveFilters
-            ? "Change the search or filters to see more tasks."
-            : viewModel.selection.emptyDescription
+            ? L10n.tr("Change the search or filters to see more tasks.")
+            : viewModel.selection.localizedEmptyDescription
     }
 
     @ViewBuilder
@@ -272,6 +355,42 @@ struct ContentView: View {
         }
     }
 
+    /// Pages that own their own content and never borrow the task list, so they
+    /// are routed before `assignmentContent`.
+    ///
+    /// The calendar belongs here even though it is a task view: it groups
+    /// assignments by civil day through `CalendarPlanner` instead of rendering
+    /// `viewModel.visibleAssignments`. Both paths read the same repository
+    /// snapshot, so the calendar and the Today list can never disagree about
+    /// the same database.
+    @ViewBuilder
+    private var dedicatedContent: some View {
+        switch viewModel.selection {
+        case .timetable:
+            TimetableView(
+                store: viewModel.learningStore,
+                displayMode: displayMode,
+                isWriteEnabled: viewModel.isWriteEnabled
+            )
+        case .exams:
+            ExamListView(
+                store: viewModel.learningStore,
+                displayMode: displayMode,
+                isWriteEnabled: viewModel.isWriteEnabled
+            )
+        case .calendar:
+            TaskCalendarView(
+                assignments: viewModel.assignments,
+                displayMode: displayMode,
+                isWriteEnabled: viewModel.isWriteEnabled,
+                onOpenTask: { showEditor(for: $0) },
+                onQuickAdd: { showNewTaskEditor(dueDate: $0) }
+            )
+        case .all, .today, .week, .overdue, .completed, .settings:
+            assignmentContent
+        }
+    }
+
     private var settingsContent: some View {
         AssignmentSettingsView(
             displayMode: displayModeBinding,
@@ -282,7 +401,10 @@ struct ContentView: View {
             notificationAuthorization: viewModel.notificationAuthorization,
             onRequestNotifications: viewModel.requestNotificationAuthorization,
             onRefreshNotifications: viewModel.refreshNotificationAuthorization,
-            onReload: viewModel.reload
+            onReload: viewModel.reload,
+            onReopenOnboarding: { isShowingOnboarding = true },
+            makeAboutInfo: viewModel.makeVersionInfo,
+            onCopyDiagnostics: DiagnosticsClipboard.copy
         )
     }
 
@@ -319,18 +441,18 @@ struct ContentView: View {
         AssignmentCommandActions(
             availability: AssignmentCommandAvailability(
                 isWriteEnabled: viewModel.isWriteEnabled,
-                isTaskDestination: viewModel.selection != .settings,
+                isTaskDestination: !viewModel.selection.isDedicatedPage,
                 isSearchExpanded: searchPresentation.isExpanded,
                 isModalPresented: editorPresentation != nil || activeAlert != nil
             ),
-            newTask: showNewTaskEditor,
+            newTask: { showNewTaskEditor() },
             find: presentSearch,
             closeSearch: dismissSearchPreservingQuery,
             reload: viewModel.reload
         )
     }
 
-    private func showNewTaskEditor() {
+    private func showNewTaskEditor(dueDate: Date? = nil) {
         guard viewModel.isWriteEnabled else {
             activeAlert = .error(
                 viewModel.errorMessage ?? "The local task database is unavailable."
@@ -338,7 +460,7 @@ struct ContentView: View {
             return
         }
         dismissSearchPreservingQuery()
-        editorPresentation = TaskEditorPresentation(assignment: nil)
+        editorPresentation = TaskEditorPresentation(assignment: nil, initialDueDate: dueDate)
     }
 
     private func showEditor(for assignment: Assignment) {
@@ -383,7 +505,8 @@ struct ContentView: View {
             tags: viewModel.organizationTags,
             initialCourseID: assignment?.courseID,
             initialProjectID: assignment?.projectID,
-            initialTagIDs: initialTagIDs
+            initialTagIDs: initialTagIDs,
+            initialDueDate: presentation.initialDueDate
         )
     }
 
@@ -403,6 +526,8 @@ struct ContentView: View {
         } else if arguments.contains("-assignmentApp.uiTestSidebarExpanded") {
             sidebarDisplayStyleValue = SidebarDisplayStyle.expanded.rawValue
         }
+        // The onboarding flags are deliberately handled in the `.task` that
+        // decides whether to present the sheet, not here.
         #endif
     }
 
@@ -414,7 +539,7 @@ struct ContentView: View {
     }
 
     private func presentSearch() {
-        guard viewModel.selection != .settings,
+        guard !viewModel.selection.isDedicatedPage,
               editorPresentation == nil,
               activeAlert == nil else {
             return
@@ -436,7 +561,7 @@ struct ContentView: View {
         case .delete(let assignment):
             return Alert(
                 title: Text("Delete this task?"),
-                message: Text("“\(assignment.title)” will be removed from the local database."),
+                message: Text(L10n.tr("“%@” will be removed from the local database.", assignment.title)),
                 primaryButton: .destructive(Text("Delete")) {
                     viewModel.delete(assignment)
                 },
@@ -450,6 +575,14 @@ struct ContentView: View {
 private struct TaskEditorPresentation: Identifiable {
     let id = UUID()
     let assignment: Assignment?
+    /// Seeded by the calendar's quick add so a task created from a day cell
+    /// starts on that day instead of "no due date".
+    let initialDueDate: Date?
+
+    init(assignment: Assignment?, initialDueDate: Date? = nil) {
+        self.assignment = assignment
+        self.initialDueDate = initialDueDate
+    }
 }
 
 

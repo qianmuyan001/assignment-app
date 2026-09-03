@@ -14,6 +14,12 @@ extension AssignmentView {
             return "exclamationmark.triangle"
         case .completed:
             return "checkmark.circle"
+        case .timetable:
+            return "calendar.day.timeline.leading"
+        case .exams:
+            return "graduationcap"
+        case .calendar:
+            return "calendar.badge.clock"
         case .settings:
             return "gearshape"
         }
@@ -31,6 +37,12 @@ extension AssignmentView {
             return "No overdue tasks"
         case .completed:
             return "No completed tasks"
+        case .timetable:
+            return "No classes scheduled"
+        case .exams:
+            return "No exams yet"
+        case .calendar:
+            return "No tasks on this day"
         case .settings:
             return ""
         }
@@ -48,10 +60,23 @@ extension AssignmentView {
             return "You are caught up. Unfinished tasks past their due time will appear here."
         case .completed:
             return "Tasks you finish will appear here."
+        case .timetable:
+            return "Add a weekly meeting to build your timetable."
+        case .exams:
+            return "Add an exam to track its date, place, and scope."
+        case .calendar:
+            return "Pick a day to see the tasks due on it, or add one right from the calendar."
         case .settings:
             return ""
         }
     }
+
+    /// Empty-state text resolved through the app language. Both are read as
+    /// plain `String` in `ContentView`, so they go through `L10n` rather than
+    /// relying on a `LocalizedStringKey` literal.
+    var localizedEmptyTitle: String { L10n.tr(emptyTitle) }
+
+    var localizedEmptyDescription: String { L10n.tr(emptyDescription) }
 }
 
 
@@ -126,7 +151,7 @@ struct AssignmentFilterBar: View {
                 Picker("Status", selection: $status) {
                     Text("All Statuses").tag(Optional<AssignmentStatus>.none)
                     ForEach(AssignmentStatus.allCases) { value in
-                        Text(value.title).tag(Optional(value))
+                        Text(value.localizedTitle).tag(Optional(value))
                     }
                 }
                 .pickerStyle(.menu)
@@ -142,14 +167,14 @@ struct AssignmentFilterBar: View {
                 Picker("Priority", selection: $priority) {
                     Text("All Priorities").tag(Optional<AssignmentPriority>.none)
                     ForEach(AssignmentPriority.allCases) { value in
-                        Text(value.title).tag(Optional(value))
+                        Text(value.localizedTitle).tag(Optional(value))
                     }
                 }
                 .pickerStyle(.menu)
 
                 Picker("Sort", selection: $sortOrder) {
                     ForEach(AssignmentSortOrder.allCases) { value in
-                        Text(value.title).tag(value)
+                        Text(value.localizedTitle).tag(value)
                     }
                 }
                 .pickerStyle(.menu)
@@ -278,7 +303,7 @@ struct AssignmentRow: View {
     }
 
     private var statusLabel: some View {
-        Label(projection.status.title, systemImage: projection.status.systemImage)
+        Label(projection.status.localizedTitle, systemImage: projection.status.systemImage)
             .foregroundStyle(projection.status.tint)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -295,7 +320,7 @@ struct AssignmentRow: View {
         }
 
         if let priority = projection.priority {
-            Label("\(priority.title) priority", systemImage: "flag.fill")
+            Label(L10n.tr("%@ priority", priority.localizedTitle), systemImage: "flag.fill")
                 .font(.caption)
                 .foregroundStyle(priority.tint)
         }
@@ -318,13 +343,35 @@ struct AssignmentSettingsView: View {
     let onRequestNotifications: () -> Void
     let onRefreshNotifications: () -> Void
     let onReload: () -> Void
+    let onReopenOnboarding: () -> Void
+    /// Read at push time so the About page reports the counts the app holds
+    /// right then, not the ones that were true when Settings opened.
+    let makeAboutInfo: () -> AppVersionInfo
+    let onCopyDiagnostics: (String) -> Void
+
+    @EnvironmentObject private var languagePreference: LanguagePreference
 
     var body: some View {
         Form {
             Section {
+                Picker("Language", selection: languageSelection) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .accessibilityIdentifier("settings-language-picker")
+
+                Text("The interface switches right away. System dialogs and notification text follow after the app is restarted.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Language")
+            }
+
+            Section {
                 Picker("Task details", selection: $displayMode) {
                     ForEach(DisplayMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                        Text(mode.localizedTitle).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -341,7 +388,7 @@ struct AssignmentSettingsView: View {
             Section("Appearance") {
                 Picker("Theme", selection: $theme) {
                     ForEach(AppTheme.allCases) { value in
-                        Text(value.title).tag(value)
+                        Text(value.localizedTitle).tag(value)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -349,7 +396,7 @@ struct AssignmentSettingsView: View {
 
             Section("Reminders") {
                 LabeledContent("System notifications") {
-                    Text(notificationAuthorization.title)
+                    Text(notificationAuthorization.localizedTitle)
                         .foregroundStyle(notificationAuthorization.canSchedule ? .green : .secondary)
                 }
 
@@ -383,13 +430,66 @@ struct AssignmentSettingsView: View {
                         .textSelection(.enabled)
                 }
 
+                NavigationLink {
+                    BackupCenterView(
+                        databaseLocation: databaseLocation,
+                        onReload: onReload
+                    )
+                } label: {
+                    Label("Data & Backup", systemImage: "externaldrive.badge.timemachine")
+                }
+                .accessibilityIdentifier("settings-data-and-backup")
+
+                NavigationLink {
+                    AboutView(
+                        info: makeAboutInfo(),
+                        onCopyDiagnostics: onCopyDiagnostics
+                    )
+                } label: {
+                    Label("About This App", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("settings-about")
+
                 Button("Reload Tasks", systemImage: "arrow.clockwise", action: onReload)
+            }
+
+            Section("First Steps") {
+                Button("Show the Introduction Again", action: onReopenOnboarding)
+                    .accessibilityIdentifier("settings-reopen-onboarding")
+            }
+
+            if let notice = languagePreference.pendingRestartNotice {
+                Section {
+                    Text(notice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings-language-restart-notice")
+                }
+            }
+
+            if let error = languagePreference.errorMessage {
+                Section {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("settings-language-error")
+                }
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Settings")
+        .navigationTitle(L10n.tr("Settings"))
         .task {
             onRefreshNotifications()
         }
+    }
+
+    /// Writing through `select` keeps the stored value and the displayed one in
+    /// lockstep: if persistence fails, the preference publishes an error and
+    /// reverts instead of leaving the two out of sync.
+    private var languageSelection: Binding<AppLanguage> {
+        Binding(
+            get: { languagePreference.language },
+            set: { languagePreference.select($0) }
+        )
     }
 }

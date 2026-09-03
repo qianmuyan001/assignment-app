@@ -19,6 +19,8 @@ enum AssignmentStatus: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    // `localizedTitle` comes from `LocalizableTitled` in Localization.swift.
+
     var storageValue: String {
         switch self {
         case .todo:
@@ -93,9 +95,37 @@ enum AssignmentView: String, CaseIterable, Identifiable {
     case week
     case overdue
     case completed
+    // Learning scenes. They are pages in their own right rather than smart
+    // lists of tasks, so `TaskRules` matches no assignment for them.
+    case timetable
+    case exams
+    case calendar
     case settings
 
     var id: String { rawValue }
+
+    /// True for the pages that show course meetings and exams instead of a
+    /// filtered task list.
+    var isLearningScene: Bool {
+        switch self {
+        case .timetable, .exams:
+            return true
+        case .all, .today, .week, .overdue, .completed, .calendar, .settings:
+            return false
+        }
+    }
+
+    /// True for every page that owns its own content instead of rendering the
+    /// shared filtered task list. The calendar is a task view, but it groups
+    /// tasks by day rather than reusing the list, so it belongs here too.
+    var isDedicatedPage: Bool {
+        switch self {
+        case .timetable, .exams, .calendar, .settings:
+            return true
+        case .all, .today, .week, .overdue, .completed:
+            return false
+        }
+    }
 
     var title: String {
         switch self {
@@ -109,6 +139,12 @@ enum AssignmentView: String, CaseIterable, Identifiable {
             return "Overdue"
         case .completed:
             return "Completed"
+        case .timetable:
+            return "Timetable"
+        case .exams:
+            return "Exams"
+        case .calendar:
+            return "Calendar"
         case .settings:
             return "Settings"
         }
@@ -391,19 +427,19 @@ enum AssignmentValidationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingTitle:
-            return "Enter a task title."
+            return L10n.tr(LocalizationCatalogKey.missingTitle.rawValue)
         case .missingCourse:
-            return "Enter a course."
+            return L10n.tr(LocalizationCatalogKey.missingCourse.rawValue)
         case .titleTooLong:
-            return "The title must be 255 characters or fewer."
+            return L10n.tr(LocalizationCatalogKey.titleTooLong.rawValue)
         case .courseTooLong:
-            return "The course must be 120 characters or fewer."
+            return L10n.tr(LocalizationCatalogKey.courseTooLong.rawValue)
         case .linkTooLong:
-            return "Links and file paths must be 1,000 characters or fewer."
+            return L10n.tr(LocalizationCatalogKey.linkTooLong.rawValue)
         case .sourceNameTooLong:
-            return "The source name must be 255 characters or fewer."
+            return L10n.tr(LocalizationCatalogKey.sourceNameTooLong.rawValue)
         case .sourceTypeTooLong:
-            return "The source type must be 80 characters or fewer."
+            return L10n.tr(LocalizationCatalogKey.sourceTypeTooLong.rawValue)
         }
     }
 }
@@ -418,13 +454,13 @@ enum AssignmentDataError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedStatus(let value):
-            return "Unsupported task status: \(value)."
+            return L10n.tr(LocalizationCatalogKey.unsupportedStatus.rawValue, value)
         case .unsupportedPriority(let value):
-            return "Unsupported task priority: \(value)."
+            return L10n.tr(LocalizationCatalogKey.unsupportedPriority.rawValue, value)
         case .invalidLocalWallTime(let value):
-            return "Invalid local date and time: \(value)."
+            return L10n.tr(LocalizationCatalogKey.invalidLocalWallTime.rawValue, value)
         case .offsetBearingLocalWallTime(let value):
-            return "Task due dates must not contain a timezone or UTC offset: \(value)."
+            return L10n.tr(LocalizationCatalogKey.offsetBearingDueDate.rawValue, value)
         }
     }
 }

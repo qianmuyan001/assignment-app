@@ -7,7 +7,9 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
     let lastMigrationResult: MigrationResult
 
     private var database: OpaquePointer?
-    private let lock = NSLock()
+    /// Shared with the Phase 3A learning-scene extension so meetings, exams,
+    /// and reminders serialize through the same lock as every other write.
+    let lock = NSLock()
 
     init(databaseURL: URL = SQLiteAssignmentRepository.defaultDatabaseURL()) throws {
         self.databaseURL = databaseURL.standardizedFileURL
@@ -713,7 +715,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 """
                 SELECT id, uuid, assignment_id, trigger_at_utc, lead_minutes,
                        repeat_rule, is_enabled, last_scheduled_at,
-                       created_at, updated_at, deleted_at
+                       created_at, updated_at, deleted_at, schedule_kind
                 FROM reminders
                 WHERE assignment_id = ? \(includeDeleted ? "" : "AND deleted_at IS NULL")
                 ORDER BY trigger_at_utc, id
@@ -730,12 +732,15 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
         let values = try Self.validatedReminderDraft(draft)
         return try withWrite { database in
             try Self.requireActiveAssignment(values.assignmentID, on: database)
+            // A due-relative reminder stores only the lead time; its trigger is
+            // a cache derived from the deadline, which must therefore exist.
+            let trigger = try Self.authoritativeTrigger(for: values, on: database)
             let statement = try SQLiteSupport.prepare(
                 """
                 INSERT INTO reminders (
                     uuid, assignment_id, trigger_at_utc, lead_minutes, repeat_rule,
-                    is_enabled, last_scheduled_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    is_enabled, last_scheduled_at, created_at, updated_at, schedule_kind
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 on: database
             )
@@ -744,7 +749,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             SQLiteSupport.bind(UUID().canonicalString, to: statement, index: 1)
             sqlite3_bind_int64(statement, 2, values.assignmentID)
             SQLiteSupport.bind(
-                DatabaseTimestamp.string(from: values.triggerAtUTC),
+                DatabaseTimestamp.string(from: trigger),
                 to: statement,
                 index: 3
             )
@@ -758,6 +763,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             )
             SQLiteSupport.bind(timestamp, to: statement, index: 8)
             SQLiteSupport.bind(timestamp, to: statement, index: 9)
+            SQLiteSupport.bind(values.scheduleKind.rawValue, to: statement, index: 10)
             try SQLiteSupport.checkDone(statement, on: database)
             return try Self.fetchReminder(id: sqlite3_last_insert_rowid(database), on: database)
         }
@@ -770,7 +776,8 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
             leadMinutes: reminder.leadMinutes,
             repeatRule: reminder.repeatRule,
             isEnabled: reminder.isEnabled,
-            lastScheduledAt: reminder.lastScheduledAt
+            lastScheduledAt: reminder.lastScheduledAt,
+            scheduleKind: reminder.scheduleKind
         ))
         return try withWrite { database in
             let stored = try Self.fetchReminder(id: reminder.id, on: database)
@@ -781,18 +788,19 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 )
             }
             try Self.requireActiveAssignment(stored.assignmentID, on: database)
+            let trigger = try Self.authoritativeTrigger(for: values, on: database)
             let statement = try SQLiteSupport.prepare(
                 """
                 UPDATE reminders
                 SET trigger_at_utc = ?, lead_minutes = ?, repeat_rule = ?, is_enabled = ?,
-                    last_scheduled_at = ?, updated_at = ?
+                    last_scheduled_at = ?, updated_at = ?, schedule_kind = ?
                 WHERE id = ? AND deleted_at IS NULL
                 """,
                 on: database
             )
             defer { sqlite3_finalize(statement) }
             SQLiteSupport.bind(
-                DatabaseTimestamp.string(from: values.triggerAtUTC),
+                DatabaseTimestamp.string(from: trigger),
                 to: statement,
                 index: 1
             )
@@ -805,13 +813,29 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
                 index: 5
             )
             SQLiteSupport.bind(DatabaseTimestamp.string(from: Date()), to: statement, index: 6)
-            sqlite3_bind_int64(statement, 7, reminder.id)
+            SQLiteSupport.bind(values.scheduleKind.rawValue, to: statement, index: 7)
+            sqlite3_bind_int64(statement, 8, reminder.id)
             try SQLiteSupport.checkDone(statement, on: database)
             guard sqlite3_changes(database) == 1 else {
                 throw OrganizationRepositoryError.notFound("Reminder", reminder.id)
             }
             return try Self.fetchReminder(id: reminder.id, on: database)
         }
+    }
+
+    /// The trigger a reminder row should store.
+    ///
+    /// A fixed reminder trusts the draft. A due-relative reminder derives the
+    /// trigger from the stored deadline so the column stays a consistent cache.
+    private static func authoritativeTrigger(
+        for draft: ReminderDraft,
+        on database: OpaquePointer
+    ) throws -> Date {
+        guard draft.scheduleKind == .dueRelative else { return draft.triggerAtUTC }
+        return try LearningRules.relativeReminderTrigger(
+            dueAtUTC: resolvedDueDate(assignmentID: draft.assignmentID, on: database),
+            leadMinutes: draft.leadMinutes
+        )
     }
 
     func deleteReminder(id: Int64) throws {
@@ -836,14 +860,16 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
         }
     }
 
-    private func requireDatabase() throws -> OpaquePointer {
+    /// Shared with the Phase 3A learning-scene extension so meetings,
+    /// exams, and reminders all commit through one connection.
+    func requireDatabase() throws -> OpaquePointer {
         guard let database else {
             throw AssignmentRepositoryError.readOnlyAfterMigrationFailure
         }
         return database
     }
 
-    private func withWrite<T>(_ body: (OpaquePointer) throws -> T) throws -> T {
+    func withWrite<T>(_ body: (OpaquePointer) throws -> T) throws -> T {
         try lock.withLock {
             let database = try requireDatabase()
             try SQLiteSupport.execute("BEGIN IMMEDIATE", on: database)
@@ -858,7 +884,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
         }
     }
 
-    private func softDelete(table: String, entity: String, id: Int64) throws {
+    func softDelete(table: String, entity: String, id: Int64) throws {
         try withWrite { database in
             let timestamp = DatabaseTimestamp.string(from: Date())
             guard try Self.activeRowExists(table: table, id: id, on: database) else {
@@ -872,7 +898,7 @@ final class SQLiteOrganizationRepository: OrganizationRepository, @unchecked Sen
 
 // MARK: - Row mapping
 
-private extension SQLiteOrganizationRepository {
+extension SQLiteOrganizationRepository {
     static func collect<T>(
         _ statement: OpaquePointer,
         on database: OpaquePointer,
@@ -1033,15 +1059,58 @@ private extension SQLiteOrganizationRepository {
             lastScheduledAt: try optionalDate(statement, 7),
             createdAt: try parsedDate(statement, 8),
             updatedAt: try parsedDate(statement, 9),
-            deletedAt: try optionalDate(statement, 10)
+            deletedAt: try optionalDate(statement, 10),
+            scheduleKind: try parsedScheduleKind(statement, 11)
         )
+    }
+
+    static func parsedScheduleKind(
+        _ statement: OpaquePointer,
+        _ column: Int32
+    ) throws -> ReminderScheduleKind {
+        guard let text = SQLiteSupport.text(statement, column),
+              let kind = ReminderScheduleKind(rawValue: text) else {
+            throw OrganizationRepositoryError.corruptData(
+                "Stored reminder schedule kind is invalid."
+            )
+        }
+        return kind
+    }
+
+    /// The task's resolved deadline, or `nil` when it has none.
+    ///
+    /// Due dates are stored as offset-free local wall text, so the task's own
+    /// `timezone_id` decides the instant. This is the value a due-relative
+    /// reminder is measured from.
+    static func resolvedDueDate(
+        assignmentID: Int64,
+        on database: OpaquePointer
+    ) throws -> Date? {
+        let statement = try SQLiteSupport.prepare(
+            "SELECT due_date, timezone_id FROM assignments WHERE id = ?",
+            on: database
+        )
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, assignmentID)
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            throw OrganizationRepositoryError.notFound("Task", assignmentID)
+        }
+        guard let text = SQLiteSupport.text(statement, 0) else { return nil }
+        let timeZone: TimeZone
+        if let identifier = SQLiteSupport.text(statement, 1),
+           let resolved = TimeZone(identifier: identifier) {
+            timeZone = resolved
+        } else {
+            timeZone = .current
+        }
+        return try LocalWallTime.legacyDate(from: text, timeZone: timeZone)
     }
 }
 
 
 // MARK: - Single-row queries
 
-private extension SQLiteOrganizationRepository {
+extension SQLiteOrganizationRepository {
     static func fetchCourse(id: Int64, on database: OpaquePointer) throws -> Course {
         let values = try readCourses(
             sql: """
@@ -1185,7 +1254,7 @@ private extension SQLiteOrganizationRepository {
             """
             SELECT id, uuid, assignment_id, trigger_at_utc, lead_minutes,
                    repeat_rule, is_enabled, last_scheduled_at,
-                   created_at, updated_at, deleted_at
+                   created_at, updated_at, deleted_at, schedule_kind
             FROM reminders WHERE id = ? AND deleted_at IS NULL
             """,
             on: database
@@ -1363,7 +1432,7 @@ private extension SQLiteOrganizationRepository {
 
 // MARK: - Input validation
 
-private extension SQLiteOrganizationRepository {
+extension SQLiteOrganizationRepository {
     static func validatedCourseDraft(_ draft: CourseDraft) throws -> CourseDraft {
         var value = draft
         value.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)

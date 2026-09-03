@@ -35,8 +35,9 @@ struct TaskEditorView: View {
     @State private var attachments: [AttachmentMetadata] = []
     @State private var isLoadingChildren = false
     @State private var newSubtaskTitle = ""
+    @State private var newReminderKind: ReminderScheduleKind = .fixed
     @State private var newReminderDate = Date().addingTimeInterval(60 * 60)
-    @State private var newReminderLead = 0
+    @State private var newReminderLead = RelativeReminderPreset.oneHour.leadMinutes
     @State private var newReminderEnabled = true
     @State private var isShowingImporter = false
     @State private var childErrorMessage: String?
@@ -53,7 +54,8 @@ struct TaskEditorView: View {
         tags: [AssignmentTag] = [],
         initialCourseID: Int64? = nil,
         initialProjectID: Int64? = nil,
-        initialTagIDs: [Int64] = []
+        initialTagIDs: [Int64] = [],
+        initialDueDate: Date? = nil
     ) {
         self.assignment = assignment
         self.displayMode = displayMode
@@ -67,7 +69,10 @@ struct TaskEditorView: View {
         self.initialProjectID = initialProjectID
         self.initialTagIDs = initialTagIDs
 
-        let initialDraft = assignment.map(AssignmentDraft.init(assignment:)) ?? AssignmentDraft()
+        var initialDraft = assignment.map(AssignmentDraft.init(assignment:)) ?? AssignmentDraft()
+        if let initialDueDate, assignment == nil, initialDraft.dueDate == nil {
+            initialDraft.dueDate = initialDueDate
+        }
         _draft = State(initialValue: initialDraft)
         _hasDueDate = State(initialValue: initialDraft.dueDate != nil)
         _selectedCourseID = State(initialValue: initialCourseID)
@@ -107,7 +112,7 @@ struct TaskEditorView: View {
                 Section("Status") {
                     Picker("Status", selection: $draft.status) {
                         ForEach(AssignmentStatus.allCases) { status in
-                            Text(status.title).tag(status)
+                            Text(status.localizedTitle).tag(status)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -124,7 +129,7 @@ struct TaskEditorView: View {
 
                         Picker("Priority", selection: $draft.priority) {
                             ForEach(AssignmentPriority.allCases) { priority in
-                                Text(priority.title).tag(priority)
+                                Text(priority.localizedTitle).tag(priority)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -207,19 +212,34 @@ struct TaskEditorView: View {
                                 )
                             }
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                DatePicker(
-                                    "Trigger",
-                                    selection: $newReminderDate
-                                )
-                                Stepper("Lead: \(newReminderLead) min", value: $newReminderLead, in: 0...10080)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Picker("Reminder type", selection: $newReminderKind) {
+                                    ForEach(ReminderScheduleKind.allCases) { kind in
+                                        Text(kind.localizedTitle).tag(kind)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                Text(newReminderKind.explanation)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                if newReminderKind == .fixed {
+                                    DatePicker("Trigger", selection: $newReminderDate)
+                                } else {
+                                    relativeReminderEditor
+                                }
+
                                 Toggle("Enabled", isOn: $newReminderEnabled)
+
                                 Button {
                                     Task { await addReminder() }
                                 } label: {
                                     Label("Add Reminder", systemImage: "bell.badge.plus")
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .disabled(!canAddReminder)
                             }
                         }
 
@@ -262,8 +282,8 @@ struct TaskEditorView: View {
                 }
             }
             .navigationTitle(assignment == nil
-                             ? (displayMode == .simple ? "Quick Add" : "New Task")
-                             : "Edit Task")
+                             ? L10n.tr(displayMode == .simple ? "Quick Add" : "New Task")
+                             : L10n.tr("Edit Task"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -348,6 +368,71 @@ struct TaskEditorView: View {
 
     private var attachmentFileStore: AttachmentFileStore? {
         organizationRepository.map { AttachmentFileStore(databaseURL: $0.databaseURL) }
+    }
+
+    /// A due-relative reminder has nothing to count back from, so it is refused
+    /// outright with the reason rather than silently stored.
+    private var canAddReminder: Bool {
+        newReminderKind == .fixed || draft.dueDate != nil
+    }
+
+    @ViewBuilder
+    private var relativeReminderEditor: some View {
+        if let reason = LearningRules.relativeReminderDisabledReason(dueDate: draft.dueDate) {
+            Label(reason, systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Set a Due Date", systemImage: "calendar.badge.plus") {
+                hasDueDate = true
+            }
+            .font(.footnote)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Presets")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(RelativeReminderPreset.allCases) { preset in
+                            presetButton(preset)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(RelativeReminderPreset.allCases) { preset in
+                            presetButton(preset)
+                        }
+                    }
+                }
+            }
+
+            Stepper(
+                "Custom lead: \(newReminderLead) min",
+                value: $newReminderLead,
+                in: 0...10_080
+            )
+
+            if let dueDate = draft.dueDate {
+                let trigger = dueDate.addingTimeInterval(-Double(newReminderLead) * 60)
+                Text("Fires \(trigger.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func presetButton(_ preset: RelativeReminderPreset) -> some View {
+        let isSelected = newReminderLead == preset.leadMinutes
+        return Button(preset.localizedTitle) {
+            newReminderLead = preset.leadMinutes
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(isSelected ? Color.accentColor : Color.secondary)
+        .frame(minHeight: 32)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func toggleTag(_ id: Int64) {
@@ -482,13 +567,19 @@ struct TaskEditorView: View {
     private func addReminder() async {
         guard let repository = organizationRepository,
               let id = assignment?.id else { return }
+        // A due-relative reminder stores the lead time and lets the repository
+        // derive the trigger from the deadline; a fixed one stores the instant
+        // the user picked and keeps it forever.
+        let kind = newReminderKind
+        let lead = kind == .dueRelative ? newReminderLead : 0
         do {
             let draft = ReminderDraft(
                 assignmentID: id,
                 triggerAtUTC: newReminderDate,
-                leadMinutes: newReminderLead,
+                leadMinutes: lead,
                 repeatRule: nil,
-                isEnabled: newReminderEnabled
+                isEnabled: newReminderEnabled,
+                scheduleKind: kind
             )
             let created = try repository.createReminder(draft)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -686,10 +777,21 @@ private struct ReminderRow: View {
         HStack(spacing: 12) {
             Image(systemName: reminder.isEnabled ? "bell.badge.fill" : "bell.slash")
                 .foregroundStyle(reminder.isEnabled ? .blue : .secondary)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Self.formatter.string(from: reminder.triggerAtUTC))
-                if reminder.leadMinutes > 0 {
-                    Text("Lead \(reminder.leadMinutes) min")
+                if reminder.isDueRelative {
+                    Text(
+    L10n.tr(
+        "%1$@ · %2$lld min before the due date",
+        reminder.scheduleKind.localizedTitle,
+        reminder.leadMinutes
+    )
+)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(reminder.scheduleKind.localizedTitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

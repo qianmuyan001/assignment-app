@@ -70,15 +70,15 @@ private extension MigrationCoordinator {
             transactionActive = true
             let state = try dispatchState(on: activeWriter)
 
-            if state.sourceVersion == SQLiteSchemaV3.databaseVersion {
-                try SQLiteSchemaV3.validate(on: activeWriter)
+            if state.sourceVersion == SQLiteSchemaV4.databaseVersion {
+                try SQLiteSchemaV4.validate(on: activeWriter)
                 let candidateSnapshot = try snapshot(on: activeWriter)
                 try SQLiteSupport.execute("COMMIT", on: activeWriter)
                 transactionActive = false
                 committedOutcome = .init(
                     result: MigrationResult(
-                        fromVersion: SQLiteSchemaV3.databaseVersion,
-                        toVersion: SQLiteSchemaV3.databaseVersion,
+                        fromVersion: SQLiteSchemaV4.databaseVersion,
+                        toVersion: SQLiteSchemaV4.databaseVersion,
                         migrated: false,
                         backupURL: nil,
                         strategy: .none
@@ -101,48 +101,56 @@ private extension MigrationCoordinator {
                     originalSnapshot = snapshot
                 }
 
+                // Every path establishes v3 first, then layers the additive v4
+                // upgrade inside the same transaction. There is no v3-only exit.
                 let strategy: MigrationStrategy
                 switch state.sourceVersion {
                 case 0 where state.isFresh:
                     try SQLiteAssignmentRepository.createV2SchemaInCurrentTransaction(
                         on: activeWriter
                     )
-                    try SQLiteSchemaV3.migrateV2ToV3(
+                    try migrateThroughV3(
                         on: activeWriter,
                         databaseInstanceUUID: databaseInstanceUUID,
                         migrationFailureInjector: migrationFailureInjector
                     )
-                    strategy = .createV3
+                    strategy = .createV4
                 case 1:
                     let rebuilt = try SQLiteAssignmentRepository
                         .migrateV1ToV2InCurrentTransaction(on: activeWriter)
-                    try SQLiteSchemaV3.migrateV2ToV3(
+                    try migrateThroughV3(
                         on: activeWriter,
                         databaseInstanceUUID: databaseInstanceUUID,
                         migrationFailureInjector: migrationFailureInjector
                     )
-                    strategy = rebuilt ? .v1RebuildToV3 : .v1AdditiveToV3
+                    strategy = rebuilt ? .v1RebuildToV4 : .v1AdditiveToV4
                 case 2:
-                    try SQLiteSchemaV3.migrateV2ToV3(
+                    try migrateThroughV3(
                         on: activeWriter,
                         databaseInstanceUUID: databaseInstanceUUID,
                         migrationFailureInjector: migrationFailureInjector
                     )
-                    strategy = .v2ToV3
+                    strategy = .v2ToV4
+                case 3:
+                    try SQLiteSchemaV4.migrateV3ToV4(
+                        on: activeWriter,
+                        migrationFailureInjector: migrationFailureInjector
+                    )
+                    strategy = .v3ToV4
                 default:
                     throw DatabaseMigrationError(
                         "Unsupported database schema version \(state.storedVersion)."
                     )
                 }
 
-                try SQLiteSchemaV3.validate(on: activeWriter)
+                try SQLiteSchemaV4.validate(on: activeWriter)
                 let candidateSnapshot = try snapshot(on: activeWriter)
                 try SQLiteSupport.execute("COMMIT", on: activeWriter)
                 transactionActive = false
                 committedOutcome = .init(
                     result: MigrationResult(
                         fromVersion: state.sourceVersion,
-                        toVersion: SQLiteSchemaV3.databaseVersion,
+                        toVersion: SQLiteSchemaV4.databaseVersion,
                         migrated: true,
                         backupURL: backupURL,
                         strategy: strategy
@@ -228,7 +236,7 @@ private extension MigrationCoordinator {
         // fails closed.
         do {
             try postCommitValidationFailureInjector?()
-            try validateCommittedV3(at: databaseURL)
+            try validateCommittedSchema(at: databaseURL)
         } catch {
             guard let backupURL = committedOutcome.result.backupURL else {
                 throw DatabaseMigrationError(
@@ -260,6 +268,24 @@ private extension MigrationCoordinator {
         return committedOutcome.result
     }
 
+    /// Establishes v3 and then the additive v4 upgrade without committing
+    /// between the two stages, so a half-migrated database can never be visible.
+    static func migrateThroughV3(
+        on database: OpaquePointer,
+        databaseInstanceUUID: UUID?,
+        migrationFailureInjector: (() throws -> Void)?
+    ) throws {
+        try SQLiteSchemaV3.migrateV2ToV3(
+            on: database,
+            databaseInstanceUUID: databaseInstanceUUID,
+            migrationFailureInjector: migrationFailureInjector
+        )
+        try SQLiteSchemaV4.migrateV3ToV4(
+            on: database,
+            migrationFailureInjector: migrationFailureInjector
+        )
+    }
+
     static func dispatchState(on database: OpaquePointer) throws -> DispatchState {
         let storedVersion = Int32(try SQLiteSupport.scalarInt("PRAGMA user_version", on: database))
         let hasAssignments = try SQLiteSupport.tableExists("assignments", on: database)
@@ -267,9 +293,10 @@ private extension MigrationCoordinator {
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
             on: database
         )
-        guard storedVersion >= 0, storedVersion <= SQLiteSchemaV3.databaseVersion else {
+        guard storedVersion >= 0, storedVersion <= SQLiteSchemaV4.databaseVersion else {
             throw DatabaseMigrationError(
-                "Database schema version \(storedVersion) is newer than supported version 3."
+                "Database schema version \(storedVersion) is newer than supported version "
+                    + "\(SQLiteSchemaV4.databaseVersion)."
             )
         }
 
@@ -292,7 +319,9 @@ private extension MigrationCoordinator {
             )
         }
         let sourceVersion: Int32 = storedVersion == 0 ? 1 : storedVersion
-        guard [1, 2, 3].contains(sourceVersion) else {
+        // Version 4 is listed so an already-migrated database opens instead of
+        // being rejected. The caller short-circuits it before the switch.
+        guard [1, 2, 3, 4].contains(sourceVersion) else {
             throw DatabaseMigrationError("Unsupported database schema version \(storedVersion).")
         }
         return .init(
@@ -368,14 +397,17 @@ private extension MigrationCoordinator {
         }
     }
 
-    static func validateCommittedV3(at databaseURL: URL) throws {
+    /// Read-only post-commit check. `SQLiteSchemaV4.validate` re-runs the whole
+    /// version-agnostic v3 contract first, so this also proves the committed
+    /// database kept every v3 object and value intact.
+    static func validateCommittedSchema(at databaseURL: URL) throws {
         let validation = try SQLiteSupport.open(
             databaseURL,
             flags: SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
         )
         defer { sqlite3_close(validation) }
         try SQLiteSupport.configure(validation, writable: false)
-        try SQLiteSchemaV3.validate(on: validation)
+        try SQLiteSchemaV4.validate(on: validation)
     }
 
     /// Verification after ROLLBACK is deliberately read-only. Once ROLLBACK
@@ -497,7 +529,7 @@ private extension MigrationCoordinator {
         let stamp = DatabaseTimestamp.string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
         return databaseURL.deletingLastPathComponent().appendingPathComponent(
-            "\(databaseURL.lastPathComponent).v\(fromVersion)-to-v3.\(stamp)."
+            "\(databaseURL.lastPathComponent).v\(fromVersion)-to-v4.\(stamp)."
                 + "\(UUID().canonicalString).backup",
             isDirectory: false
         )

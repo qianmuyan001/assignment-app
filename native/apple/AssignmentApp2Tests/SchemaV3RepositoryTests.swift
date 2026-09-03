@@ -183,8 +183,8 @@ struct SchemaV3RepositoryTests {
         )
         let tasks = try repository.fetchAll()
 
-        #expect(try repository.schemaVersion == 3)
-        #expect(repository.lastMigrationResult.strategy == .v2ToV3)
+        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
+        #expect(repository.lastMigrationResult.strategy == .v2ToV4)
         #expect(tasks.map(\.id) == [1, 9, 41, 73])
         #expect(tasks.map(\.uuid.canonicalString) == [
             "b6f8937a-8325-5149-9dd7-2f0b1fe4a7ff",
@@ -203,14 +203,16 @@ struct SchemaV3RepositoryTests {
             ) == "2026-11-01 01:30:00"
         )
         #expect(try v3ScalarInt(at: temporary.databaseURL, "SELECT COUNT(*) FROM courses") == 3)
+        // 30 v3 contract indexes plus the 8 learning-scene indexes v4 adds.
         #expect(try v3ScalarInt(
             at: temporary.databaseURL,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
-        ) == 30)
+        ) == 38)
+        // 12 v3 contract triggers plus the 2 learning-scene UUID triggers.
         #expect(try v3ScalarInt(
             at: temporary.databaseURL,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"
-        ) == 12)
+        ) == 14)
         #expect(
             try v3ScalarText(
                 at: temporary.databaseURL,
@@ -395,7 +397,7 @@ struct SchemaV3RepositoryTests {
             flags: SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
         ) { database in
             try SQLiteSupport.configure(database, writable: false)
-            try SQLiteSchemaV3.validate(on: database)
+            try SQLiteSchemaV4.validate(on: database)
         }
     }
 
@@ -494,9 +496,12 @@ struct SchemaV3RepositoryTests {
 
         #expect(errors.isEmpty)
         #expect(strategies.count == 2)
-        #expect(strategies.filter { $0 == .v2ToV3 }.count == 1)
+        #expect(strategies.filter { $0 == .v2ToV4 }.count == 1)
         #expect(strategies.filter { $0 == .none }.count == 1)
-        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
+        #expect(
+            try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version")
+                == SQLiteSchemaV4.databaseVersion
+        )
     }
 
     @Test("Post-commit failure preserves the committed candidate after lock release")
@@ -526,14 +531,20 @@ struct SchemaV3RepositoryTests {
         #expect(migrationError != nil)
         #expect(migrationError?.errorDescription?.contains("exact committed candidate") == true)
         #expect(migrationError?.errorDescription?.contains("restore was not attempted") == true)
-        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
+        #expect(
+            try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version")
+                == SQLiteSchemaV4.databaseVersion
+        )
         #expect(try v3ScalarText(at: temporary.databaseURL, "PRAGMA journal_mode") == "wal")
 
         let backupURL = try #require(migrationError?.backupURL)
         #expect(try v3ScalarInt(at: backupURL, "PRAGMA user_version") == 2)
 
         try SQLiteSupport.execute("COMMIT", on: oldConnection)
-        #expect(try SQLiteSupport.scalarInt("PRAGMA user_version", on: oldConnection) == 3)
+        #expect(
+            try SQLiteSupport.scalarInt("PRAGMA user_version", on: oldConnection)
+                == SQLiteSchemaV4.databaseVersion
+        )
         #expect(try SQLiteSupport.scalarInt(
             "SELECT COUNT(*) FROM assignments",
             on: oldConnection
@@ -575,7 +586,10 @@ struct SchemaV3RepositoryTests {
         let error = try #require(migrationError)
         #expect(error.errorDescription?.contains("external change") == true)
         #expect(error.errorDescription?.contains("preserved") == true)
-        #expect(try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version") == 3)
+        #expect(
+            try v3ScalarInt(at: temporary.databaseURL, "PRAGMA user_version")
+                == SQLiteSchemaV4.databaseVersion
+        )
         #expect(try v3ScalarText(
             at: temporary.databaseURL,
             "SELECT title FROM assignments WHERE id = 1"
@@ -612,7 +626,7 @@ struct SchemaV3RepositoryTests {
         }
 
         let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        #expect(try repository.schemaVersion == 3)
+        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
         #expect(try v3ScalarText(
             at: temporary.databaseURL,
             "SELECT hex(value) FROM extension_key WHERE namespace = '学习'"
@@ -659,7 +673,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: timestampDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             completionRejected = true
@@ -684,7 +698,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: indexDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             predicateRejected = true
@@ -720,7 +734,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: stateDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             parentStateRejected = true
@@ -754,7 +768,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: reminderDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             repeatRuleRejected = true
@@ -775,7 +789,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: attachmentDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             attachmentAffinityRejected = true
@@ -807,7 +821,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: relationshipDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             staleSnapshotRejected = true
@@ -834,7 +848,7 @@ struct SchemaV3RepositoryTests {
         do {
             try v3WithSQLite(at: scalarDatabase.databaseURL) {
                 try SQLiteSupport.configure($0)
-                try SQLiteSchemaV3.validate(on: $0)
+                try SQLiteSchemaV4.validate(on: $0)
             }
         } catch {
             scalarRejected = true

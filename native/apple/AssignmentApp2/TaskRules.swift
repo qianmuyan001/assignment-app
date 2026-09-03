@@ -54,6 +54,11 @@ enum TaskRules {
                 return false
             }
             return dueDate < now
+        case .timetable, .exams, .calendar:
+            // Dedicated pages own their own content; they never borrow the
+            // task list. The calendar is a task view, but it groups by day
+            // through `CalendarPlanner` instead of reusing this filter.
+            return false
         }
     }
 

@@ -61,6 +61,7 @@ from shared.schema_v3 import (  # noqa: E402
     deterministic_v3_uuid,
     validate_v3_schema,
 )
+from shared.schema_v4 import migrate_v3_to_v4  # noqa: E402
 
 
 def _logical_dump(path: Path) -> tuple[str, ...]:
@@ -216,6 +217,40 @@ class BackendDatabaseV3Tests(unittest.TestCase):
                 "SELECT instance_uuid FROM database_identity"
             ).fetchone()[0]
         self.assertEqual(UUID(identity).version, 4)
+
+    def test_v4_database_fails_closed_instead_of_being_written_as_v3(self) -> None:
+        """A Schema v4 database must be rejected, never rewritten with v3 rules.
+
+        `shared/feature-specs/learning-scenes-v4.md` makes this normative for
+        Windows and Web: Apple Phase 3A is the first v4 client, and a v3-only
+        platform that silently opened a v4 database would drop course meetings,
+        exams, and the reminder schedule kind on the next write.
+        """
+        path = self.root / "v4.db"
+        migrate_database(path)
+        with closing(sqlite3.connect(path)) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("BEGIN IMMEDIATE")
+            migrate_v3_to_v4(connection)
+            connection.commit()
+
+        with self.assertRaises(DatabaseMigrationError) as caught:
+            migrate_database(path)
+        self.assertIn("newer than supported", str(caught.exception))
+
+        # Fail closed also means no rewrite: the v4 payload is still intact.
+        with closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(
+                connection.execute("PRAGMA user_version").fetchone()[0], 4
+            )
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+        self.assertTrue({"course_meetings", "exams"}.issubset(tables))
+        self.assertEqual(DATABASE_VERSION, 3)
 
     def test_v2_migration_preserves_payload_and_creates_standalone_backup(self) -> None:
         path = self.root / "v2.db"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Assignment App SQLite Schema v4",
+  "type": "object",
+  "required": ["databaseVersion", "reminderScheduleKinds", "meetingWeekdays", "examStatuses"],
+  "properties": {
+    "databaseVersion": { "const": 4 },
+    "reminderScheduleKinds": { "const": ["fixed", "due_relative"] },
+    "meetingWeekdays": { "const": "ISO-8601 Monday=1 through Sunday=7" },
+    "examStatuses": { "const": ["upcoming", "completed", "cancelled"] }
+  }
+}

@@ -6,8 +6,7 @@ This project has a FastAPI backend, a SQLite database, a web client, and active
 native Apple and Windows clients for managing school assignments. The retired
 Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 
-Current source version: **2.1.0** on the `release/2.1` release line. The existing
-`v1.0.0` and `v1.1.0` tags remain unchanged. See [CHANGELOG.md](CHANGELOG.md) for source
+Current source version: **2.1.0**. See [CHANGELOG.md](CHANGELOG.md) for source
 history. Versions follow [Semantic Versioning](https://semver.org/).
 
 ## Assignment App 2.1
@@ -25,10 +24,13 @@ Its strict cross-platform gate required a signed-in Windows x64 desktop result.
 WinUI has since been built, published, and interactively launched on a real
 Windows x64 desktop, and most of the manual acceptance matrix passed. One item
 remains open: notification activation from a cold start, with the app fully
-exited, still needs re-verification after a Windows sign-in cycle. Phase 3A has
-not started because no Apple Schema v4 baseline exists to port. See
+exited, still needs re-verification after a Windows sign-in cycle. The Apple
+foundation RC adds the shared Schema v4 learning-scene contract, timetable,
+exam, calendar, backup, onboarding, localization, and Catalyst packaging work.
+See
 [the Phase 2.5 report](docs/phase-reports/phase-2-5.md) and
-[the Windows acceptance report](docs/phase-reports/phase-2-5-windows.md).
+[the Windows acceptance report](docs/phase-reports/phase-2-5-windows.md), plus
+[the Apple foundation RC report](docs/phase-reports/apple-foundation-rc.md).
 
 Because the original iPadOS project was not present, the approved Apple
 alternative is a real SwiftUI iPadOS project at
@@ -89,7 +91,7 @@ SQLite assignment schema without replacing or deleting the database.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
-| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | Phase 2.5 source locally built, tested, launch-smoked; dirty Debug evidence only |
+| Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | Foundation RC source, iPad tests/UI smoke, Debug/Release builds, and Catalyst LaunchServices smoke passed; Catalyst unit runner and production distribution remain open |
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
 | Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source; 50/50 Core tests; Debug and Release x64 builds; self-contained x64 publish and signed-in desktop launch verified; cold-start notification activation pending |
 

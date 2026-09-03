@@ -20,12 +20,16 @@ enum SidebarDisplayStyle: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Resolved through `L10n` rather than left as a plain literal: this text
+    /// is handed to `Text`, `.help`, and `.accessibilityLabel` as a `String`
+    /// variable, and only string *literals* go through SwiftUI's automatic
+    /// localization. As a variable it would stay English forever.
     var toggleTitle: String {
         switch self {
         case .expanded:
-            return "Use Icon-Only Sidebar"
+            return L10n.tr("Use Icon-Only Sidebar")
         case .compact:
-            return "Show Sidebar Labels"
+            return L10n.tr("Show Sidebar Labels")
         }
     }
 
@@ -123,7 +127,11 @@ struct AssignmentSidebar: View {
     @Namespace private var selectionNamespace
     @Namespace private var glassNamespace
 
-    private let taskViews = AssignmentView.allCases.filter { $0 != .settings }
+    private let taskViews = AssignmentView.allCases.filter {
+        !$0.isLearningScene && $0 != .settings
+    }
+
+    private let learningViews = AssignmentView.allCases.filter(\.isLearningScene)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -140,7 +148,7 @@ struct AssignmentSidebar: View {
         .padding(.horizontal, displayStyle == .expanded ? 12 : 8)
         .padding(.top, 10)
         .padding(.bottom, 10)
-        .navigationTitle(displayStyle == .expanded ? "Assignments" : "")
+        .navigationTitle(displayStyle == .expanded ? L10n.tr("Assignments") : "")
     }
 
     @ViewBuilder
@@ -157,19 +165,19 @@ struct AssignmentSidebar: View {
 
     private var navigationStack: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if displayStyle == .expanded {
-                Text("Tasks")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.6)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 2)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            sectionHeader("Tasks")
 
             ForEach(taskViews) { view in
                 sidebarButton(for: view)
+            }
+
+            if !learningViews.isEmpty {
+                sectionHeader("Learning")
+                    .padding(.top, 10)
+
+                ForEach(learningViews) { view in
+                    sidebarButton(for: view)
+                }
             }
 
             Spacer(minLength: 20)
@@ -177,6 +185,20 @@ struct AssignmentSidebar: View {
             sidebarButton(for: .settings)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        if displayStyle == .expanded {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 
     private func sidebarButton(for view: AssignmentView) -> some View {
@@ -196,9 +218,11 @@ struct AssignmentSidebar: View {
                 select(view, animated: true)
             }
         )
-        .help(view.title)
-        .accessibilityLabel(view.title)
-        .accessibilityHint("Shows \(view.title.lowercased()) without hiding the sidebar.")
+        .help(view.localizedTitle)
+        .accessibilityLabel(view.localizedTitle)
+        .accessibilityHint(
+            L10n.tr("Shows %@ without hiding the sidebar.", view.localizedTitle)
+        )
         .accessibilityAddTraits(selection == view ? .isSelected : [])
         .accessibilityIdentifier("sidebar-\(view.rawValue)")
     }
@@ -241,7 +265,7 @@ struct AssignmentSidebar: View {
                 .accessibilityHidden(true)
 
             if displayStyle == .expanded {
-                Text(view.title)
+                Text(view.localizedTitle)
                     .font(.body.weight(selection == view ? .semibold : .regular))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)

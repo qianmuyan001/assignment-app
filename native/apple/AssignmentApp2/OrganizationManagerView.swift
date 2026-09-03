@@ -21,7 +21,7 @@ struct OrganizationManagerView: View {
             VStack(spacing: 0) {
                 Picker("Category", selection: $selection) {
                     ForEach(OrgTab.allCases) { tab in
-                        Text(tab.title).tag(tab)
+                        Text(tab.localizedTitle).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -39,7 +39,7 @@ struct OrganizationManagerView: View {
                     TagManager(repository: repository)
                 }
             }
-            .navigationTitle("Manage Organization")
+            .navigationTitle(L10n.tr("Manage Organization"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -316,7 +316,7 @@ private struct ProjectManager: View {
                         .lineLimit(2...4)
                     Picker("Status", selection: $draftStatus) {
                         ForEach(ProjectStatus.allCases) { status in
-                            Text(status.title).tag(status)
+                            Text(status.localizedTitle).tag(status)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -446,7 +446,7 @@ private struct ProjectRow: View {
                 Text(project.name)
                     .font(.headline)
                 HStack(spacing: 6) {
-                    Text(project.status.title)
+                    Text(project.status.localizedTitle)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
