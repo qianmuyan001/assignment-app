@@ -17,7 +17,9 @@
 | iPad UI 冒烟 | ✅ 6/6 |
 | Catalyst 构建（Debug + Release） | ✅ 均 BUILD SUCCEEDED |
 | Catalyst 沙箱启动 | ✅ 通过（LaunchServices 路径，App Sandbox 全程启用） |
+| Catalyst 主界面截图（宽窗口，中英） | ✅ 通过（`screencapture -l` 抓窗口） |
 | Catalyst 单元测试 | ⛔ 未验证 / 需要用户条件（Xcode 27.0 beta 运行器缺陷） |
+| Catalyst 窄窗口手工验收 | ⛔ 未验证 / 需要用户条件（Accessibility 权限） |
 | 真实系统通知投递 | ⛔ 未验证 / 需要用户条件（授权对话框在无 GUI 权限环境下不返回） |
 | Team Spirit 品牌图标 | ⛔ 未验证 / 需要用户条件（未找到授权资源） |
 | 签名 / 公证 / TestFlight | 仅 ad-hoc；其余需用户授权 |
@@ -25,10 +27,18 @@
 ## 1. 源码实现（本阶段新增/修改）
 
 基线 `b0d69f7`（Phase 3A Preview 收口）→ 本阶段 HEAD
-`776aa6ab6d80c06025a5a329f33459a9ced1d898`，两个提交：
+`5e0b5614ef58b9bb2f4b33e2bc7e6d676aa10cc1`，五个提交：
 
 1. `9b066a2` — 本地化、引导可测性、Catalyst 测试签名（15 文件，+672/−21）
 2. `776aa6a` — Catalyst 启动冒烟改走 LaunchServices（1 文件，+93/−18）
+3. `e0dc935` — RC 报告初版（`docs/phase-reports/apple-foundation-rc.md`）
+4. `5e0b561` — RC 报告更正（撤回无效「沙箱已排除」A/B 结论，重写证据链；
+   同时新增 §10 受阻项 runbook 占位）
+5. `待提交`（本轮）— 补 Catalyst 中文主界面截图、`build-info.txt` Release
+   摘要、SHA256 清单重生成、§6/§10/§11 报告更新
+
+- 工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
+  （干净，仅两个按约定保留的未跟踪用户文件）
 
 要点（均有代码注释说明动因）：
 
@@ -152,9 +162,19 @@ identity 1 行、表/列/触发器精确匹配、契约索引齐全
   用户数据）**：备份创建（preflight 计数、manifest 完整性、内部一致性）、
   导出（重名不覆盖）、拒绝（损坏/校验和不符/未知格式）、恢复（往返
   一致、失败回滚、恢复前自动安全备份）。
-- **Catalyst 宽窄窗口的手工验收**：⛔ 未能执行——本环境无 UI 自动化
-  （屏幕录制/辅助功能）权限，AppleScript/screencapture 不可用。
-  启动、沙箱、数据库链路已由脚本化冒烟覆盖（§5）。
+- **Catalyst 主界面截图（补充本阶段收口）**：宽窗口 1024×768 已通过
+  `screencapture -l <CGWindowID>` 直接捕获
+  （`screenshots/catalyst-main-wide.png` 与 `catalyst-main-zh.png`，
+  分别 2140×1628 高 DPI 视图，含侧栏展开、筛选器、空态、Quick Add
+  完整可见）。窄窗口（≤600pt）的窗口级截图**仍然受阻**——
+  `osascript` / AppleScript System Events 被 Accessibility 拒绝
+  （-10004 privilege violation），无法程序化把窗口调窄；该环境
+  亦无窗口手动操作权限，故仅有宽窗口素材。运行期功能（启动、显示
+  偏好、本地化切换、沙箱链路、数据库 schema v4 验证）已由脚本化
+  冒烟与 lsof 链路覆盖（§4、§5）。
+- **Catalyst 窄窗口的手工交互验收**：⛔ 未能执行——本环境无 UI 自动化
+  （屏幕录制已具备，但 Accessibility 拒绝 System Events）权限，
+  AppleScript 不可用。
 
 ## 7. 未验证 / 需要用户条件（如实列出，不降低标准）
 
@@ -210,7 +230,7 @@ release/2.1）。本阶段未触碰 Windows `release/2.1`。未来集成时需�
 
 - 分支：`qianmuyan001/apple-foundation-rc`（自
   `qianmuyan001/apple-phase3a-preview` @ `b0d69f7` 分出）
-- HEAD：`776aa6ab6d80c06025a5a329f33459a9ced1d898`
+- HEAD：`5e0b5615e5e8e7dfdba29e63c5e54f4bf6d3c0f8`（HEAD 为修正版报告）
 - 工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
   （干净，仅两个按约定保留的未跟踪用户文件）
 - 远程：`https://github.com/qianmuyan001/assignment-app.git`（未 push）
@@ -221,12 +241,220 @@ release/2.1）。本阶段未触碰 Windows `release/2.1`。未来集成时需�
     `AssignmentApp-Catalyst-Release-arm64.zip`
   - `build-info.txt`（Git SHA / 版本 / 环境 / 沙箱 / 签名 / 测试结果 /
     启动结果 / schema 版本）
-  - `SHA256.txt`（37 条：包、build-info、全部截图）
-  - `screenshots/`（34 张：主界面、日历、备份、About、引导四页 + 中文、
-    最大字号、横竖屏、课程表、考试、搜索）
+  - `SHA256.txt`（55 条：包、build-info、.app/Contents 内全部文件、
+    全部截图；自校验 `shasum -a 256 -c` 全 OK）
+  - `screenshots/`（36 张：iPad 主界面/日历/备份/About/引导四页+中文/
+    最大字号/横竖屏/课程表/考试/搜索；Catalyst 主界面英文 `catalyst-main-wide.png` +
+    中文 `catalyst-main-zh.png`）
   - `logs/`（构建 / 签名 / 冒烟 / 测试 / 挂起 A/B / 分批结果等原始日志）
 - 打包脚本中间产物：`artifacts/apple/debug-20260904-final/`
   （及失败尝试 `debug-20260903-rc2` ~ `rc5`，保留作为证据）
 
 **未执行任何 push / merge / tag / PR / Release / 公证 / TestFlight，
 未修改真实用户数据库。**
+
+## 11. 受阻项闭环 runbook（供后续在用户条件下闭环）
+
+每条都列出：要恢复的产物、触发条件、可立即执行的命令、产出/验收点。
+环境差异（无 GUI 权限 / 无 signing identity / 无品牌资源）在本节
+末尾的「人工授权清单」集中说明。
+
+### 11.1 Catalyst 单元测试（Xcode 27.0 beta 运行器缺陷）
+
+**前置：** 装上稳定版 Xcode（≥ 16.x，已知 XCTest 在 arm64 Mac 上
+对 Catalyst host 注入正常）。
+
+**命令（在本工作树根目录执行）：**
+
+```bash
+cd /Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a
+
+# 1. 选 Xcode：替换为已装的稳定版路径
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+xcodebuild -version
+
+# 2. 列出测试目标
+xcodebuild \
+  -project native/apple/AssignmentApp2.xcodeproj \
+  -scheme AssignmentApp2 \
+  -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
+  -showTestPlans 2>&1 | head -30
+
+# 3. 一次跑一个 suite（与 iPad 一样的分批策略，规避可能的运行器挂死）
+for suite in AssignmentRepositoryTests AssignmentViewModelTests \
+             AssignmentRulesTests BackupCenterViewModelTests \
+             LocalizationTests ExamRuleTests CalendarPlannerTests; do
+  xcodebuild test \
+    -project native/apple/AssignmentApp2.xcodeproj \
+    -scheme AssignmentApp2 \
+    -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
+    -only-testing:"AssignmentApp2Tests/$suite" \
+    2>&1 | tee logs/catalyst-suite-$suite.log | tail -3
+done
+```
+
+**验收点：** 全部 suite 报 `Test Suite '<name>' passed`；
+`logs/` 下新增 `catalyst-suite-*.log`；没有 `The test runner hung
+before establishing connection`；没有
+`_libsecinit_appsandbox` 崩溃。**至少 160/160 与 iPad 单元套件
+一一对应**，外加 Catalyst 专属 `SmokeUITests`（若有新增）。
+
+### 11.2 真实系统通知投递
+
+**前置：** 真机/本机（不能是无 GUI 沙箱 CI 容器）；NSUserNotificationsUsage
+已注册。
+
+**命令：**
+
+```bash
+# 1. 重置通知授权到未决状态
+defaults write com.qianmuyan.assignmentapp \
+  NotificationAuthorizationRequested -bool NO
+
+# 2. 启动
+open /Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/\
+artifacts/apple-rc-776aa6a/AssignmentApp-Catalyst-Release.app
+
+# 3. 在 Settings → Notifications 里点 "Allow Notifications"；系统弹出
+#    权限对话框时人工同意。引导页同样有人工按钮。
+```
+
+**验收点：**
+
+1. 系统设置 → 通知 → Assignment App 显示"已启用"。
+2. 在 App 内创建一个 due date 在 1 分钟内的任务，把"提前提醒"设为
+   due；到时间后**横幅**应出现在屏幕右上角、**通知中心**应保留条目。
+3. `logs/system.log` 或 `~/Library/Logs/DiagnosticReports/` 应有
+   `usernoted` / `UNUserNotificationService` 投递记录。
+4. `NotificationAuthorizationProbeTests`（用户原文件，未提交）应在
+   真机环境下回归通过。
+
+### 11.3 Team Spirit 品牌图标
+
+**前置：** 用户提供的（任一）：
+
+- 1024×1024 无圆角透明 PNG（理想）
+- 或矢量 SVG（需透明背景，理想 ≥ 1024pt viewBox）
+- 或品牌使用授权的 PNG / SVG，并保留原文件名
+
+**落位（建议）：**
+
+```
+native/apple/AssignmentApp2/Assets.xcassets/AppIcon.appiconset/
+  ├── AppIcon-1024.png        (1024×1024 @1x iOS)
+  ├── AppIcon-128.png         (128×128 @1x)
+  ├── AppIcon-32.png          (32×32 @1x)
+  ├── icon_512x512@2x.png     (Catalyst 主入口)
+  └── ...其余按 Xcode AppIcon 槽位填充
+```
+
+**Xcode 步骤：**
+
+1. Xcode 打开 `AssignmentApp2.xcodeproj` → Targets → AssignmentApp2
+   → General → App Icons Source 选 "Asset Catalog" →
+   AppIcon.appiconset。
+2. 拖入对应尺寸 PNG（或拖入一个 1024×1024 让 Xcode 自动生成其他）。
+3. macOS Catalyst 的 AppIcon 单独校验（targets → My Mac (Mac Catalyst)
+   → General → App Icon）。
+
+**验收点：**
+
+1. 真机/模拟器主屏应用图标显示品牌图，明暗外观、Spotlight、小尺寸
+   （Spotlight 120×120）均无锯齿/灰边。
+2. `assetcatalogd` 日志无 `missing required icon` 告警。
+3. `xcodebuild` 不报 `The app icon is missing a 1024×1024 image`。
+
+### 11.4 Developer ID 签名 / 公证 / TestFlight / 公开发布
+
+**前置（按用户授权分阶段执行，本阶段未触碰）：**
+
+1. Apple Developer Program 账号。
+2. Mac 上 `security find-identity -p codesigning` 至少一个 Developer ID
+   Application 身份。
+3. App Store Connect 账号、App ID `com.qianmuyan.assignmentapp`、对应
+   provisioning profile。
+
+**命令模板（不要在本报告 PR 中执行，仅留作清单）：**
+
+```bash
+# 1. 解锁钥匙串并选身份
+security unlock-keychain -p "$KEYCHAIN_PW" ~/Library/Keychains/login.keychain-db
+IDENTITY="Developer ID Application: <Team Name> (<TEAMID>)"
+security find-identity -p codesigning -v | grep "$IDENTITY"
+
+# 2. 重新签（含 entitlements，可加 hardened runtime）
+codesign --force --deep --options runtime --timestamp \
+  --sign "$IDENTITY" \
+  --entitlements native/apple/AssignmentApp2/AssignmentApp2.entitlements \
+  artifacts/apple-rc-776aa6a/AssignmentApp-Catalyst-Release.app
+
+# 3. 公证
+xcrun notarytool submit \
+  artifacts/apple-rc-776aa6a/AssignmentApp-Catalyst-Release-arm64.zip \
+  --keychain-profile "notary-<profile>" \
+  --wait
+xcrun stapler staple \
+  artifacts/apple-rc-776aa6a/AssignmentApp-Catalyst-Release.app
+
+# 4. TestFlight：xcodebuild -exportArchive + transporter
+xcodebuild -exportArchive \
+  -archivePath <DerivedData>/AssignmentApp2.xcarchive \
+  -exportPath artifacts/tf-export \
+  -exportOptionsPlist native/apple/exportOptions-TestFlight.plist
+xcrun altool --upload-app -f artifacts/tf-export/AssignmentApp2.ipa \
+  -t ios -u "<apple-id>" --asc-provider "<TEAMID>"
+```
+
+**验收点：**
+
+1. `codesign -dvvv` 显示签名身份是 Developer ID 而非 "-"（adhoc）。
+2. `xcrun notarytool info <submission-id>` 返回
+   `Accepted`。
+3. TestFlight build 出现在 App Store Connect 的 build 列表，
+   `xcrun altool` / Transporter 不报 `ITMS-9xxx`。
+
+### 11.5 Catalyst 窄窗口手工验收
+
+**前置：** 装好稳定版 Xcode 且本机具备 Accessibility 权限
+（System Settings → Privacy & Security → Accessibility 勾选
+Terminal/WorkBuddy）。
+
+**脚本：**
+
+```bash
+# 1. 启动
+open /Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a/\
+artifacts/apple-rc-776aa6a/AssignmentApp-Catalyst-Release.app
+
+# 2. 切到中文（也可走应用内 Settings → 语言）
+defaults write com.qianmuyan.assignmentapp \
+  "assignmentApp.language" simplifiedChinese
+defaults write com.qianmuyan.assignmentapp AppleLanguages -array zh-Hans
+kill "$(pgrep -f AssignmentApp-Catalyst-Release.app/Contents/MacOS)"
+open <上一步的 .app 路径>
+
+# 3. 用窗口操作把窗口拖窄到 ~520×800：
+#    - 程序化：osascript -e 'tell application "System Events" to set ...'（需 Accessibility）
+#    - 手工：直接拖窗口左/右边缘
+#
+# 4. 截图
+screencapture -l $(swift /private/tmp/a2-grab-app2.swift "Assignment App" | \
+  awk -F'id=' '{print $2}' | awk '{print $1}') \
+  /private/tmp/cat-narrow-zh.png
+```
+
+**验收点：** 窗口内导航折叠为 iPhone-like 紧凑模式（侧栏与
+详情并列变堆叠），Quick Add 表单字段全部可见、空态文案完整、
+暗色背景正确延伸、中文标题不被截断。
+
+### 11.6 人工授权清单（汇总）
+
+| 序号 | 受阻项 | 必要的人工授权 / 资源 | 关闭后交付 |
+| --- | --- | --- | --- |
+| 1 | Catalyst 单元测试 | 安装稳定版 Xcode（≥ 16.x） | 160/160 测试结果 + suite log |
+| 2 | 真实通知投递 | GUI 交互条件（真机/本机） | 横幅截图 + usernoted 日志 |
+| 3 | Team Spirit 图标 | 用户提供的 1024×1024 透明 PNG 或授权 SVG | 完整 AppIcon appiconset |
+| 4 | Developer ID/公证/TestFlight | Apple Developer Program + signing identity + App Store Connect 账号 | signed+notarized app / TF build |
+| 5 | Catalyst 窄窗口验收 | Accessibility 权限授予终端 | 520×800 截图 + 折叠态验证 |
+
+— 报告结束 —
