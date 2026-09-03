@@ -27,14 +27,14 @@
 ## 1. 源码实现（本阶段新增/修改）
 
 基线 `b0d69f7`（Phase 3A Preview 收口）→ 本阶段 HEAD
-`5e0b5614ef58b9bb2f4b33e2bc7e6d676aa10cc1`，五个提交：
+`fa44fc71e55b42098b62a4ab8fad46a4838b99d3`（本轮收口），五个提交：
 
 1. `9b066a2` — 本地化、引导可测性、Catalyst 测试签名（15 文件，+672/−21）
 2. `776aa6a` — Catalyst 启动冒烟改走 LaunchServices（1 文件，+93/−18）
 3. `e0dc935` — RC 报告初版（`docs/phase-reports/apple-foundation-rc.md`）
 4. `5e0b561` — RC 报告更正（撤回无效「沙箱已排除」A/B 结论，重写证据链；
    同时新增 §10 受阻项 runbook 占位）
-5. `待提交`（本轮）— 补 Catalyst 中文主界面截图、`build-info.txt` Release
+5. `fa44fc7`（本轮收口）— 补 Catalyst 中文主界面截图、`build-info.txt` Release
    摘要、SHA256 清单重生成、§6/§10/§11 报告更新
 
 - 工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
@@ -230,7 +230,7 @@ release/2.1）。本阶段未触碰 Windows `release/2.1`。未来集成时需�
 
 - 分支：`qianmuyan001/apple-foundation-rc`（自
   `qianmuyan001/apple-phase3a-preview` @ `b0d69f7` 分出）
-- HEAD：`5e0b5615e5e8e7dfdba29e63c5e54f4bf6d3c0f8`（HEAD 为修正版报告）
+- HEAD：`fa44fc71e55b42098b62a4ab8fad46a4838b99d3`（HEAD 为本轮收口）
 - 工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
   （干净，仅两个按约定保留的未跟踪用户文件）
 - 远程：`https://github.com/qianmuyan001/assignment-app.git`（未 push）
