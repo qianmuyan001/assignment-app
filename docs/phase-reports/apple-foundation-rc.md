@@ -159,11 +159,25 @@ identity 1 行、表/列/触发器精确匹配、契约索引齐全
 ## 7. 未验证 / 需要用户条件（如实列出，不降低标准）
 
 1. **Catalyst 单元测试**：构建修复（签名配置）后，运行器在建立连接前
-   挂起，376 秒后报 `The test runner hung before establishing connection.`
-   **已做 A/B 排除沙箱因素**：`ENABLE_APP_SANDBOX=NO` 命令行覆盖下在
-   完全相同的位置挂起（`logs/catalyst-tests-nosandbox-ab.log`）。
-   结论：Xcode 27.0 beta 的 Catalyst 测试运行器缺陷。本机未安装稳定版
-   Xcode；装上稳定版后重跑 `AssignmentApp2Tests` 即可闭环。
+   挂起，最终报 `The test runner hung before establishing connection.`
+   证据链（原始日志均在 `logs/`）：
+   - **宿主进程采样**（`sample`，见下）：测试宿主正常启动并停在自己的
+     主 run loop（`App.main()` → `mach_msg`）—— 无崩溃、无
+     `_libsecinit` 卡死；是 **XCTest 机制从未接管宿主**，测试 bundle
+     没有被注入/连接。
+   - **沙箱无法从测试宿主上移除**（三轮递进验证）：
+     ① `ENABLE_APP_SANDBOX=NO` 无效——沙箱键写在 entitlements 文件里；
+     ② 命令行 `CODE_SIGN_ENTITLEMENTS` 覆盖无效——SDK 作用域的项目
+     设置优先；
+     ③ **直接把 entitlements 文件换成无沙箱版**（换前确认 0 个沙箱
+     键、测试后已恢复原文件并 `git diff` 验证一致），签出的宿主
+     **仍带 `app-sandbox`**，连同 `get-task-allow` 与 testmanagerd 的
+     mach-lookup 例外——**Xcode 27.0 beta 对 macOS/Catalyst 测试宿主
+     强制注入沙箱**，项目层面无法绕过。
+   - 结论：Xcode 27.0 beta 的 Catalyst 测试运行器缺陷（宿主可启动、
+     可采样，但 XCTest 注入不发生）。本机未安装稳定版 Xcode；装上
+     稳定版后重跑 `AssignmentApp2Tests` 即可闭环。诊断期间对仓库的
+     临时改动（entitlements 文件）已恢复，`git diff` 为空。
 2. **真实系统通知投递**：`UNUserNotificationCenter.requestAuthorization`
    在无法呈现权限对话框的环境下 continuation 不恢复，
    `NotificationAuthorizationProbeTests` 会挂住 Swift Testing runner。
