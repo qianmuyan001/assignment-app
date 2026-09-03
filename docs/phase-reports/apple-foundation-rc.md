@@ -230,7 +230,7 @@ release/2.1）。本阶段未触碰 Windows `release/2.1`。未来集成时需�
 
 - 分支：`qianmuyan001/apple-foundation-rc`（自
   `qianmuyan001/apple-phase3a-preview` @ `b0d69f7` 分出）
-- HEAD：`fa44fc71e55b42098b62a4ab8fad46a4838b99d3`（HEAD 为本轮收口）
+- HEAD：`b312d4f`（fa44fc7 + 1 次 SHA 自指修正；实质内容为 fa44fc7）
 - 工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-phase3a`
   （干净，仅两个按约定保留的未跟踪用户文件）
 - 远程：`https://github.com/qianmuyan001/assignment-app.git`（未 push）
