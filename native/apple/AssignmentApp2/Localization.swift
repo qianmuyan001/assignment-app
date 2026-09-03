@@ -191,6 +191,19 @@ final class LanguagePreference: ObservableObject {
 
     init(store: LanguagePreferenceStoring = UserDefaultsLanguageStore()) {
         self.store = store
+        #if DEBUG
+        if let pinned = Self.uiTestLanguage {
+            // Persist as well as display: `L10n` reads the stored value
+            // directly, so showing one language while another is stored would
+            // split the interface in two.
+            try? store.setStoredString(
+                pinned.rawValue,
+                forKey: LanguagePreferenceKeys.language
+            )
+            language = pinned
+            return
+        }
+        #endif
         if let raw = store.storedString(forKey: LanguagePreferenceKeys.language),
            let restored = AppLanguage(rawValue: raw) {
             language = restored
@@ -198,6 +211,25 @@ final class LanguagePreference: ObservableObject {
             language = .system
         }
     }
+
+#if DEBUG
+    /// The language a UI test pinned at launch with
+    /// `-assignmentApp.uiTestLanguage:<rawValue>`, if any.
+    ///
+    /// UI tests share one long-lived simulator whose `UserDefaults` survive
+    /// both between runs and between suites, so a language picked by one test
+    /// would otherwise leak into every test after it. Pinning the language at
+    /// launch makes each test start from a known state instead of inheriting
+    /// device history.
+    private static var uiTestLanguage: AppLanguage? {
+        let prefix = "-assignmentApp.uiTestLanguage:"
+        guard let argument = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix(prefix) }) else {
+            return nil
+        }
+        return AppLanguage(rawValue: String(argument.dropFirst(prefix.count)))
+    }
+#endif
 
     /// Applies `candidate`.
     ///

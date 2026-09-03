@@ -39,7 +39,7 @@ struct OrganizationManagerView: View {
                     TagManager(repository: repository)
                 }
             }
-            .navigationTitle("Manage Organization")
+            .navigationTitle(L10n.tr("Manage Organization"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

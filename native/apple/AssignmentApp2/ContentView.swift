@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var searchPresentation: SearchPresentationState = .closed
     @State private var didApplyUITestOverrides = false
     @State private var isShowingOnboarding = false
-    @State private var suppressUITestOnboarding = false
     @AppStorage(OnboardingState.completedKey)
     private var didCompleteOnboarding = false
 
@@ -72,7 +71,10 @@ struct ContentView: View {
                     isShowingOnboarding = false
                 }
             )
-            .accessibilityIdentifier("onboarding-sheet")
+            // No identifier is stamped on the sheet either, for the reason
+            // given in `OnboardingView`: one set on a container is copied onto
+            // everything the container hosts, which drowns out the identifiers
+            // of the controls inside it.
         }
         .onAppear {
             applyUITestOverridesIfNeeded()
@@ -83,10 +85,30 @@ struct ContentView: View {
             // the walkthrough ends — skipped or not — so it never reappears on
             // its own afterwards.
             //
-            // UI tests opt out explicitly: the walkthrough is a first-launch
-            // overlay, and leaving it up would make every other UI assertion
-            // depend on whether this happens to be the device's first run.
-            guard !didCompleteOnboarding, !suppressUITestOnboarding else { return }
+            // The UI-test flags are read at the point of use so the decision
+            // is atomic with the work that depends on it. A walkthrough that
+            // has already been completed can also be forced back open from
+            // Settings, so tests that only need the post-onboarding surface
+            // do not have to depend on simulator history.
+            #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            let environment = ProcessInfo.processInfo.environment
+            if arguments.contains("-assignmentApp.uiTestSkipOnboarding") { return }
+            // `UserDefaults` outlive both a test run and the simulator itself,
+            // so once the walkthrough has been completed anywhere on a
+            // long-lived device the first-launch path — the one real users
+            // actually get — becomes unreachable. This drops the flag before
+            // the decision below is taken, so a test can stand in the shoes of
+            // a person opening the app for the first time.
+            if arguments.contains("-assignmentApp.uiTestResetOnboarding") {
+                didCompleteOnboarding = false
+            }
+            let forced = arguments.contains("-assignmentApp.uiTestShowOnboarding")
+                || environment["ASSIGNMENT_UI_FORCE_ONBOARDING"] == "1"
+            #else
+            let forced = false
+            #endif
+            guard forced || !didCompleteOnboarding else { return }
             isShowingOnboarding = true
         }
         .onChange(of: viewModel.errorMessage) { _, message in
@@ -504,9 +526,8 @@ struct ContentView: View {
         } else if arguments.contains("-assignmentApp.uiTestSidebarExpanded") {
             sidebarDisplayStyleValue = SidebarDisplayStyle.expanded.rawValue
         }
-        if arguments.contains("-assignmentApp.uiTestSkipOnboarding") {
-            suppressUITestOnboarding = true
-        }
+        // The onboarding flags are deliberately handled in the `.task` that
+        // decides whether to present the sheet, not here.
         #endif
     }
 

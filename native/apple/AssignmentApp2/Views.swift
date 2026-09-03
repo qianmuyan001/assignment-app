@@ -359,6 +359,7 @@ struct AssignmentSettingsView: View {
                         Text(language.displayName).tag(language)
                     }
                 }
+                .accessibilityIdentifier("settings-language-picker")
 
                 Text("The interface switches right away. System dialogs and notification text follow after the app is restarted.")
                     .font(.footnote)
@@ -476,7 +477,7 @@ struct AssignmentSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Settings")
+        .navigationTitle(L10n.tr("Settings"))
         .task {
             onRefreshNotifications()
         }

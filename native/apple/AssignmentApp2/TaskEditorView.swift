@@ -282,8 +282,8 @@ struct TaskEditorView: View {
                 }
             }
             .navigationTitle(assignment == nil
-                             ? (displayMode == .simple ? "Quick Add" : "New Task")
-                             : "Edit Task")
+                             ? L10n.tr(displayMode == .simple ? "Quick Add" : "New Task")
+                             : L10n.tr("Edit Task"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

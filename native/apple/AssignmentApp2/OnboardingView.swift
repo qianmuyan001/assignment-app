@@ -87,7 +87,13 @@ struct OnboardingView: View {
             .padding(.vertical, 16)
         }
         .frame(minWidth: 520, minHeight: 560)
-        .accessibilityIdentifier("onboarding-root")
+        // Deliberately no identifier on the container. SwiftUI copies a
+        // container's `accessibilityIdentifier` onto every element it hosts —
+        // with one set here, the skip, back and advance buttons, the page
+        // indicator and the paging collection view all reported the same
+        // identifier and none of their own, which left the walkthrough's
+        // controls individually unaddressable for VoiceOver and UI tests.
+        // Naming the controls instead of the container keeps each one distinct.
     }
 
     private func pageView(_ item: OnboardingPage) -> some View {

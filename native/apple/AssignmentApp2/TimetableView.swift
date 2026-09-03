@@ -74,7 +74,7 @@ struct TimetableView: View {
             Divider()
             content
         }
-        .navigationTitle("Timetable")
+        .navigationTitle(L10n.tr("Timetable"))
         .toolbar { toolbarContent }
         .sheet(item: $editorState) { state in
             MeetingEditorView(
@@ -721,7 +721,7 @@ struct MeetingEditorView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(meeting == nil ? "New Meeting" : "Edit Meeting")
+            .navigationTitle(meeting == nil ? L10n.tr("New Meeting") : L10n.tr("Edit Meeting"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

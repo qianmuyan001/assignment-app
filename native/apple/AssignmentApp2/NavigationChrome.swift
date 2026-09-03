@@ -20,12 +20,16 @@ enum SidebarDisplayStyle: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Resolved through `L10n` rather than left as a plain literal: this text
+    /// is handed to `Text`, `.help`, and `.accessibilityLabel` as a `String`
+    /// variable, and only string *literals* go through SwiftUI's automatic
+    /// localization. As a variable it would stay English forever.
     var toggleTitle: String {
         switch self {
         case .expanded:
-            return "Use Icon-Only Sidebar"
+            return L10n.tr("Use Icon-Only Sidebar")
         case .compact:
-            return "Show Sidebar Labels"
+            return L10n.tr("Show Sidebar Labels")
         }
     }
 
@@ -144,7 +148,7 @@ struct AssignmentSidebar: View {
         .padding(.horizontal, displayStyle == .expanded ? 12 : 8)
         .padding(.top, 10)
         .padding(.bottom, 10)
-        .navigationTitle(displayStyle == .expanded ? "Assignments" : "")
+        .navigationTitle(displayStyle == .expanded ? L10n.tr("Assignments") : "")
     }
 
     @ViewBuilder

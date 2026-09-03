@@ -713,7 +713,7 @@ struct BackupRestoreReviewSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Review Restore")
+            .navigationTitle(L10n.tr("Review Restore"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { onCancel() }

@@ -53,6 +53,7 @@
 "Assignment App" = "Assignment App";
 "Assignment App is local-first. Tasks, attachments, and backups stay inside this app’s container on this device. There is no account, no sync, and no analytics." = "Assignment App 以本地为先。任务、附件和备份都留在本设备上这个应用的容器里。没有账号，没有同步，也没有分析统计。";
 "Assignment App keeps coursework in one place: tasks, a weekly timetable, and exams. Everything is local, so it works with no account and no connection." = "Assignment App 把课业集中在一处：任务、每周课程表和考试。全部数据都在本地，不需要账号，也不需要联网。";
+"Assignments" = "作业";
 "Assignments, without the noise" = "作业管理，不添噪音";
 "Attachment file is missing" = "附件文件缺失";
 "Attachments" = "附件";
@@ -157,10 +158,12 @@
 "Exam" = "考试";
 "Exams" = "考试";
 "Existing Course" = "已有课程";
+"Export %@" = "导出 %@";
 "Export attachment" = "导出附件";
 "Export…" = "导出…";
 "File" = "文件";
 "Find Tasks" = "查找任务";
+"Fires %@" = "触发于 %@";
 "Fires a set amount of time before the task due date and follows it when the due date changes." = "在任务截止日期前指定时长触发，截止日期变动时会自动跟随。";
 "Fires at the exact date and time you pick. It never moves." = "在你选定的确切日期和时间触发，不会随其他变化移动。";
 "First Steps" = "新手引导";
@@ -396,6 +399,7 @@
 "Unsupported task priority: %@." = "不支持的任务优先级：%@。";
 "Unsupported task status: %@." = "不支持的任务状态：%@。";
 "Untitled course" = "未命名课程";
+"Use Icon-Only Sidebar" = "仅显示图标侧边栏";
 "Verified" = "校验通过";
 "Verify" = "校验";
 "Version" = "版本";
@@ -411,6 +415,7 @@
 "Zone" = "时区";
 "no due date" = "无截止日期";
 "selected" = "已选中";
+"today" = "今天";
 "“%@” already exists. The backup was exported under a new name instead of replacing it." = "“%@”已存在。备份已改用新名称导出，没有覆盖原文件。";
 "“%@” is already linked and is due %@. Nothing new was created." = "“%@”已关联，截止时间为 %@。没有创建新任务。";
 "“%@” passed every check in the manifest." = "“%@”通过了清单中的全部检查。";

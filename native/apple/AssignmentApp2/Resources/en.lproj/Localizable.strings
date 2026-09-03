@@ -53,6 +53,7 @@
 "Assignment App" = "Assignment App";
 "Assignment App is local-first. Tasks, attachments, and backups stay inside this app’s container on this device. There is no account, no sync, and no analytics." = "Assignment App is local-first. Tasks, attachments, and backups stay inside this app’s container on this device. There is no account, no sync, and no analytics.";
 "Assignment App keeps coursework in one place: tasks, a weekly timetable, and exams. Everything is local, so it works with no account and no connection." = "Assignment App keeps coursework in one place: tasks, a weekly timetable, and exams. Everything is local, so it works with no account and no connection.";
+"Assignments" = "Assignments";
 "Assignments, without the noise" = "Assignments, without the noise";
 "Attachment file is missing" = "Attachment file is missing";
 "Attachments" = "Attachments";
@@ -157,10 +158,12 @@
 "Exam" = "Exam";
 "Exams" = "Exams";
 "Existing Course" = "Existing Course";
+"Export %@" = "Export %@";
 "Export attachment" = "Export attachment";
 "Export…" = "Export…";
 "File" = "File";
 "Find Tasks" = "Find Tasks";
+"Fires %@" = "Fires %@";
 "Fires a set amount of time before the task due date and follows it when the due date changes." = "Fires a set amount of time before the task due date and follows it when the due date changes.";
 "Fires at the exact date and time you pick. It never moves." = "Fires at the exact date and time you pick. It never moves.";
 "First Steps" = "First Steps";
@@ -396,6 +399,7 @@
 "Unsupported task priority: %@." = "Unsupported task priority: %@.";
 "Unsupported task status: %@." = "Unsupported task status: %@.";
 "Untitled course" = "Untitled course";
+"Use Icon-Only Sidebar" = "Use Icon-Only Sidebar";
 "Verified" = "Verified";
 "Verify" = "Verify";
 "Version" = "Version";
@@ -411,6 +415,7 @@
 "Zone" = "Zone";
 "no due date" = "no due date";
 "selected" = "selected";
+"today" = "today";
 "“%@” already exists. The backup was exported under a new name instead of replacing it." = "“%@” already exists. The backup was exported under a new name instead of replacing it.";
 "“%@” is already linked and is due %@. Nothing new was created." = "“%@” is already linked and is due %@. Nothing new was created.";
 "“%@” passed every check in the manifest." = "“%@” passed every check in the manifest.";

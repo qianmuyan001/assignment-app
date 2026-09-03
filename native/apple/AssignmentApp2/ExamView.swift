@@ -538,7 +538,7 @@ struct ExamEditorView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(exam == nil ? "New Exam" : "Edit Exam")
+            .navigationTitle(exam == nil ? L10n.tr("New Exam") : L10n.tr("Edit Exam"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
