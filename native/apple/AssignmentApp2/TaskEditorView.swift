@@ -54,7 +54,8 @@ struct TaskEditorView: View {
         tags: [AssignmentTag] = [],
         initialCourseID: Int64? = nil,
         initialProjectID: Int64? = nil,
-        initialTagIDs: [Int64] = []
+        initialTagIDs: [Int64] = [],
+        initialDueDate: Date? = nil
     ) {
         self.assignment = assignment
         self.displayMode = displayMode
@@ -68,7 +69,10 @@ struct TaskEditorView: View {
         self.initialProjectID = initialProjectID
         self.initialTagIDs = initialTagIDs
 
-        let initialDraft = assignment.map(AssignmentDraft.init(assignment:)) ?? AssignmentDraft()
+        var initialDraft = assignment.map(AssignmentDraft.init(assignment:)) ?? AssignmentDraft()
+        if let initialDueDate, assignment == nil, initialDraft.dueDate == nil {
+            initialDraft.dueDate = initialDueDate
+        }
         _draft = State(initialValue: initialDraft)
         _hasDueDate = State(initialValue: initialDraft.dueDate != nil)
         _selectedCourseID = State(initialValue: initialCourseID)
@@ -108,7 +112,7 @@ struct TaskEditorView: View {
                 Section("Status") {
                     Picker("Status", selection: $draft.status) {
                         ForEach(AssignmentStatus.allCases) { status in
-                            Text(status.title).tag(status)
+                            Text(status.localizedTitle).tag(status)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -125,7 +129,7 @@ struct TaskEditorView: View {
 
                         Picker("Priority", selection: $draft.priority) {
                             ForEach(AssignmentPriority.allCases) { priority in
-                                Text(priority.title).tag(priority)
+                                Text(priority.localizedTitle).tag(priority)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -211,7 +215,7 @@ struct TaskEditorView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Picker("Reminder type", selection: $newReminderKind) {
                                     ForEach(ReminderScheduleKind.allCases) { kind in
-                                        Text(kind.title).tag(kind)
+                                        Text(kind.localizedTitle).tag(kind)
                                     }
                                 }
                                 .pickerStyle(.segmented)
@@ -421,7 +425,7 @@ struct TaskEditorView: View {
 
     private func presetButton(_ preset: RelativeReminderPreset) -> some View {
         let isSelected = newReminderLead == preset.leadMinutes
-        return Button(preset.title) {
+        return Button(preset.localizedTitle) {
             newReminderLead = preset.leadMinutes
         }
         .buttonStyle(.bordered)
@@ -777,11 +781,17 @@ private struct ReminderRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Self.formatter.string(from: reminder.triggerAtUTC))
                 if reminder.isDueRelative {
-                    Text("\(reminder.scheduleKind.title) · \(reminder.leadMinutes) min before the due date")
+                    Text(
+    L10n.tr(
+        "%1$@ · %2$lld min before the due date",
+        reminder.scheduleKind.localizedTitle,
+        reminder.leadMinutes
+    )
+)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text(reminder.scheduleKind.title)
+                    Text(reminder.scheduleKind.localizedTitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

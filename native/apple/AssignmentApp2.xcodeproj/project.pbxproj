@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A2C1B0C00000000000000001 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = A2C1B0C00000000000000002 /* CHANGELOG.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		74590B373024897300A11C66 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A2C1B0C00000000000000002 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = ../../CHANGELOG.md; sourceTree = "<group>"; };
+
 		74590B293024896C00A11C66 /* Assignment App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Assignment App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		74590B363024897300A11C66 /* AssignmentApp2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AssignmentApp2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		74590B403024897300A11C66 /* AssignmentApp2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AssignmentApp2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -73,6 +79,7 @@
 				74590B393024897300A11C66 /* AssignmentApp2Tests */,
 				74590B433024897300A11C66 /* AssignmentApp2UITests */,
 				74590B2A3024896C00A11C66 /* Products */,
+				A2C1B0C00000000000000002 /* CHANGELOG.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -197,6 +204,7 @@
 		74590B273024896C00A11C66 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				A2C1B0C00000000000000001 /* CHANGELOG.md in Resources */,
 			);
 		};
 		74590B343024897300A11C66 /* Resources */ = {

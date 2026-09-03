@@ -47,9 +47,13 @@ extension FocusedValues {
 @main
 @MainActor
 struct AssignmentApp2App: App {
-    @StateObject private var viewModel = AssignmentViewModel()
+    @StateObject private var languagePreference = LanguagePreference.shared
     @AppStorage(AssignmentPreferenceKeys.theme)
     private var themeValue = AppTheme.system.rawValue
+    /// Bumped whenever the database has been replaced underneath the running
+    /// app. Changing it rebuilds the whole data stack, which is what makes a
+    /// restore visible without asking the user to relaunch by hand.
+    @State private var dataGeneration = 0
 
     var body: some Scene {
         WindowGroup("Assignments") {
@@ -61,14 +65,39 @@ struct AssignmentApp2App: App {
     }
 
     private var rootView: some View {
-        ContentView()
-            .environmentObject(viewModel)
+        AssignmentRootView()
+            .id(dataGeneration)
+            .environmentObject(languagePreference)
+            // SwiftUI reads `LocalizedStringKey` from the environment, so
+            // setting the locale here refreshes every plain view the moment the
+            // language changes.
+            .environment(\.locale, languagePreference.language.resolvedLocale)
             .preferredColorScheme(theme.preferredColorScheme)
             .modifier(UITestDynamicTypeModifier())
+            .onReceive(
+                NotificationCenter.default.publisher(for: .assignmentDataDidRestore)
+            ) { _ in
+                dataGeneration += 1
+            }
     }
 
     private var theme: AppTheme {
         AppTheme(rawValue: themeValue) ?? .system
+    }
+}
+
+
+/// Owns the data stack for one "generation" of the app.
+///
+/// Everything that holds an open SQLite connection lives below this view, so
+/// replacing it (through `.id`) releases those connections and lets a fresh
+/// view model open the database that is now on disk.
+private struct AssignmentRootView: View {
+    @StateObject private var viewModel = AssignmentViewModel()
+
+    var body: some View {
+        ContentView()
+            .environmentObject(viewModel)
     }
 }
 

@@ -12,15 +12,15 @@ enum AttachmentFileStoreError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidStoragePath:
-            return "The attachment storage path is invalid."
+            return L10n.tr(LocalizationCatalogKey.attachmentPathInvalid.rawValue)
         case .unsafeStorageRoot:
-            return "The attachment storage directory is not safe to use."
+            return L10n.tr(LocalizationCatalogKey.attachmentRootUnsafe.rawValue)
         case .payloadMissing(let name):
-            return "The file for “\(name)” is missing from local storage."
+            return L10n.tr(LocalizationCatalogKey.attachmentPayloadMissing.rawValue, name)
         case .payloadIsNotARegularFile:
-            return "The attachment payload is not a regular local file."
+            return L10n.tr(LocalizationCatalogKey.attachmentNotRegularFile.rawValue)
         case .metadataIdentityMismatch:
-            return "The attachment database identity does not match its payload."
+            return L10n.tr(LocalizationCatalogKey.attachmentIdentityMismatch.rawValue)
         }
     }
 }

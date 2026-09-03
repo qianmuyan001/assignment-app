@@ -561,6 +561,9 @@ struct AppleNavigationChromeTests {
             // Phase 3A learning pages, grouped under their own header.
             "Timetable",
             "Exams",
+            // Phase 3B: the calendar sits with the learning pages because it
+            // owns its own layout rather than reusing the filtered task list.
+            "Calendar",
             "Settings",
         ]
 

@@ -87,17 +87,17 @@ enum AssignmentRepositoryError: LocalizedError {
         case .validation(let message):
             return message
         case .open(let message):
-            return "Could not open the task database: \(message)"
+            return L10n.tr(LocalizationCatalogKey.openFailed.rawValue, message)
         case .prepare(let message):
-            return "Could not prepare a database operation: \(message)"
+            return L10n.tr(LocalizationCatalogKey.prepareFailed.rawValue, message)
         case .execute(let message):
-            return "Could not complete a database operation: \(message)"
+            return L10n.tr(LocalizationCatalogKey.executeFailed.rawValue, message)
         case .notFound(let id):
-            return "Task \(id) no longer exists."
+            return L10n.tr(LocalizationCatalogKey.taskNotFound.rawValue, id)
         case .corruptData(let message):
-            return "The task database contains invalid data: \(message)"
+            return L10n.tr(LocalizationCatalogKey.corruptData.rawValue, message)
         case .readOnlyAfterMigrationFailure:
-            return "Writes are disabled because the database migration did not complete."
+            return L10n.tr(LocalizationCatalogKey.readOnlyAfterMigrationFailure.rawValue)
         }
     }
 }

@@ -44,7 +44,7 @@ struct ExamListView: View {
         }
         .alert(item: $reviewNotice) { notice in
             Alert(
-                title: Text(notice.title),
+                title: Text(notice.localizedTitle),
                 message: Text(notice.message),
                 dismissButton: .default(Text("OK"))
             )
@@ -156,7 +156,7 @@ struct ExamListView: View {
                             )
                         }
                     } header: {
-                        Label(section.kind.title, systemImage: section.kind.systemImage)
+                        Label(section.kind.localizedTitle, systemImage: section.kind.systemImage)
                     }
                 }
             }
@@ -185,16 +185,26 @@ struct ExamListView: View {
         reviewNotice = ReviewTaskNotice(
             title: link.created ? "Review Task Created" : "Review Task Already Exists",
             message: link.created
-                ? "“\(link.assignment.title)” was added and is due \(due)."
-                : "“\(link.assignment.title)” is already linked and is due \(due). Nothing new was created."
+                ? L10n.tr(
+                    "“%@” was added and is due %@.",
+                    link.assignment.title,
+                    due
+                )
+                : L10n.tr(
+                    "“%@” is already linked and is due %@. Nothing new was created.",
+                    link.assignment.title,
+                    due
+                )
         )
     }
 }
 
 
-private struct ReviewTaskNotice: Identifiable {
+private struct ReviewTaskNotice: Identifiable, LocalizableTitled {
     let id = UUID()
     let title: String
+    /// Already localized at the point it is built, because it is composed from
+    /// an assignment title and a formatted due date.
     let message: String
 }
 
@@ -235,7 +245,7 @@ enum ExamFormatting {
     }
 
     static func accessibilityLabel(_ exam: Exam, courseName: String) -> String {
-        var parts = [exam.name, courseName, startsAtText(exam), exam.status.title]
+        var parts = [exam.name, courseName, startsAtText(exam), exam.status.localizedTitle]
         if let relative = relativeText(exam) {
             parts.append(relative)
         }
@@ -263,7 +273,7 @@ private struct ExamRow: View {
                 Text(exam.name)
                     .font(.headline)
                 Spacer(minLength: 0)
-                Text(exam.status.title)
+                Text(exam.status.localizedTitle)
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -333,7 +343,7 @@ private struct ExamRow: View {
                             onSetStatus(status)
                         } label: {
                             Label(
-                                status.title,
+                                status.localizedTitle,
                                 systemImage: exam.status == status ? "checkmark" : "circle"
                             )
                         }
@@ -440,7 +450,7 @@ struct ExamEditorView: View {
 
                     Picker("Status", selection: $status) {
                         ForEach(ExamStatus.allCases) { value in
-                            Text(value.title).tag(value)
+                            Text(value.localizedTitle).tag(value)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -477,7 +487,7 @@ struct ExamEditorView: View {
 
                     Picker("Time zone", selection: $timezoneChoice) {
                         ForEach(LearningTimeZoneChoice.allCases) { choice in
-                            Text(choice.title).tag(choice)
+                            Text(choice.localizedTitle).tag(choice)
                         }
                     }
                     .pickerStyle(.segmented)

@@ -89,6 +89,30 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
         }
     }
 
+    /// The v4 UUID written into `database_identity` when the file was created.
+    ///
+    /// It identifies this database file across backups and restores, which is
+    /// what lets the About page say whether two copies are the same data set.
+    /// `nil` means the file predates Schema v3, or was opened read-only before
+    /// the identity row was written.
+    var databaseIdentity: String? {
+        get throws {
+            try lock.withLock {
+                let database = try requireDatabase()
+                guard try Self.tableExists("database_identity", on: database) else {
+                    return nil
+                }
+                let statement = try Self.prepare(
+                    "SELECT instance_uuid FROM database_identity WHERE singleton = 1",
+                    on: database
+                )
+                defer { sqlite3_finalize(statement) }
+                guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+                return SQLiteSupport.text(statement, 0)
+            }
+        }
+    }
+
     func fetchAll() throws -> [Assignment] {
         try lock.withLock {
             let database = try requireDatabase()

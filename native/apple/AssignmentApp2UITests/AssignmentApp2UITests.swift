@@ -3,6 +3,11 @@ import XCTest
 
 
 final class AssignmentApp2UITests: XCTestCase {
+    /// The walkthrough is a first-launch overlay. Every other assertion in this
+    /// suite should describe the app, not whether this happens to be the
+    /// device's first run, so each launch opts out explicitly.
+    static let skipOnboardingArgument = "-assignmentApp.uiTestSkipOnboarding"
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -24,6 +29,7 @@ final class AssignmentApp2UITests: XCTestCase {
         app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
             .appendingPathComponent("assignments.db")
             .path
+        app.launchArguments.append(Self.skipOnboardingArgument)
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
@@ -46,6 +52,7 @@ final class AssignmentApp2UITests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
+        app.launchArguments.append(Self.skipOnboardingArgument)
         app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
             .appendingPathComponent("assignments.db")
             .path
@@ -135,6 +142,7 @@ final class AssignmentApp2UITests: XCTestCase {
         app.launchArguments += [
             "-assignmentApp.uiTestSidebarCompact",
             "-assignmentApp.uiTestDynamicTypeAccessibility5",
+            Self.skipOnboardingArgument,
         ]
         app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
             .appendingPathComponent("assignments.db")
@@ -189,6 +197,7 @@ final class AssignmentApp2UITests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
+        app.launchArguments.append(Self.skipOnboardingArgument)
         app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
             .appendingPathComponent("assignments.db")
             .path

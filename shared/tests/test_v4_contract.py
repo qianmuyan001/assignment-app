@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+import json
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -171,6 +172,18 @@ class LearningRuleTests(unittest.TestCase):
         )
         with self.assertRaises(SchemaV4Error):
             relative_reminder_trigger(None, 10)
+
+
+class V4ArtifactTests(unittest.TestCase):
+    def test_reference_artifacts_are_well_formed(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        schema = json.loads((root / "schemas/database-v4.json").read_text())
+        fixture = json.loads((root / "fixtures/learning-scenes-v4.json").read_text())
+        migration = (root / "migrations/004_learning_scenes_v4.sql").read_text()
+        self.assertEqual(4, schema["properties"]["databaseVersion"]["const"])
+        self.assertEqual("due_relative", fixture["relativeReminder"]["scheduleKind"])
+        self.assertIn("ALTER TABLE reminders", migration)
+        self.assertIn("PRAGMA user_version = 4", migration)
 
 
 if __name__ == "__main__":

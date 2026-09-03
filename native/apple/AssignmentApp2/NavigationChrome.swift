@@ -214,9 +214,11 @@ struct AssignmentSidebar: View {
                 select(view, animated: true)
             }
         )
-        .help(view.title)
-        .accessibilityLabel(view.title)
-        .accessibilityHint("Shows \(view.title.lowercased()) without hiding the sidebar.")
+        .help(view.localizedTitle)
+        .accessibilityLabel(view.localizedTitle)
+        .accessibilityHint(
+            L10n.tr("Shows %@ without hiding the sidebar.", view.localizedTitle)
+        )
         .accessibilityAddTraits(selection == view ? .isSelected : [])
         .accessibilityIdentifier("sidebar-\(view.rawValue)")
     }
@@ -259,7 +261,7 @@ struct AssignmentSidebar: View {
                 .accessibilityHidden(true)
 
             if displayStyle == .expanded {
-                Text(view.title)
+                Text(view.localizedTitle)
                     .font(.body.weight(selection == view ? .semibold : .regular))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)

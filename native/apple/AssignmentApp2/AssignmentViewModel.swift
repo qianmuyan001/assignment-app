@@ -99,6 +99,39 @@ final class AssignmentViewModel: ObservableObject {
         }
     }
 
+    /// Everything the About page reports.
+    ///
+    /// Counts come from the live repositories rather than a cached copy, so the
+    /// page cannot describe a state the app is not actually in. A repository
+    /// that failed to open contributes zeroes instead of an error, because the
+    /// page's job is to explain the failure, not to add one.
+    func makeVersionInfo() -> AppVersionInfo {
+        let schema = sqliteRepository.flatMap { try? $0.schemaVersion } ?? 0
+        let identity = sqliteRepository.flatMap { try? $0.databaseIdentity } ?? ""
+        let attachments =
+            (try? organizationRepository?.fetchAllAttachments(includeDeleted: false).count) ?? 0
+
+        return AppVersionInfo(
+            marketingVersion: AppVersionInfo.bundleMarketingVersion,
+            buildNumber: AppVersionInfo.bundleBuildNumber,
+            gitSHA: AppVersionInfo.bundleGitSHA,
+            schemaVersion: schema,
+            databaseLocation: databaseLocation,
+            notificationAuthorization: notificationAuthorization,
+            language: L10n.currentLanguage,
+            platform: AppVersionInfo.currentPlatform,
+            osVersion: AppVersionInfo.currentOSVersion,
+            dataSummary: AboutDataSummary(
+                taskCount: assignments.count,
+                courseCount: organizationCourses.count,
+                meetingCount: learningStore.meetings.count,
+                examCount: learningStore.exams.count,
+                attachmentCount: attachments,
+                databaseIdentity: identity
+            )
+        )
+    }
+
     var visibleAssignments: [Assignment] {
         TaskRules.apply(
             to: assignments,

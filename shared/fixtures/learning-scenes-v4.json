@@ -1,0 +1,10 @@
+{
+  "referenceNowUTC": "2026-09-03T01:00:00Z",
+  "timezoneID": "Asia/Shanghai",
+  "course": { "name": "物理 Physics", "colorHex": "#3366CC", "teacher": "李老师" },
+  "meetings": [
+    { "weekday": 4, "startTimeLocal": "09:00:00", "endTimeLocal": "10:30:00", "location": "实验楼 2A" }
+  ],
+  "exam": { "name": "期中考试 🧪", "startsAtLocal": "2026-11-01 14:30:00", "status": "upcoming", "scope": "第 1–6 章" },
+  "relativeReminder": { "scheduleKind": "due_relative", "leadMinutes": 60 }
+}

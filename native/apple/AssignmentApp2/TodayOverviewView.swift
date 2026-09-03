@@ -186,7 +186,9 @@ struct TodayOverviewCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(assignment.title), \(assignment.status.title)")
+        .accessibilityLabel(
+            L10n.tr("%1$@, %2$@", assignment.title, assignment.status.localizedTitle)
+        )
     }
 }
 

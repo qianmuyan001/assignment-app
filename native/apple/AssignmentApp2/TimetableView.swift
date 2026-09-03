@@ -114,7 +114,7 @@ struct TimetableView: View {
         HStack(spacing: 12) {
             Picker("Timetable view", selection: $scope) {
                 ForEach(TimetableScope.allCases) { value in
-                    Text(value.title).tag(value)
+                    Text(value.localizedTitle).tag(value)
                 }
             }
             .pickerStyle(.segmented)
@@ -647,7 +647,7 @@ struct MeetingEditorView: View {
                 Section("Time Zone") {
                     Picker("Zone", selection: $timezoneChoice) {
                         ForEach(LearningTimeZoneChoice.allCases) { choice in
-                            Text(choice.title).tag(choice)
+                            Text(choice.localizedTitle).tag(choice)
                         }
                     }
                     .pickerStyle(.segmented)

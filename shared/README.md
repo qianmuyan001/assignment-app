@@ -1,7 +1,8 @@
 # Assignment App shared contract
 
-This directory is the platform-neutral source of truth. Schema v3 adds task
-organization while retaining the complete v2 compatibility contract.
+This directory is the platform-neutral source of truth. Schema v4 adds Apple
+Phase 3A course meetings, exams, and fixed/due-relative reminder semantics while
+retaining the complete v2/v3 compatibility contract.
 
 - `schemas/`: canonical v2/v3 task fields, identities, relationships, statuses,
   priorities, and database versions.
@@ -11,7 +12,7 @@ organization while retaining the complete v2 compatibility contract.
 - `feature-specs/`: date, filtering, display-mode, organization, migration, and
   acceptance behavior.
 - `task_rules.py`: executable reference implementation used by the shared tests.
-- `schema_v3.py`: executable v3 schema/migration/validation primitives. A
+- `schema_v3.py` and `schema_v4.py`: executable schema/migration/validation primitives. A
   platform caller must create a verified SQLite Online Backup, own the
   transaction, and restore on failure.
 
@@ -24,7 +25,8 @@ python3 -m unittest discover -s shared/tests -v
 These tests create temporary databases only. Do not point them at a user or
 repository database.
 
-The current suite contains 57 tests. Schema v3 validation includes database
+Windows and Web remain on v3 during the Apple preview and must fail closed when
+opening a v4 database. The current suite contains 63 tests. Schema validation includes database
 lineage and UUID contracts, exact index/trigger/foreign-key shapes, active
 subtask-derived parent state, course/project relationship invariants, canonical
 recurrence rules, organization scalar semantics, and attachment metadata-only
