@@ -590,14 +590,17 @@ class AttachmentRead(AttachmentCreate):
 
 
 class ReminderBase(BaseModel):
-    trigger_at_utc: str
-    lead_minutes: int = Field(default=0, ge=0)
+    schedule_kind: Literal["fixed", "due_relative"] = "fixed"
+    trigger_at_utc: str | None = None
+    lead_minutes: int = Field(default=0, ge=0, le=9223372036854775807)
     repeat_rule: str | None = None
     is_enabled: bool = True
 
     @field_validator("trigger_at_utc")
     @classmethod
-    def validate_trigger(cls, value: str) -> str:
+    def validate_trigger(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         cleaned = value.strip()
         if not is_utc_audit_timestamp(cleaned):
             raise ValueError("trigger_at_utc must be canonical ISO-8601 UTC with Z")
@@ -610,12 +613,17 @@ class ReminderBase(BaseModel):
 
 
 class ReminderCreate(ReminderBase):
-    pass
+    @model_validator(mode="after")
+    def validate_fixed_trigger(self) -> ReminderCreate:
+        if self.schedule_kind == "fixed" and self.trigger_at_utc is None:
+            raise ValueError("fixed reminders require trigger_at_utc")
+        return self
 
 
 class ReminderUpdate(BaseModel):
+    schedule_kind: Literal["fixed", "due_relative"] | None = None
     trigger_at_utc: str | None = None
-    lead_minutes: int | None = Field(default=None, ge=0)
+    lead_minutes: int | None = Field(default=None, ge=0, le=9223372036854775807)
     repeat_rule: str | None = None
     is_enabled: bool | None = None
     last_scheduled_at: str | None = None
@@ -643,7 +651,7 @@ class ReminderUpdate(BaseModel):
     def validate_repeat_rule(cls, value: str | None) -> str | None:
         return _validate_repeat_rule(value)
 
-    @field_validator("lead_minutes", "is_enabled")
+    @field_validator("lead_minutes", "is_enabled", "schedule_kind")
     @classmethod
     def validate_required_scalars(cls, value: object) -> object:
         if value is None:
@@ -654,6 +662,8 @@ class ReminderUpdate(BaseModel):
 class ReminderRead(ReminderBase):
     model_config = ConfigDict(from_attributes=True)
 
+    trigger_at_utc: str
+    disabled_reason: str | None = None
     id: int
     uuid: str
     assignment_id: int
