@@ -39,7 +39,7 @@ class MeetingCreate(SceneInput):
     timezone_id: str = Field(min_length=1, max_length=255)
     effective_start_date: str
     effective_end_date: str | None = None
-    location: str | None = Field(default=None, max_length=1000)
+    location: str | None = Field(default=None, max_length=255)
     teacher_override: str | None = Field(default=None, max_length=255)
     sort_order: int = Field(default=0, ge=0, strict=True)
 
@@ -60,7 +60,7 @@ class MeetingUpdate(SceneInput):
     timezone_id: str | None = Field(default=None, min_length=1, max_length=255)
     effective_start_date: str | None = None
     effective_end_date: str | None = None
-    location: str | None = Field(default=None, max_length=1000)
+    location: str | None = Field(default=None, max_length=255)
     teacher_override: str | None = Field(default=None, max_length=255)
     sort_order: int | None = Field(default=None, ge=0, strict=True)
 
@@ -106,9 +106,9 @@ class ExamCreate(SceneInput):
     name: str = Field(min_length=1, max_length=255)
     starts_at_local: str
     timezone_id: str = Field(min_length=1, max_length=255)
-    location: str | None = Field(default=None, max_length=1000)
-    scope: str | None = Field(default=None, max_length=10000)
-    notes: str | None = Field(default=None, max_length=10000)
+    location: str | None = Field(default=None, max_length=255)
+    scope: str | None = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=4000)
     status: ExamStatus = "upcoming"
 
     @field_validator("name")
@@ -142,9 +142,9 @@ class ExamUpdate(SceneInput):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     starts_at_local: str | None = None
     timezone_id: str | None = Field(default=None, min_length=1, max_length=255)
-    location: str | None = Field(default=None, max_length=1000)
-    scope: str | None = Field(default=None, max_length=10000)
-    notes: str | None = Field(default=None, max_length=10000)
+    location: str | None = Field(default=None, max_length=255)
+    scope: str | None = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=4000)
     status: ExamStatus | None = None
 
     @model_validator(mode="after")
@@ -168,7 +168,37 @@ class Occurrence(BaseModel):
     ends_at_utc: str | None
 
 
-class MeetingRead(MeetingCreate):
+class MeetingStored(MeetingCreate):
+    """Read shared-valid payloads without imposing draft UI length limits."""
+    location: str | None = None
+    teacher_override: str | None = None
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def trim_text(cls, value: object) -> object:
+        return value
+
+
+class ExamStored(ExamCreate):
+    name: str
+    location: str | None = None
+    scope: str | None = None
+    notes: str | None = None
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def trim_text(cls, value: object) -> object:
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def require_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name cannot be empty")
+        return value
+
+
+class MeetingRead(MeetingStored):
     # Existing databases may carry extension columns; the API exposes the contract only.
     model_config = ConfigDict(extra="ignore")
     id: int
@@ -181,7 +211,7 @@ class MeetingRead(MeetingCreate):
     occurrences: list[Occurrence] = Field(default_factory=list)
 
 
-class ExamRead(ExamCreate):
+class ExamRead(ExamStored):
     model_config = ConfigDict(extra="ignore")
     id: int
     uuid: str
