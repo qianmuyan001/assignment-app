@@ -14,9 +14,16 @@ from shared.schema_v3 import (
     new_v3_uuid,
 )
 
+from shared.schema_v4 import SchemaV4Error
+
 from .. import models, repositories, schemas
 from ..database import DATABASE_PATH, get_db
 from ..services.attachment_store import AttachmentStore, AttachmentStoreError
+from ..services.reminder_schedule import (
+    decorate_reminder,
+    refresh_relative_reminders,
+    relative_trigger,
+)
 from ..services.task_state import (
     canonical_utc_now,
     recalculate_assignment_from_active_subtasks,
@@ -717,22 +724,47 @@ def create_reminder(
     reminder_in: schemas.ReminderCreate,
     db: Session = Depends(get_db),
 ) -> models.Reminder:
-    get_assignment_or_404(db, assignment_id)
+    assignment = get_assignment_or_404(db, assignment_id)
+    values = reminder_in.model_dump()
+    if values["schedule_kind"] == "due_relative":
+        try:
+            values["trigger_at_utc"] = relative_trigger(assignment, values["lead_minutes"])
+        except SchemaV4Error as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     reminder = models.Reminder(
         uuid=new_v3_uuid(),
         assignment_id=assignment_id,
-        **reminder_in.model_dump(),
+        **values,
     )
     db.add(reminder)
     _commit_or_conflict(db, "Reminder could not be created")
     db.refresh(reminder)
-    return reminder
+    return decorate_reminder(reminder, assignment)
 
 
 @router.get("/reminders/pending", response_model=list[schemas.ReminderRead])
 def list_pending_reminders(
     db: Session = Depends(get_db),
 ) -> list[models.Reminder]:
+    # Refresh the cache from persisted deadlines as Apple does when scheduling;
+    # this also handles a device-zone change for legacy null-zone task rows.
+    parents = db.scalars(
+        select(models.Assignment)
+        .join(models.Reminder, models.Reminder.assignment_id == models.Assignment.id)
+        .where(
+            models.Assignment.deleted_at.is_(None),
+            models.Reminder.deleted_at.is_(None),
+            models.Reminder.schedule_kind == "due_relative",
+        )
+        .distinct()
+    ).all()
+    try:
+        for assignment in parents:
+            refresh_relative_reminders(db, assignment)
+    except SchemaV4Error as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if db.dirty:
+        _commit_or_conflict(db, "Reminder schedules could not be refreshed")
     return repositories.list_schedulable_reminders(db)
 
 
@@ -744,8 +776,8 @@ def list_reminders(
     assignment_id: int,
     db: Session = Depends(get_db),
 ) -> list[models.Reminder]:
-    get_assignment_or_404(db, assignment_id)
-    return list(
+    assignment = get_assignment_or_404(db, assignment_id)
+    reminders = list(
         db.scalars(
             select(models.Reminder)
             .where(
@@ -755,6 +787,7 @@ def list_reminders(
             .order_by(models.Reminder.trigger_at_utc)
         ).all()
     )
+    return [decorate_reminder(reminder, assignment) for reminder in reminders]
 
 
 @router.patch(
@@ -767,14 +800,29 @@ def update_reminder(
     reminder_in: schemas.ReminderUpdate,
     db: Session = Depends(get_db),
 ) -> models.Reminder:
-    get_assignment_or_404(db, assignment_id)
+    assignment = get_assignment_or_404(db, assignment_id)
     reminder = _reminder_or_404(db, assignment_id, reminder_id)
-    for key, value in reminder_in.model_dump(exclude_unset=True).items():
+    updates = reminder_in.model_dump(exclude_unset=True)
+    for key, value in updates.items():
         setattr(reminder, key, value)
+    if reminder.schedule_kind == "due_relative":
+        # A disabled record may be acknowledged or turned off after its task
+        # loses its deadline. Creating/enabling/changing the schedule requires
+        # an actual deadline, and client trigger text is never authoritative.
+        requires_deadline = reminder.is_enabled or bool(
+            {"schedule_kind", "lead_minutes", "trigger_at_utc"}.intersection(updates)
+        )
+        if assignment.due_date is not None or requires_deadline:
+            try:
+                reminder.trigger_at_utc = relative_trigger(assignment, reminder.lead_minutes)
+            except SchemaV4Error as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if {"schedule_kind", "lead_minutes", "trigger_at_utc"}.intersection(updates):
+        reminder.last_scheduled_at = None
     _touch(reminder)
     _commit_or_conflict(db, "Reminder could not be updated")
     db.refresh(reminder)
-    return reminder
+    return decorate_reminder(reminder, assignment)
 
 
 @router.delete(

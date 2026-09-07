@@ -59,9 +59,8 @@ from backend.app.database import (  # noqa: E402 - environment must be isolated 
 )
 from shared.schema_v3 import (  # noqa: E402
     deterministic_v3_uuid,
-    validate_v3_schema,
 )
-from shared.schema_v4 import migrate_v3_to_v4  # noqa: E402
+from shared.schema_v4 import validate_v4_schema  # noqa: E402
 
 
 def _logical_dump(path: Path) -> tuple[str, ...]:
@@ -202,55 +201,37 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.assertNotEqual(DATABASE_PATH.resolve(), _REAL_DATABASE.resolve())
 
-    def test_fresh_database_is_created_directly_as_v3(self) -> None:
+    def test_fresh_database_is_created_directly_as_v4(self) -> None:
         path = self.root / "fresh.db"
         result = migrate_database(path)
         self.assertEqual(result.from_version, 0)
         self.assertEqual(result.to_version, DATABASE_VERSION)
-        self.assertEqual(result.strategy, "create-v3")
+        self.assertEqual(result.strategy, "create-v4")
         self.assertIsNone(result.backup_path)
 
         with closing(sqlite3.connect(path)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
             identity = connection.execute(
                 "SELECT instance_uuid FROM database_identity"
             ).fetchone()[0]
         self.assertEqual(UUID(identity).version, 4)
 
-    def test_v4_database_fails_closed_instead_of_being_written_as_v3(self) -> None:
-        """A Schema v4 database must be rejected, never rewritten with v3 rules.
-
-        `shared/feature-specs/learning-scenes-v4.md` makes this normative for
-        Windows and Web: Apple Phase 3A is the first v4 client, and a v3-only
-        platform that silently opened a v4 database would drop course meetings,
-        exams, and the reminder schedule kind on the next write.
-        """
-        path = self.root / "v4.db"
+    def test_future_database_fails_closed_without_rewriting_payload(self) -> None:
+        """Only unknown versions beyond v4 remain fail-closed."""
+        path = self.root / "future.db"
         migrate_database(path)
         with closing(sqlite3.connect(path)) as connection:
-            connection.execute("PRAGMA foreign_keys = ON")
-            connection.execute("BEGIN IMMEDIATE")
-            migrate_v3_to_v4(connection)
+            connection.execute("PRAGMA user_version = 5")
             connection.commit()
-
+        before = _logical_dump(path)
         with self.assertRaises(DatabaseMigrationError) as caught:
             migrate_database(path)
         self.assertIn("newer than supported", str(caught.exception))
-
-        # Fail closed also means no rewrite: the v4 payload is still intact.
+        self.assertEqual(_logical_dump(path), before)
         with closing(sqlite3.connect(path)) as connection:
-            self.assertEqual(
-                connection.execute("PRAGMA user_version").fetchone()[0], 4
-            )
-            tables = {
-                row[0]
-                for row in connection.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
-        self.assertTrue({"course_meetings", "exams"}.issubset(tables))
-        self.assertEqual(DATABASE_VERSION, 3)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 5)
+        self.assertEqual(DATABASE_VERSION, 4)
 
     def test_v2_migration_preserves_payload_and_creates_standalone_backup(self) -> None:
         path = self.root / "v2.db"
@@ -263,7 +244,7 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         result = migrate_database(path)
         self.assertTrue(result.migrated)
         self.assertEqual(result.from_version, 2)
-        self.assertEqual(result.strategy, "v2-v3-additive")
+        self.assertEqual(result.strategy, "v2-v3-additive+v3-v4-additive")
         self.assertIsNotNone(result.backup_path)
         backup_path = result.backup_path
         assert backup_path is not None
@@ -277,7 +258,7 @@ class BackendDatabaseV3Tests(unittest.TestCase):
             self.assertEqual(backup.execute("PRAGMA integrity_check").fetchone()[0], "ok")
         with closing(sqlite3.connect(path)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
             after = connection.execute(
                 """
                 SELECT id, course_name, title, due_date, description, link,
@@ -309,10 +290,10 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         result = migrate_database(path)
         self.assertEqual(result.from_version, 1)
         self.assertTrue(result.strategy.startswith("v1-v2-"))
-        self.assertTrue(result.strategy.endswith("+v2-v3-additive"))
+        self.assertTrue(result.strategy.endswith("+v2-v3-additive+v3-v4-additive"))
         with closing(sqlite3.connect(path)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
             row = connection.execute(
                 "SELECT id, title, due_date, status FROM assignments"
             ).fetchone()
@@ -336,7 +317,7 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         with closing(sqlite3.connect(path)) as connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 2)
             self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
-        self.assertEqual(len(list(self.root.glob("failure.db.v2-to-v3.*.bak"))), 1)
+        self.assertEqual(len(list(self.root.glob("failure.db.v2-to-v4.*.bak"))), 1)
 
     def test_failed_wal_migration_keeps_inode_and_old_connection_usable(self) -> None:
         path = self.root / "wal-failure.db"
@@ -411,7 +392,7 @@ class BackendDatabaseV3Tests(unittest.TestCase):
                 ).fetchone()[0],
                 "newer valid write",
             )
-        backups = list(self.root.glob("concurrent-write.db.v2-to-v3.*.bak"))
+        backups = list(self.root.glob("concurrent-write.db.v2-to-v4.*.bak"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(_logical_dump(backups[0]), original_dump)
 
@@ -430,7 +411,7 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         self.assertIn("preserved without overwrite", str(raised.exception))
         self.assertEqual(path.stat().st_ino, inode_before)
         self.assertNotEqual(_logical_dump(path), original_dump)
-        backups = list(self.root.glob("unsafe-commit.db.v2-to-v3.*.bak"))
+        backups = list(self.root.glob("unsafe-commit.db.v2-to-v4.*.bak"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(_logical_dump(backups[0]), original_dump)
 
@@ -461,14 +442,14 @@ class BackendDatabaseV3Tests(unittest.TestCase):
         second.close()
         self.assertEqual([item[0] for item in results], ["ok", "ok"])
         self.assertEqual(sorted(item[1] for item in results), [False, True])
-        self.assertEqual(len(list(self.root.glob("concurrent.db.v2-to-v3.*.bak"))), 1)
+        self.assertEqual(len(list(self.root.glob("concurrent.db.v2-to-v4.*.bak"))), 1)
         with closing(sqlite3.connect(path)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
 
     def test_sqlalchemy_connections_enable_foreign_keys_and_busy_timeout(self) -> None:
         result = ensure_assignment_schema()
-        self.assertEqual(result.to_version, 3)
+        self.assertEqual(result.to_version, 4)
         with engine.connect() as connection:
             self.assertEqual(connection.exec_driver_sql("PRAGMA foreign_keys").scalar(), 1)
             self.assertEqual(connection.exec_driver_sql("PRAGMA busy_timeout").scalar(), 10000)

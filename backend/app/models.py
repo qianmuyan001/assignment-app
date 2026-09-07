@@ -267,6 +267,7 @@ class Reminder(Base):
     assignment_id: Mapped[int] = mapped_column(
         ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False
     )
+    schedule_kind: Mapped[str] = mapped_column(Text, nullable=False, default="fixed")
     trigger_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
     lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     repeat_rule: Mapped[str | None] = mapped_column(Text, nullable=True)
