@@ -17,7 +17,7 @@ import uuid
 def simctl(*arguments, capture=False):
     command = ["xcrun", "simctl", *arguments]
     print("+ " + " ".join(command), flush=True)
-    result = subprocess.run(command, check=True, text=True, capture_output=capture)
+    result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE if capture else None)
     return result.stdout.strip() if capture else None
 
 
