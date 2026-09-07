@@ -33,6 +33,7 @@ export DEVELOPER_DIR
 
 DERIVED_DATA="$ASSIGNMENT_DERIVED_DATA"
 RUN_STAMP="$ASSIGNMENT_RUN_STAMP"
+PACKAGE_CREATED_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ "${ASSIGNMENT_LOCAL_RUNNABLE:-0}" != "0" ]]; then
   echo "Internal packages require App Sandbox; unsandboxed packaging is no longer supported." >&2
   exit 1
@@ -296,7 +297,8 @@ capture_crash_report() {
 write_build_info() {
   {
     echo "Assignment App $VERSION Apple Debug package"
-    echo "created_utc=$RUN_STAMP"
+    echo "created_utc=$PACKAGE_CREATED_UTC"
+    echo "run_stamp=$RUN_STAMP"
     echo "scheme=AssignmentApp2"
     echo "configuration=Debug"
     echo "destination=$DESTINATION"
