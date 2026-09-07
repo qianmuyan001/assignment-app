@@ -80,3 +80,15 @@ test('server cancellation suppresses reminders even with a stale local task list
     assert.equal(reminderIsDue({...reminder, disabled_reason: reason}, from, now.getTime()), false);
   }
 });
+
+test('server-resolved due instant takes precedence over browser-local fallback', () => {
+  const item = {...task('2026-09-09 18:00:00'), due_at_utc: '2026-09-09T10:00:00Z'};
+  assert.equal(dueInstant(item).toISOString(), '2026-09-09T10:00:00.000Z');
+  assert.equal(matchesScope(item, 'overdue', now), true);
+});
+test('explicitly unresolved server deadline never falls back to a guessed instant', () => {
+  const item = {...task('2026-09-09 18:00:00'), due_at_utc: null};
+  assert.equal(dueInstant(item), null);
+  assert.equal(matchesScope(item, 'today', now, 'UTC'), false);
+  assert.equal(dueInstant({...item, due_at_utc: 'not-a-date'}), null);
+});
