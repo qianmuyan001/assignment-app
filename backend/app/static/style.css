@@ -1579,7 +1579,7 @@ html[data-resolved-theme="light"] .error-message { color: var(--danger); }
 .strip-value { color: var(--text); font-size: 1.2rem; }
 .strip-label { color: var(--muted); }
 .learning-heading > .primary-button, .settings-section > .primary-button { width: auto; }
-input::placeholder, textarea::placeholder { color: var(--muted); opacity: .85; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 html[data-resolved-theme="light"] :is(input,select,textarea) { border-color: var(--border); }
 html[data-resolved-theme="light"] select { background-image: linear-gradient(45deg,transparent 50%,#516559 50%),linear-gradient(135deg,#516559 50%,transparent 50%); }
 html[data-resolved-theme="light"] .delete-button { color: var(--danger); border-color: #e9b8c0; }

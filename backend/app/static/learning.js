@@ -289,7 +289,7 @@ async function renderSettings(parent) {
   importForm.addEventListener("submit", async event => {
     event.preventDefault(); if (check.disabled) return;
     const file = fileField.input.files[0]; if (!file) { announce(tr("Choose a ZIP backup first."), true); return; }
-    check.disabled = true; preview.replaceChildren(translated("p", "Loading…"));
+    check.disabled = true; fileField.input.disabled = true; preview.replaceChildren(translated("p", "Loading…"));
     try {
       const result = await apiRequest("/backups/preflight", { method: "POST", headers: { "Content-Type": "application/zip" }, body: file });
       preview.replaceChildren(translated("p", "Backup checked. Review the contents before restoring."));
@@ -306,7 +306,7 @@ async function renderSettings(parent) {
       }, "delete-button"); restore.disabled = true;
       confirmation.input.addEventListener("change", () => restore.disabled = !confirmation.input.checked); preview.append(confirmation.wrapper,restore);
     } catch (error) { preview.replaceChildren(element("p", error.message, "view-error")); preview.firstChild.setAttribute("role", "alert"); }
-    finally { check.disabled = false; }
+    finally { check.disabled = false; fileField.input.disabled = false; }
   }); parent.append(backupSection);
   const about = element("section", null, "settings-section"); about.append(translated("h3", "About"), element("p", `Assignment App · ${tr("Version")} ${info.version}`), translated("p", "This workspace uses Schema v4.", "muted"));
   const details = element("details"), summary = translated("summary", "Changelog"), entries = element("ul", null, "changelog");
