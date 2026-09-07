@@ -8,7 +8,7 @@ PROJECT="$SCRIPT_DIR/AssignmentApp2.xcodeproj"
 VERSION="$(tr -d '[:space:]' < "$REPOSITORY_ROOT/VERSION")"
 
 : "${DEVELOPER_DIR:=/Applications/Xcode-beta.app/Contents/Developer}"
-: "${ASSIGNMENT_DERIVED_DATA:=/private/tmp/assignment-app-xcode-derived-data}"
+: "${ASSIGNMENT_DERIVED_DATA:=/private/tmp/assignment-app-catalyst-derived-$(uuidgen)}"
 : "${ASSIGNMENT_ARTIFACT_ROOT:=$REPOSITORY_ROOT/artifacts/apple}"
 : "${ASSIGNMENT_RUN_STAMP:=$(date -u +%Y%m%d-%H%M%SZ)}"
 : "${ASSIGNMENT_CATALYST_ARCH:=arm64}"
