@@ -436,6 +436,13 @@ enum LearningRules {
         return symbols[weekday % 7]
     }
 
+    /// Foundation reports the zero-offset system zone as `GMT`, while the
+    /// shared storage contract names that zone `UTC`. Only normalize this
+    /// known system alias; custom input still uses strict IANA validation.
+    static func systemTimeZoneIdentifier(_ timeZone: TimeZone = .current) -> String {
+        timeZone.identifier == "GMT" ? "UTC" : timeZone.identifier
+    }
+
     static func validatedTimeZone(_ identifier: String) throws -> TimeZone {
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, isIANATimeZoneIdentifier(trimmed) else {

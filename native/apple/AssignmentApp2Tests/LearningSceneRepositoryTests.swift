@@ -233,6 +233,63 @@ private func learningMeetingDraft(
 @Suite("Schema v4 migration and learning-scene repository")
 struct LearningSceneRepositoryTests {
 
+    @Test("A meeting using the editor's system GMT default saves as schema-valid UTC")
+    func meetingSavesWithSystemGMTDefault() throws {
+        let gmt = try #require(TimeZone(secondsFromGMT: 0))
+        let identifier = LearningTimeZoneChoice.system.resolvedIdentifier(
+            customIdentifier: "",
+            systemTimeZone: gmt
+        )
+        try withLearningSceneFixture(fileName: "meeting-system-gmt.db") { fixture in
+            let meeting = try fixture.organization.createMeeting(learningMeetingDraft(
+                courseID: fixture.course.id,
+                weekday: 1,
+                start: "09:00:00",
+                end: "10:00:00",
+                timezoneID: identifier
+            ))
+            #expect(meeting.timezoneID == "UTC")
+            #expect(try fixture.organization.fetchMeetings(
+                courseID: fixture.course.id,
+                includeDeleted: false
+            ).first?.timezoneID == "UTC")
+            try learningWithSQLite(at: fixture.database.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV4.validate(on: $0)
+            }
+        }
+    }
+
+    @Test("An exam using the editor's system GMT default preserves its UTC instant")
+    func examSavesWithSystemGMTDefault() throws {
+        let gmt = try #require(TimeZone(secondsFromGMT: 0))
+        let identifier = LearningTimeZoneChoice.system.resolvedIdentifier(
+            customIdentifier: "",
+            systemTimeZone: gmt
+        )
+        try withLearningSceneFixture(fileName: "exam-system-gmt.db") { fixture in
+            let exam = try fixture.organization.createExam(.init(
+                courseID: fixture.course.id,
+                name: "UTC exam",
+                startsAtLocal: "2026-11-10 09:00:00",
+                timezoneID: identifier
+            ))
+            #expect(exam.timezoneID == "UTC")
+            let expectedStart = try #require(
+                ISO8601DateFormatter().date(from: "2026-11-10T09:00:00Z")
+            )
+            #expect(exam.startsAtUTC == expectedStart)
+            #expect(try fixture.organization.fetchExams(
+                courseID: fixture.course.id,
+                includeDeleted: false
+            ).first?.timezoneID == "UTC")
+            try learningWithSQLite(at: fixture.database.databaseURL) {
+                try SQLiteSupport.configure($0)
+                try SQLiteSchemaV4.validate(on: $0)
+            }
+        }
+    }
+
     @Test("v3 to v4 migration keeps every reminder on fixed-trigger semantics")
     func v3ToV4KeepsFixedReminders() throws {
         try withTemporarySQLiteDatabase(fileName: "v3-to-v4.db") { temporary in

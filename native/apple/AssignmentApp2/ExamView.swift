@@ -568,11 +568,7 @@ struct ExamEditorView: View {
     }
 
     private var resolvedTimeZoneIdentifier: String {
-        switch timezoneChoice {
-        case .system: return TimeZone.current.identifier
-        case .utc: return "UTC"
-        case .custom: return customTimezone.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        timezoneChoice.resolvedIdentifier(customIdentifier: customTimezone)
     }
 
     private var resolvedTimeZoneSummary: String {
