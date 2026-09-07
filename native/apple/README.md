@@ -116,30 +116,37 @@ Catalyst. Its display name is **Assignment App** and its bundle identifier is
 
 ## Database and 1.0 compatibility
 
-The app is offline-first and opens a SQLite database in its own application
-container. iPadOS uses its normal app data container. The ad-hoc Catalyst test
-package is signed with App Sandbox enabled and resolves to:
+The app is offline-first and opens SQLite in its application container. The
+normal app uses `com.qianmuyan.assignmentapp`. Internal Catalyst packages made
+by `package-catalyst.sh` instead retain a per-package identity:
 
 ```text
-~/Library/Containers/com.qianmuyan.assignmentapp/Data/Library/Application Support/AssignmentApp2/assignments.db
+com.qianmuyan.assignmentapp.rcsmoke.<UUID>
+~/Library/Containers/<that unique ID>/Data/Library/Application Support/AssignmentApp2/assignments.db
 ```
 
-It never scans the repository for `backend/assignments.db` and never resets an
-existing database. For an isolated development or migration test, point the app
-at an explicit disposable file:
+The actual ZIP has that identity before ad-hoc signing. LaunchServices smoke
+uses `open -n` with the extracted app's absolute path, verifies the actual open
+database with `lsof`, and validates Schema v4 only after its path matches the
+unique container. No environment-variable propagation is required. The app
+fails before database access if its internal identity or sandbox path is invalid,
+and ignores `ASSIGNMENT_DB_PATH` for these packages. Attachment storage uses the
+same isolated data root. The smoke terminates its process and verifies file
+handles are closed before deleting its data. Opening the ZIP's app later still
+uses its separate test container.
 
-```bash
-ASSIGNMENT_DB_PATH="$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp/assignment-app-smoke/assignments.db" \
-  "/path/to/Assignment App.app/Contents/MacOS/Assignment App"
-```
+Run `./native/apple/package-catalyst.sh` from a clean checkout to generate the
+internal package. The script records production database, sidecar and attachment
+fingerprints before/after, without opening a SQLite connection to production.
+Packages are ad-hoc, not notarized, and are not formal releases. Unsandboxed
+packaging is rejected.
 
-That DEBUG-only override must remain inside the Catalyst sandbox container.
-Tests that load the repository without launching the sandboxed package use
-independent UUID-named directories under `/private/tmp`. Before the SwiftUI app
-creates its test-host view model, DEBUG builds recognize XCTest injection and
-route the implicit host repository to a process-unique `/private/tmp` path. A
-fatal guard rejects XCTest access to `~/Library/Application Support` or
-`~/Library/Containers`, and stderr records only the isolated path for auditing.
+UI smoke tests pass `-assignmentApp.testDatabaseToken <UUID>` through launch
+arguments and use a fresh database under the app's own temporary directory.
+Each test terminates the app before cleanup; a dedicated simulator is deleted
+after the suite. Unit-test hosts recognize XCTest injection before creating
+the default view model and use process-unique `/private/tmp` storage. Invalid
+XCTest paths fail closed. Test logs include the actual isolated database path.
 
 To use a 1.0 database, copy it first and run the app against the copy, or place
 the copy at the app-container path before first launch. A database with an
