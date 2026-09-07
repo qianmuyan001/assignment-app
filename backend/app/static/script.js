@@ -1004,7 +1004,7 @@ function renderDetail() {
 
   setText(view.course, assignment.course_name || tr("No course"));
   setText(view.title, assignment.title || tr("Untitled assignment"));
-  setText(view.due, formatDate(assignment.due_date) || tr("No due date"));
+  setText(view.due, formatTaskDeadline(assignment) || tr("No due date"));
   setText(view.statusChip, tr(status));
   setText(view.priorityChip, tr(normalizePriority(assignment.priority)));
   setText(view.progressChip, `${progress}% ${preferences.language === "zh-CN" ? "进度" : "progress"}`);
@@ -1026,7 +1026,7 @@ function renderDetail() {
   view.expandButton.setAttribute("aria-expanded", String(state.detailExpanded));
   view.extraWrap.classList.toggle("is-open", state.detailExpanded);
 
-  setDetailRow(view.rows.due, formatDate(assignment.due_date) || tr("None"));
+  setDetailRow(view.rows.due, formatTaskDeadline(assignment) || tr("None"));
   setDetailRow(view.rows.description, assignment.description || tr("None"));
   setDetailRow(view.rows.sourceName, assignment.source_name || tr("None"));
   setDetailRow(view.rows.created, formatDate(assignment.created_at) || tr("None"));
@@ -1396,6 +1396,9 @@ function createOption(value, label) {
 
 async function createAssignment(event) {
   event.preventDefault();
+  const submit = dom.form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
   hideError();
 
   const formData = new FormData(dom.form);
@@ -1416,6 +1419,7 @@ async function createAssignment(event) {
   if (projectId) payload.project_id = projectId;
 
   const tagIds = selectedTagIds();
+  const tagFailures = [];
 
   try {
     const created = await apiRequest("/assignments", {
@@ -1430,7 +1434,7 @@ async function createAssignment(event) {
           method: "POST",
         });
       } catch (tagError) {
-        showError(`Linked tag failed: ${tagError.message}`);
+        tagFailures.push(tagError.message);
       }
     }
 
@@ -1440,8 +1444,11 @@ async function createAssignment(event) {
     resetOrgForm();
     closeDialog();
     await loadAssignments();
+    if (tagFailures.length) showError(tagFailures.join("\n"));
   } catch (error) {
     showError(error.message);
+  } finally {
+    submit.disabled = false;
   }
 }
 
@@ -1469,8 +1476,8 @@ async function changeStatus(assignment, nextStatus) {
     await loadAssignments();
   } catch (error) {
     assignment.status = previousStatus;
-    showError(error.message);
     await loadAssignments();
+    showError(error.message);
   }
 }
 
@@ -1491,13 +1498,15 @@ async function deleteAssignment(assignment) {
   updateSummaryCounts();
   applyFilters();
 
+  let failure = null;
   try {
     await apiRequest(`/assignments/${assignment.id}`, { method: "DELETE" });
   } catch (error) {
-    showError(error.message);
+    failure = error;
   }
 
   await loadAssignments();
+  if (failure) showError(failure.message);
 }
 
 async function saveAssignment(assignment, form) {
@@ -1507,6 +1516,9 @@ async function saveAssignment(assignment, form) {
     return;
   }
 
+  const submit = form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
   const formData = new FormData(form);
   const courseIdRaw = form.querySelector('select[name="course_id"]')?.value || "";
   const projectIdRaw = form.querySelector('select[name="project_id"]')?.value || "";
@@ -1577,6 +1589,8 @@ async function saveAssignment(assignment, form) {
     await loadAssignments();
   } catch (error) {
     showError(error.message);
+  } finally {
+    submit.disabled = false;
   }
 }
 
@@ -1706,7 +1720,7 @@ function describeDueDate(assignment) {
     return tr("Past due");
   }
 
-  return formatDate(assignment.due_date);
+  return formatTaskDeadline(assignment);
 }
 
 /* The API serialises naive local wall times as "YYYY-MM-DD HH:MM". Passing that
@@ -1742,6 +1756,12 @@ function parseDate(value) {
 function getDueTime(value) {
   const date = parseDate(value);
   return date ? date.getTime() : null;
+}
+
+function formatTaskDeadline(assignment) {
+  const date = LearningCore.dueInstant(assignment);
+  const zone = assignment.timezone_id || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return date ? `${date.toLocaleString(localeName(), {timeZone: zone})} · ${zone}` : tr("No due date");
 }
 
 function formatDate(value) {
@@ -1836,6 +1856,8 @@ function showError(message) {
     let notice = dialog.querySelector(".dialog-error");
     if (!notice) { notice = document.createElement("p"); notice.className = "dialog-error error-message visible"; notice.setAttribute("role", "alert"); dialog.querySelector(".dialog-header").after(notice); }
     notice.textContent = message;
+    notice.tabIndex = -1;
+    notice.focus();
   }
   dom.errorMessage.textContent = message;
   dom.errorMessage.classList.add("visible");
@@ -2108,8 +2130,11 @@ function toUtcIso(localDateTime) {
 
 async function renderSubtasks(view, assignment) {
   const { list, form } = view.orgSubtasks;
+  list.dataset.assignmentId = String(assignment.id);
+  list.replaceChildren(createEmptyMessage("Loading…"));
   try {
     const subtasks = await apiRequest(`/assignments/${assignment.id}/subtasks`);
+    if (list.dataset.assignmentId !== String(assignment.id)) return;
     list.replaceChildren();
     if (!subtasks.length) list.appendChild(createEmptyMessage("No subtasks yet."));
     (subtasks || []).forEach((sub) => {
@@ -2194,8 +2219,11 @@ function createSubtaskRow(sub, assignment, view) {
 
 async function renderAttachments(view, assignment) {
   const { list, form } = view.orgAttachments;
+  list.dataset.assignmentId = String(assignment.id);
+  list.replaceChildren(createEmptyMessage("Loading…"));
   try {
     const items = await apiRequest(`/assignments/${assignment.id}/attachments`);
+    if (list.dataset.assignmentId !== String(assignment.id)) return;
     list.replaceChildren();
     if (!items.length) list.appendChild(createEmptyMessage("No attachments yet."));
     (items || []).forEach((attachment) => {
@@ -2493,11 +2521,20 @@ function initOrg() {
 
   if (dom.orgDialog) {
     dom.orgDialog.querySelectorAll(".org-tab").forEach((tab) => {
+      tab.setAttribute("aria-selected", String(tab.classList.contains("is-active")));
+      tab.tabIndex = tab.classList.contains("is-active") ? 0 : -1;
+      tab.addEventListener("keydown", event => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = [...dom.orgDialog.querySelectorAll(".org-tab")], index = tabs.indexOf(tab);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
+        tabs[next].click(); tabs[next].focus();
+      });
       tab.addEventListener("click", () => {
         const target = tab.dataset.orgTab;
         dom.orgDialog
           .querySelectorAll(".org-tab")
-          .forEach((t) => t.classList.toggle("is-active", t === tab));
+          .forEach((t) => { t.classList.toggle("is-active", t === tab); t.setAttribute("aria-selected", String(t === tab)); t.tabIndex = t === tab ? 0 : -1; });
         dom.orgDialog
           .querySelectorAll(".org-panel")
           .forEach((panel) => {

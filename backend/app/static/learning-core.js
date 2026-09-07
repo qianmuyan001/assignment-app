@@ -29,21 +29,25 @@ const LearningCore = (() => {
     const done = ["done", "completed"].includes(task.status);
     if (scope === "all") return true;
     if (scope === "completed") return done;
-    if (done) return false;
     const due = dueInstant(task);
     if (!due) return false;
     const today = dateKey(now, zone), date = dateKey(due, zone);
     if (scope === "today") return date === today;
-    if (scope === "overdue") return due < now;
+    if (scope === "overdue") return !done && due < now;
     const start = new Date(`${today}T12:00:00Z`);
     start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
     const end = new Date(start); end.setUTCDate(end.getUTCDate() + 7);
     return date >= start.toISOString().slice(0, 10) && date < end.toISOString().slice(0, 10);
   }
+  function reminderIsDue(reminder, from, now) {
+    const instant = new Date(reminder.trigger_at_utc).getTime();
+    return reminder.is_enabled && !reminder.disabled_reason && instant > from && instant <= now &&
+      (!reminder.last_scheduled_at || new Date(reminder.last_scheduled_at).getTime() < instant);
+  }
   function normalizePreferences(value = {}) {
     if (!value || typeof value !== "object") value = {};
     return { language: ["en", "zh-CN"].includes(value.language) ? value.language : "en", theme: ["system", "light", "dark"].includes(value.theme) ? value.theme : "system", mode: ["simple", "professional"].includes(value.mode) ? value.mode : "professional" };
   }
-  return { dateKey, wallInstant, dueInstant, matchesScope, normalizePreferences };
+  return { dateKey, wallInstant, dueInstant, matchesScope, reminderIsDue, normalizePreferences };
 })();
 if (typeof module !== "undefined") module.exports = LearningCore;
