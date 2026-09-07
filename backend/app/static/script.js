@@ -1172,6 +1172,7 @@ function renderEditForm(assignment) {
 
   const save = document.createElement("button");
   save.type = "submit";
+  save.className = "primary-button";
   save.textContent = tr('Save');
 
   const cancel = document.createElement("button");
