@@ -1604,3 +1604,14 @@ html[data-resolved-theme="light"] .primary-button { box-shadow: none; }
   .strip-label { font-size: .67rem; }
   .brand-area { align-items: center; }
 }
+
+/* Background shorthands on learning controls must not stretch select arrows. */
+select,
+:is(.view-filters, .settings-controls, .learning-form, .reminder-form) select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-size: 5px 5px, 5px 5px;
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+:is(.view-filters, .settings-controls, .learning-form, .reminder-form) select { background-color: var(--control-solid); }

@@ -1660,37 +1660,7 @@ function normalizePriority(value) {
 }
 
 function getProgress(assignment) {
-  const status = normalizeStatus(assignment.status);
-
-  if (status === "done") {
-    return 100;
-  }
-
-  if (status === "in_progress") {
-    return 64;
-  }
-
-  const dueTime = LearningCore.dueInstant(assignment)?.getTime() ?? null;
-
-  if (dueTime === null) {
-    return 24;
-  }
-
-  const hoursLeft = (dueTime - Date.now()) / 3600000;
-
-  if (hoursLeft < 0) {
-    return 82;
-  }
-
-  if (hoursLeft <= 24) {
-    return 58;
-  }
-
-  if (hoursLeft <= 72) {
-    return 42;
-  }
-
-  return 22;
+  return LearningCore.progressPercent(assignment);
 }
 
 function isPastDue(assignment) {
