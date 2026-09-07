@@ -1,0 +1,48 @@
+{
+  "source_sha": "704a3b5fd5b812b38d975c7359029b7f3288b981",
+  "checks": {
+    "diff_check": {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "a181e9ef706f5e254c1bd33c74f26f0be9f5bba5"
+      ],
+      "exit_code": 0,
+      "passed": true,
+      "output": ""
+    },
+    "version_sync": {
+      "command": [
+        "/private/tmp/assignment-web-phase3a-env/bin/python",
+        "scripts/check_version_sync.py"
+      ],
+      "exit_code": 0,
+      "passed": true,
+      "output": "version-sync: OK (root, README, CHANGELOG, Apple, Windows = 2.1.0)\n"
+    },
+    "conflict_markers": {
+      "command": [
+        "rg",
+        "-n",
+        "^(<<<<<<< |=======|>>>>>>> )",
+        "backend",
+        "shared/tests/test_v2_contract.py",
+        "requirements-dev.txt"
+      ],
+      "exit_code": 1,
+      "passed": true,
+      "output": ""
+    },
+    "pylint": {
+      "command": "PYTHONPATH=. python -m pylint --errors-only $(git ls-files \"*.py\")",
+      "exit_code": 0,
+      "passed": true,
+      "output": "",
+      "source_sha": "704a3b5fd5b812b38d975c7359029b7f3288b981"
+    },
+    "version_unchanged": "2.1.0",
+    "shared_source_unchanged": true,
+    "apple_windows_readme_version_unchanged": true
+  }
+}
