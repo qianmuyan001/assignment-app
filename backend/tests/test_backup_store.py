@@ -121,6 +121,14 @@ class BackupStoreTests(unittest.TestCase):
         self.assertEqual(self.payload.read_bytes(), b"live payload must survive")
         self.assertFalse(self.store.journal.exists())
 
+    def test_restore_repairs_attachment_when_database_metadata_is_identical(self):
+        preview = self.store.preflight(self.archive())
+        before = self.fingerprint()
+        self.payload.write_bytes(b"damaged payload with unchanged metadata")
+        self.store.restore(preview["token"])
+        self.assertEqual(self.fingerprint(), before)
+        self.assertEqual(self.payload.read_bytes(), self.content)
+
     def test_corrupt_zip_rejected_without_database_changes(self):
         before = self.fingerprint()
         corrupted = self.root / "broken.zip"

@@ -307,7 +307,10 @@ class BackupStore:
             actual = _fingerprint(connection)
         if actual not in (journal["old_fingerprint"], journal["new_fingerprint"]):
             raise BackupError("Interrupted restore has unexpected database contents; recovery evidence retained")
-        if actual == journal["old_fingerprint"] and old.exists():
+        # Identical old/new metadata is already consistent with the verified
+        # imported payloads. Prefer finishing that restore (also repairs a
+        # damaged live attachment whose metadata never changed).
+        if actual != journal["new_fingerprint"] and old.exists():
             current = self.payloads.attachments_root
             if current.exists():
                 shutil.rmtree(current)
