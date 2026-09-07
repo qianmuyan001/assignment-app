@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
 from . import models
-from .database import DATABASE_PATH, ensure_assignment_schema
-from .routers import assignments, organization, backups
+from .database import DATABASE_PATH, ensure_assignment_schema, _migration_lock
+from .routers import assignments, organization, backups, learning
 from .services.attachment_store import reconcile_attachment_files
 from .services.backup_store import BackupError, BackupStore
 from .services.maintenance import MaintenanceGate
@@ -20,8 +20,9 @@ from .services.maintenance import MaintenanceGate
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 ensure_assignment_schema()
-BackupStore(DATABASE_PATH).recover_interrupted_restore()
-reconcile_attachment_files(DATABASE_PATH)
+with _migration_lock(DATABASE_PATH):
+    BackupStore(DATABASE_PATH).recover_interrupted_restore()
+    reconcile_attachment_files(DATABASE_PATH)
 
 app = FastAPI(title="Assignment Organizer API")
 app.add_middleware(MaintenanceGate, database_path=DATABASE_PATH)
@@ -70,6 +71,7 @@ app.add_middleware(
 app.include_router(assignments.router)
 app.include_router(organization.router)
 app.include_router(backups.router)
+app.include_router(learning.router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

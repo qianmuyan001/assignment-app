@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import hashlib
 import json
 import os
@@ -27,7 +29,7 @@ class BackupStoreTests(unittest.TestCase):
         self.content = "学习笔记\nattachment bytes\x00".encode()
         self.store = BackupStore(self.path)
         self.store.prepare()
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("PRAGMA foreign_keys=ON")
             connection.execute("BEGIN IMMEDIATE")
             create_v3_schema(connection)
@@ -54,7 +56,7 @@ class BackupStoreTests(unittest.TestCase):
         self.payload.write_bytes(self.content)
 
     def fingerprint(self):
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             return _fingerprint(connection)
 
     def archive(self):
@@ -72,7 +74,7 @@ class BackupStoreTests(unittest.TestCase):
         return target
 
     def test_snapshot_includes_committed_wal_and_all_payloads(self):
-        with sqlite3.connect(self.path) as writer:
+        with closing(sqlite3.connect(self.path)) as writer, writer:
             writer.execute("PRAGMA journal_mode=WAL")
             writer.execute("PRAGMA wal_autocheckpoint=0")
             writer.execute("UPDATE assignments SET title='WAL committed title'")
@@ -82,7 +84,7 @@ class BackupStoreTests(unittest.TestCase):
                 self.assertEqual(package.read(f"attachments/{self.attachment_uuid}"), self.content)
                 snapshot = self.root / "snapshot.sqlite3"
                 snapshot.write_bytes(package.read("database.sqlite3"))
-            with sqlite3.connect(snapshot) as restored:
+            with closing(sqlite3.connect(snapshot)) as restored, restored:
                 self.assertEqual(restored.execute("SELECT title FROM assignments").fetchone()[0],
                                  "WAL committed title")
                 self.assertEqual(restored.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
@@ -95,7 +97,7 @@ class BackupStoreTests(unittest.TestCase):
         preview = self.store.preflight(archive)
         self.assertEqual(self.fingerprint(), before_preflight)
         self.assertEqual(preview["summary"]["attachment_count"], 1)
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("UPDATE assignments SET title='After backup'")
         self.payload.write_bytes(b"changed after backup")
         result = self.store.restore(preview["token"])
@@ -107,7 +109,7 @@ class BackupStoreTests(unittest.TestCase):
 
     def test_failure_after_attachment_swap_rolls_back_both_stores(self):
         preview = self.store.preflight(self.archive())
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("UPDATE assignments SET title='Must survive restore failure'")
         self.payload.write_bytes(b"live payload must survive")
         expected = self.fingerprint()
@@ -198,12 +200,75 @@ class BackupStoreTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(BackupError):
                 self.store.download_path(value)
 
+    def test_staged_database_is_reverified_at_confirmation(self):
+        preview = self.store.preflight(self.archive())
+        staged = self.store.root / f"preflight-{preview['token']}" / "database.sqlite3"
+        with closing(sqlite3.connect(staged)) as connection, connection:
+            connection.execute("UPDATE assignments SET title='Changed after inspection'")
+        before = self.fingerprint()
+        with self.assertRaisesRegex(BackupError, "Preflight database changed"):
+            self.store.restore(preview["token"])
+        self.assertEqual(self.fingerprint(), before)
+
+    def test_older_backup_restores_after_autoincrement_extension_was_added(self):
+        before = self.fingerprint()
+        preview = self.store.preflight(self.archive())
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            connection.execute("CREATE TABLE newer_extension(id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT)")
+            connection.execute("INSERT INTO newer_extension(text) VALUES('new data')")
+        self.store.restore(preview["token"])
+        self.assertEqual(self.fingerprint(), before)
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            self.assertIsNone(connection.execute("SELECT name FROM sqlite_master WHERE name='newer_extension'").fetchone())
+
     def test_future_schema_rejected_at_export(self):
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("PRAGMA user_version=5")
         before = self.fingerprint()
         with self.assertRaisesRegex(BackupError, "Unsupported"):
             self.store.create()
+        self.assertEqual(self.fingerprint(), before)
+
+    def test_v3_archive_preflight_migrates_only_snapshot_and_restores_fixed_reminder(self):
+        legacy_root = self.root / "legacy"
+        legacy_root.mkdir()
+        legacy_path = legacy_root / "legacy.sqlite3"
+        with closing(sqlite3.connect(legacy_path)) as connection, connection:
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("BEGIN IMMEDIATE")
+            create_v3_schema(connection)
+            connection.execute("INSERT INTO assignments(uuid,course_name,title,created_at,updated_at) "
+                               "VALUES(?,'Legacy','v3 task','2026-09-07T00:00:00.000Z','2026-09-07T00:00:00.000Z')", (str(uuid4()),))
+            connection.execute("INSERT INTO reminders(uuid,assignment_id,trigger_at_utc,lead_minutes) "
+                               "VALUES(?,1,'2026-11-01T01:02:03Z',45)", (str(uuid4()),))
+        legacy = BackupStore(legacy_path)
+        archive = legacy.download_path(legacy.create()["id"])
+        before = self.fingerprint()
+        preview = self.store.preflight(archive)
+        self.assertEqual(preview["summary"]["schema_version"], 3)
+        self.assertEqual(self.fingerprint(), before)
+        self.store.restore(preview["token"])
+        with closing(sqlite3.connect(self.path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(connection.execute("SELECT trigger_at_utc,lead_minutes,schedule_kind FROM reminders").fetchone(),
+                             ("2026-11-01T01:02:03Z", 45, "fixed"))
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
+
+    def test_future_import_rejected_even_with_valid_archive_checksums(self):
+        def future_database(entries):
+            future = self.root / "future.sqlite3"
+            future.write_bytes(entries["database.sqlite3"])
+            with closing(sqlite3.connect(future)) as connection:
+                connection.execute("PRAGMA user_version=5")
+            entries["database.sqlite3"] = future.read_bytes()
+            manifest = json.loads(entries["manifest.json"])
+            manifest["database"]["sha256"] = hashlib.sha256(entries["database.sqlite3"]).hexdigest()
+            entries["manifest.json"] = json.dumps(manifest).encode()
+        archive = self.rewrite_archive(self.archive(), future_database)
+        before = self.fingerprint()
+        with self.assertRaisesRegex(BackupError, "Unsupported"):
+            self.store.preflight(archive)
         self.assertEqual(self.fingerprint(), before)
 
     def test_crash_journal_restores_original_attachment_tree_after_sqlite_rollback(self):
@@ -219,6 +284,18 @@ class BackupStoreTests(unittest.TestCase):
         self.assertEqual(self.payload.read_bytes(), self.content)
         self.assertEqual(self.fingerprint(), before)
         self.assertFalse(self.store.journal.exists())
+
+    def test_crash_between_payload_renames_preserves_identical_database_originals(self):
+        identifier = str(uuid4())
+        old = self.store.root / f"rollback-{identifier}"
+        before = self.fingerprint()
+        os.replace(self.store.payloads.attachments_root, old)
+        self.store.journal.write_text(json.dumps({"id": identifier,
+            "old_fingerprint": before, "new_fingerprint": before}))
+        self.store.recover_interrupted_restore()
+        self.assertEqual(self.payload.read_bytes(), self.content)
+        self.assertEqual(self.fingerprint(), before)
+        self.assertFalse(old.exists())
 
 
 if __name__ == "__main__":

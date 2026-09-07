@@ -340,7 +340,7 @@ def _check_today_overview_uses_instants_and_active_data(scene_api):
     assert {task["id"] for task in overview["overdue"]} == {early, overdue, cross_zone}
     assert [row["id"] for row in overview["meetings"]] == [meeting["id"]]
     assert [row["id"] for row in overview["upcoming_exams"]] == [exam["id"]]
-    assert next(task for task in overview["due_today"] if task["id"] == cross_zone)["due_at_utc"] == "2026-09-07T01:00:00Z"
+    assert datetime.fromisoformat(next(task for task in overview["due_today"] if task["id"] == cross_zone)["due_at_utc"]) == datetime(2026, 9, 7, 1, tzinfo=timezone.utc)
 
 
 def _check_today_horizon_inclusive_and_day_end_exclusive(scene_api):
@@ -433,7 +433,7 @@ def _check_null_task_timezone_instant_is_independent_of_viewer_zone(scene_api):
         overview = client.get("/overview/today", params={"timezone_id": viewer_zone, "on_date": viewer_day}).json()
         task = next(item for item in overview["due_today"] if item["id"] == task_id)
         results.append(task["due_at_utc"])
-    assert results[0] == results[1] == expected.isoformat(timespec="seconds").replace("+00:00", "Z")
+    assert datetime.fromisoformat(results[0]) == datetime.fromisoformat(results[1]) == expected
 
 
 def _check_shared_valid_long_imported_text_is_readable_and_preserved(scene_api):

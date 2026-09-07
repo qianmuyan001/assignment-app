@@ -65,6 +65,11 @@ def _hash(path: Path) -> str:
 def _fingerprint(connection: sqlite3.Connection) -> str:
     digest = hashlib.sha256()
     for statement in connection.iterdump():
+        # SQLite retains this internal empty table after the last
+        # AUTOINCREMENT extension is dropped. Its reset statement carries no
+        # logical payload; sequence INSERTs and extension schemas still do.
+        if statement == 'DELETE FROM "sqlite_sequence";':
+            continue
         digest.update(statement.encode("utf-8") + b"\n")
     digest.update(str(connection.execute("PRAGMA user_version").fetchone()[0]).encode())
     return digest.hexdigest()
@@ -288,7 +293,10 @@ class BackupStore:
             # untouched until a separate, explicit restore confirmation.
             from ..database import migrate_database  # avoid startup import cycles
             migrate_database(destination / "database.sqlite3")
-            _atomic_json(destination / "preflight.json", {"created": time.time(), "summary": summary})
+            with closing(_connect(destination / "database.sqlite3")) as connection:
+                fingerprint = _fingerprint(connection)
+            _atomic_json(destination / "preflight.json", {"created": time.time(), "summary": summary,
+                                                           "fingerprint": fingerprint})
             return {"token": token, "summary": summary,
                     "warnings": ["Restoring replaces current tasks, learning records and attachments."]}
         except Exception as exc:
@@ -298,6 +306,7 @@ class BackupStore:
             raise BackupError(f"Import preflight failed: {exc}") from exc
 
     def recover_interrupted_restore(self) -> None:
+        payload_directory_existed = self.payloads.attachments_root.exists()
         self.prepare()
         if not self.journal.exists():
             return
@@ -310,7 +319,7 @@ class BackupStore:
         # Identical old/new metadata is already consistent with the verified
         # imported payloads. Prefer finishing that restore (also repairs a
         # damaged live attachment whose metadata never changed).
-        if actual != journal["new_fingerprint"] and old.exists():
+        if (actual != journal["new_fingerprint"] or not payload_directory_existed) and old.exists():
             current = self.payloads.attachments_root
             if current.exists():
                 shutil.rmtree(current)
@@ -320,13 +329,13 @@ class BackupStore:
         self.journal.unlink()
 
     def restore(self, token: str, *, failure_hook: Callable[[], None] | None = None) -> dict:
-        self.prepare()
         self.recover_interrupted_restore()
         candidate = self.root / f"preflight-{_uuid(token)}"
         metadata = candidate / "preflight.json"
         if not metadata.is_file() or metadata.is_symlink():
             raise BackupError("Preflight token was not found or was already used")
-        created = json.loads(metadata.read_text(encoding="utf-8"))["created"]
+        inspected = json.loads(metadata.read_text(encoding="utf-8"))
+        created = inspected["created"]
         if time.time() - created > PREFLIGHT_TTL_SECONDS:
             raise BackupError("Preflight expired; inspect the backup again")
         source = _connect(candidate / "database.sqlite3")
@@ -339,6 +348,8 @@ class BackupStore:
         try:
             _validate(source)
             expected = _fingerprint(source)
+            if expected != inspected.get("fingerprint"):
+                raise BackupError("Preflight database changed; inspect the backup again")
             # Reject changes to any staged payload since preflight.
             for identifier, size, digest, deleted in source.execute(
                     "SELECT uuid,byte_size,sha256,deleted_at FROM attachments"):

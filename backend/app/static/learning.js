@@ -38,7 +38,7 @@ function warningList(parent, warnings = []) {
   const list = element("ul", null, "warning-list"); list.setAttribute("aria-label", tr("Warnings"));
   warnings.forEach(warning => {
     const message = typeof warning === "string" ? warning : warning.message;
-    const localized = preferences.language !== "zh-CN" ? message : /overlap/i.test(warning.code || message) ? "课程时间重叠；记录已保留，请自行调整。" : /nonexistent|unresolvable/.test(warning.code || "") ? "夏令时变更跳过了此本地时间，无法安排提醒，请修改时间。" : message;
+    const localized = preferences.language !== "zh-CN" ? message : /overlap/i.test(warning.code || message) ? "课程时间重叠；记录已保留，请自行调整。" : /nonexistent|unresolvable/.test(warning.code || "") ? "夏令时变更跳过了此本地时间，无法安排提醒，请修改时间。" : tr(message);
     list.append(element("li", localized));
   }); parent.append(list);
 }
@@ -310,7 +310,9 @@ async function renderSettings(parent) {
   }); parent.append(backupSection);
   const about = element("section", null, "settings-section"); about.append(translated("h3", "About"), element("p", `Assignment App · ${tr("Version")} ${info.version}`), translated("p", "This workspace uses Schema v4.", "muted"));
   const details = element("details"), summary = translated("summary", "Changelog"), entries = element("ul", null, "changelog");
-  (info.changelog || []).forEach(entry => entries.append(element("li", typeof entry === "string" ? entry : entry.title || entry.text || JSON.stringify(entry)))); details.append(summary,entries); about.append(details); parent.append(about);
+  (info.changelog || []).forEach(entry => entries.append(element("li", tr(typeof entry === "string" ? entry : entry.title || entry.text || JSON.stringify(entry))))); details.append(summary,entries);
+  const history = translated("a", "Full release history"); history.href = info.changelog_url; history.target = "_blank"; history.rel = "noopener"; details.append(history);
+  about.append(details); parent.append(about);
 }
 async function renderV4Reminders(view, assignment) {
   const { list, form } = view.orgReminders;

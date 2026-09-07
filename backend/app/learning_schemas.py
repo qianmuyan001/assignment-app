@@ -226,7 +226,6 @@ class ExamRead(ExamStored):
 
 class LearningTaskRead(AssignmentRead):
     deleted_at: str | None = None
-    due_at_utc: str | None = None
 
 
 class ReviewTaskRead(BaseModel):
