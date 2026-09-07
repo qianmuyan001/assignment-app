@@ -41,14 +41,14 @@ struct AppleRuntimeIsolationTests {
     }
 
     @Test func uiTokenCreatesUniqueAppOwnedPath() throws {
-        let root = URL(fileURLWithPath: "/private/tmp")
+        let root = URL(fileURLWithPath: "/private/tmp").standardizedFileURL.resolvingSymlinksInPath()
         let first = try #require(try AppleRuntimeIsolation.uiTestDatabaseURL(
             arguments: ["app", AppleRuntimeIsolation.uiTestTokenArgument, token], temporaryDirectory: root
         ))
         let second = try #require(try AppleRuntimeIsolation.uiTestDatabaseURL(
             arguments: ["app", AppleRuntimeIsolation.uiTestTokenArgument, UUID().uuidString], temporaryDirectory: root
         ))
-        #expect(first.path == "/private/tmp/assignment-app-ui-\(token)/assignments.db")
+        #expect(first.path == root.path + "/assignment-app-ui-\(token)/assignments.db")
         #expect(first != second)
     }
 
