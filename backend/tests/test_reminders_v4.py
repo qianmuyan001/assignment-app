@@ -251,6 +251,21 @@ class ReminderV4ApiTests(unittest.TestCase):
                 self.assertEqual(stored_task['due_date'], self.task['due_date'])
                 self.assertEqual(stored_task['timezone_id'], self.task['timezone_id'])
 
+    def test_assignment_read_exposes_resolved_instant_without_changing_wall_time(self):
+        self.assertEqual(self.task['due_at_utc'], '2026-09-08T02:00:00.000Z')
+        self.assertEqual(self.task['due_date'], '2026-09-08 10:00')
+        updated = self.patch_task(timezone_id='America/New_York')
+        self.assertEqual(updated['due_at_utc'], '2026-09-08T14:00:00.000Z')
+        self.assertEqual(updated['due_date'], self.task['due_date'])
+        missing = self.patch_task(due_date=None)
+        self.assertIsNone(missing['due_at_utc'])
+        gap = self.patch_task(due_date='2026-03-08 02:30:00')
+        self.assertIsNone(gap['due_at_utc'])
+        self.assertEqual(gap['due_date'], '2026-03-08 02:30')
+        with closing(sqlite3.connect(self.path)) as connection:
+            columns = {row[1] for row in connection.execute('PRAGMA table_info(assignments)')}
+        self.assertNotIn('due_at_utc', columns)
+
     def test_simple_task_patch_preserves_professional_fields(self):
         reminder = self.create_reminder(schedule_kind='due_relative', lead_minutes=30)
         updated = self.patch_task(title='只改标题', due_date=None)

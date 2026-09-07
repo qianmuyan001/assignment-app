@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
@@ -12,7 +13,13 @@ from shared.schema_v4 import SchemaV4Error, relative_reminder_trigger
 from .. import models
 
 
-def resolved_deadline(assignment: models.Assignment) -> datetime | None:
+class DeadlineFields(Protocol):
+    """Fields shared by database tasks and read-only API projections."""
+    due_date: datetime | None
+    timezone_id: str | None
+
+
+def resolved_deadline(assignment: DeadlineFields) -> datetime | None:
     """Resolve stored local wall time with the task zone or server device zone.
 
     A repeated wall time uses its first occurrence; missing daylight-saving

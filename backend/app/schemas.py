@@ -9,6 +9,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    computed_field,
     field_serializer,
     field_validator,
     model_validator,
@@ -19,6 +20,10 @@ from shared.schema_v3 import (
     is_iana_timezone_id,
     is_utc_audit_timestamp,
 )
+
+from shared.schema_v4 import SchemaV4Error
+
+from .services.reminder_schedule import resolved_deadline
 
 
 AssignmentStatus = Literal["todo", "in_progress", "done"]
@@ -296,6 +301,17 @@ class AssignmentRead(AssignmentBase):
     completed_at: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def due_at_utc(self) -> str | None:
+        """Expose the resolved instant without changing legacy wall-time fields."""
+        try:
+            due = resolved_deadline(self)
+        except SchemaV4Error:
+            # The original wall-time value remains available for correction.
+            return None
+        return due.isoformat(timespec="milliseconds").replace("+00:00", "Z") if due else None
 
     @field_serializer("due_date")
     def serialize_due_date(self, value: datetime | None) -> str | None:
