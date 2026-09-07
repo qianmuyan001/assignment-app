@@ -1917,7 +1917,6 @@ function bindControls() {
 bindControls();
 bindCarousel();
 renderDetail();
-loadAssignments();
 initOrg();
 
 // ---------------------------------------------------------------------------
