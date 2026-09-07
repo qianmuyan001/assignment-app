@@ -102,10 +102,25 @@ jobs:
         shell: bash
         env:
           ASSIGNMENT_REQUIRE_CLEAN_TREE: "1"
+          ASSIGNMENT_RUN_STAMP: ci-${{ github.run_id }}-${{ github.run_attempt }}
           ASSIGNMENT_IPAD_TESTS: passed
           ASSIGNMENT_IPAD_UI_TESTS: passed
           ASSIGNMENT_CATALYST_TESTS: passed
         run: ./native/apple/package-catalyst.sh
+
+      - name: Reject SQLite lifecycle diagnostics in raw logs
+        shell: bash
+        env:
+          APPLE_PACKAGE_LOGS: artifacts/apple/debug-ci-${{ github.run_id }}-${{ github.run_attempt }}/logs
+        run: |
+          set -euo pipefail
+          python3 native/apple/scripts/check-sqlite-diagnostics.py \
+            "$RUNNER_TEMP/ipad-unit.log" \
+            "$RUNNER_TEMP/ipad-ui.log" \
+            "$RUNNER_TEMP/catalyst-unit.log" \
+            "$APPLE_PACKAGE_LOGS/catalyst-runtime-stdout.log" \
+            "$APPLE_PACKAGE_LOGS/catalyst-runtime-stderr.log" \
+            2>&1 | tee "$RUNNER_TEMP/sqlite-diagnostics-gate.log"
 
       - name: Shut down and delete the owned simulator
         if: always()
