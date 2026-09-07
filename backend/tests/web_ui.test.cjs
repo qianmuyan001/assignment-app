@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { wallInstant, dueInstant, dateKey, matchesScope, reminderIsDue, normalizePreferences } = require('../app/static/learning-core.js');
+const { wallInstant, dueInstant, dateKey, matchesScope, progressPercent, reminderIsDue, normalizePreferences } = require('../app/static/learning-core.js');
 const now = new Date('2026-09-09T12:00:00Z');
 const task = (date, status = 'todo', timezone_id = 'UTC') => ({ due_date: date, status, timezone_id });
 
@@ -91,4 +91,20 @@ test('explicitly unresolved server deadline never falls back to a guessed instan
   assert.equal(dueInstant(item), null);
   assert.equal(matchesScope(item, 'today', now, 'UTC'), false);
   assert.equal(dueInstant({...item, due_at_utc: 'not-a-date'}), null);
+});
+
+test('overdue todo tasks display actual zero progress', () => {
+  assert.equal(progressPercent({...task('2000-01-01 00:00:00'), progress_percent: 0}), 0);
+});
+test('progress uses persisted percentages instead of inferring from status', () => {
+  assert.equal(progressPercent({status: 'in_progress', progress_percent: 37}), 37);
+  assert.equal(progressPercent({status: 'done', progress_percent: 100}), 100);
+  assert.equal(progressPercent({status: 'done', progress_percent: 37}), 37);
+  assert.equal(progressPercent({status: 'todo', progress_percent: 12}), 12);
+});
+test('progress display clamps invalid ranges and handles absent values', () => {
+  assert.equal(progressPercent({progress_percent: -8}), 0);
+  assert.equal(progressPercent({progress_percent: 150}), 100);
+  assert.equal(progressPercent({}), 0);
+  assert.equal(progressPercent({progress_percent: Number.NaN}), 0);
 });

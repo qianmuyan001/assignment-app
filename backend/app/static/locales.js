@@ -7,7 +7,8 @@ const chinese = {
 let preferences;
 try { preferences = LearningCore.normalizePreferences(JSON.parse(localStorage.getItem("assignment.preferences") || "{}")); }
 catch { preferences = LearningCore.normalizePreferences(); }
-function tr(text) { return preferences.language === "zh-CN" ? (chinese[text] || text) : text; }
+const englishLabels = {todo: "To do", in_progress: "In progress", done: "Completed", low: "Low", medium: "Medium", high: "High", upcoming: "Upcoming", completed: "Completed", cancelled: "Cancelled"};
+function tr(text) { return preferences.language === "zh-CN" ? (chinese[text] || text) : (englishLabels[text] || text); }
 function localeName() { return preferences.language; }
 function applyPreferences() {
   document.documentElement.lang = preferences.language;

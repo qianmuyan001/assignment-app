@@ -46,6 +46,10 @@ const LearningCore = (() => {
     const end = new Date(start); end.setUTCDate(end.getUTCDate() + 7);
     return date >= start.toISOString().slice(0, 10) && date < end.toISOString().slice(0, 10);
   }
+  function progressPercent(task) {
+    const progress = Number(task.progress_percent);
+    return Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
+  }
   function reminderIsDue(reminder, from, now) {
     const instant = new Date(reminder.trigger_at_utc).getTime();
     return reminder.is_enabled && !reminder.disabled_reason && instant > from && instant <= now &&
@@ -55,6 +59,6 @@ const LearningCore = (() => {
     if (!value || typeof value !== "object") value = {};
     return { language: ["en", "zh-CN"].includes(value.language) ? value.language : "en", theme: ["system", "light", "dark"].includes(value.theme) ? value.theme : "system", mode: ["simple", "professional"].includes(value.mode) ? value.mode : "professional" };
   }
-  return { dateKey, wallInstant, dueInstant, matchesScope, reminderIsDue, normalizePreferences };
+  return { dateKey, wallInstant, dueInstant, matchesScope, progressPercent, reminderIsDue, normalizePreferences };
 })();
 if (typeof module !== "undefined") module.exports = LearningCore;
