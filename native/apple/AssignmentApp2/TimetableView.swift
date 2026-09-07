@@ -770,14 +770,7 @@ struct MeetingEditorView: View {
     }
 
     private var resolvedTimeZoneIdentifier: String {
-        switch timezoneChoice {
-        case .system:
-            return TimeZone.current.identifier
-        case .utc:
-            return "UTC"
-        case .custom:
-            return customTimezone.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        timezoneChoice.resolvedIdentifier(customIdentifier: customTimezone)
     }
 
     private var currentDraft: CourseMeetingDraft? {
@@ -873,6 +866,20 @@ enum LearningTimeZoneChoice: String, CaseIterable, Identifiable {
     case custom
 
     var id: String { rawValue }
+
+    func resolvedIdentifier(
+        customIdentifier: String,
+        systemTimeZone: TimeZone = .current
+    ) -> String {
+        switch self {
+        case .system:
+            return LearningRules.systemTimeZoneIdentifier(systemTimeZone)
+        case .utc:
+            return "UTC"
+        case .custom:
+            return customIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
 
     var title: String {
         switch self {
