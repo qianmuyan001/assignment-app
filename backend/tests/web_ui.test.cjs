@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { wallInstant, dueInstant, dateKey, matchesScope, normalizePreferences } = require('../app/static/learning-core.js');
+const { wallInstant, dueInstant, dateKey, matchesScope, reminderIsDue, normalizePreferences } = require('../app/static/learning-core.js');
 const now = new Date('2026-09-09T12:00:00Z');
 const task = (date, status = 'todo', timezone_id = 'UTC') => ({ due_date: date, status, timezone_id });
 
@@ -9,11 +9,11 @@ test('all scope retains tasks without deadlines and completed tasks', () => {
   assert.equal(matchesScope(task(null), 'all', now, 'UTC'), true);
   assert.equal(matchesScope(task(null, 'done'), 'all', now, 'UTC'), true);
 });
-test('today uses requested display timezone and excludes completed tasks', () => {
+test('today uses requested display timezone and includes completed tasks', () => {
   const item = task('2026-09-10 00:30:00', 'todo', 'Asia/Shanghai');
   assert.equal(matchesScope(item, 'today', now, 'UTC'), true);
   assert.equal(matchesScope(item, 'today', now, 'Asia/Shanghai'), false);
-  assert.equal(matchesScope(task('2026-09-09 18:00:00', 'done'), 'today', now, 'UTC'), false);
+  assert.equal(matchesScope(task('2026-09-09 18:00:00', 'done'), 'today', now, 'UTC'), true);
 });
 test('week is ISO Monday through Sunday, not the next seven days', () => {
   assert.equal(matchesScope(task('2026-09-07 01:00:00'), 'week', now, 'UTC'), true);
@@ -59,4 +59,24 @@ test('both languages, all themes and both modes survive preference normalization
 });
 test('invalid stored preferences fall back to supported values', () => {
   assert.deepEqual(normalizePreferences({ language: 'xx', theme: 'neon', mode: 'deleted' }), { language: 'en', theme: 'system', mode: 'professional' });
+});
+
+test('completed tasks remain in shared Today and Week views', () => {
+  const item = task('2026-09-09 18:00:00', 'completed');
+  assert.equal(matchesScope(item, 'today', now, 'UTC'), true);
+  assert.equal(matchesScope(item, 'week', now, 'UTC'), true);
+});
+test('reminders fire once per trigger and only when enabled and actionable', () => {
+  const reminder = { is_enabled: true, trigger_at_utc: '2026-09-09T11:59:30Z', last_scheduled_at: null };
+  const from = new Date('2026-09-09T11:59:00Z').getTime();
+  assert.equal(reminderIsDue(reminder, from, now.getTime()), true);
+  assert.equal(reminderIsDue({...reminder, last_scheduled_at: now.toISOString()}, from, now.getTime()), false);
+  assert.equal(reminderIsDue({...reminder, is_enabled: false}, from, now.getTime()), false);
+});
+test('server cancellation suppresses reminders even with a stale local task list', () => {
+  const reminder = { is_enabled: true, trigger_at_utc: '2026-09-09T11:59:30Z', disabled_reason: 'task_completed' };
+  const from = new Date('2026-09-09T11:59:00Z').getTime();
+  for (const reason of ['task_completed','task_deleted','missing_due_date','nonexistent_due_time']) {
+    assert.equal(reminderIsDue({...reminder, disabled_reason: reason}, from, now.getTime()), false);
+  }
 });

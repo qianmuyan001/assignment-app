@@ -38,7 +38,7 @@ function warningList(parent, warnings = []) {
   const list = element("ul", null, "warning-list"); list.setAttribute("aria-label", tr("Warnings"));
   warnings.forEach(warning => {
     const message = typeof warning === "string" ? warning : warning.message;
-    const localized = preferences.language === "zh-CN" && /overlap/i.test(warning.code || message) ? "课程时间重叠；记录已保留，请自行调整。" : message;
+    const localized = preferences.language !== "zh-CN" ? message : /overlap/i.test(warning.code || message) ? "课程时间重叠；记录已保留，请自行调整。" : /nonexistent|unresolvable/.test(warning.code || "") ? "夏令时变更跳过了此本地时间，无法安排提醒，请修改时间。" : message;
     list.append(element("li", localized));
   }); parent.append(list);
 }
@@ -46,6 +46,7 @@ function labeledField(name, label, type = "text", value = "", required = false) 
   const wrapper = translated("label", label);
   const input = element(type === "textarea" ? "textarea" : "input");
   if (type !== "textarea") input.type = type;
+  if (["time", "datetime-local"].includes(type)) input.step = "1";
   input.name = name; input.value = value ?? ""; input.required = required;
   if (type === "textarea") input.rows = 3;
   wrapper.append(input); return { wrapper, input };
@@ -124,7 +125,8 @@ async function renderCalendar(parent) {
   controls.append(actionButton("Previous month", () => { learning.month.setMonth(learning.month.getMonth() - 1); renderLearning(); }), actionButton("Current month", () => { learning.month = new Date(new Date().getFullYear(), new Date().getMonth(), 1); renderLearning(); }), actionButton("Next month", () => { learning.month.setMonth(learning.month.getMonth() + 1); renderLearning(); })); heading.append(controls); parent.append(heading);
   parent.append(element("h3", learning.month.toLocaleDateString(localeName(), { year: "numeric", month: "long" })));
   const events = tasks.filter(task => LearningCore.dueInstant(task)).map(task => ({ title: task.title, day: LearningCore.dateKey(LearningCore.dueInstant(task)), kind: "Task", time: LearningCore.dueInstant(task), open: () => selectTask(task.id) }));
-  exams.filter(exam => exam.starts_at_utc).forEach(exam => events.push({ title: exam.name, day: LearningCore.dateKey(new Date(exam.starts_at_utc)), kind: "Exam", time: new Date(exam.starts_at_utc), open: () => openLearningEditor("exam", exam) }));
+  exams.forEach(exam => events.push({ title: exam.name, day: exam.starts_at_utc ? LearningCore.dateKey(new Date(exam.starts_at_utc)) : exam.starts_at_local.slice(0,10), kind: "Exam", time: exam.starts_at_utc ? new Date(exam.starts_at_utc) : null, open: () => openLearningEditor("exam", exam) }));
+  warningList(parent, exams.flatMap(exam => exam.warnings || []));
   const grid = element("div", null, "calendar-grid"); grid.setAttribute("aria-label", tr("Calendar"));
   weekdays.forEach(day => grid.append(translated("div", day, "calendar-weekday")));
   const year = learning.month.getFullYear(), month = learning.month.getMonth(), offset = (new Date(year, month, 1).getDay() + 6) % 7, count = new Date(year, month + 1, 0).getDate();
@@ -190,7 +192,12 @@ function examRow(exam, editable = true) {
   if (editable) {
     const actions = recordActions("exam", exam);
     if (!exam.deleted_at) actions.prepend(actionButton(exam.linked_assignment_id ? "Open review task" : "Create review task", async () => {
-      const result = await apiRequest(`/exams/${exam.id}/review-task`, { method: "POST" }); await loadAssignments(); announce(tr("Review task ready.")); selectTask(result.assignment.id);
+      const result = await apiRequest(`/exams/${exam.id}/review-task`, { method: "POST" });
+      if (result.assignment.deleted_at) {
+        if (!confirm(tr("The review task is deleted. Restore it?"))) { announce(tr("Review task remains deleted.")); return; }
+        await apiRequest(`/assignments/${result.assignment.id}/restore`, {method: "POST"});
+      }
+      await loadAssignments(); announce(tr("Review task ready.")); selectTask(result.assignment.id);
     })); row.append(actions);
   } return row;
 }
@@ -221,7 +228,7 @@ async function openLearningEditor(kind, record = null) {
     add("teacher_override", "Teacher override", "text", record?.teacher_override || "");
   } else {
     add("name", "Title", "text", record?.name || "", true);
-    add("starts_at_local", "Starts at", "datetime-local", record?.starts_at_local?.replace(" ","T").slice(0,16) || "", true);
+    add("starts_at_local", "Starts at", "datetime-local", record?.starts_at_local?.replace(" ","T").slice(0,19) || "", true);
     const status = selectField("status", "Status", ["upcoming","completed","cancelled"].map(value => [value,value]), record?.status || "upcoming"); fields.status = status.input; form.append(status.wrapper);
     add("scope", "Scope", "textarea", record?.scope || ""); add("notes", "Notes", "textarea", record?.notes || "");
   }
@@ -302,9 +309,11 @@ async function renderSettings(parent) {
 }
 async function renderV4Reminders(view, assignment) {
   const { list, form } = view.orgReminders;
+  list.dataset.assignmentId = String(assignment.id);
   list.replaceChildren(translated("li", "Loading…", "empty-message"));
   try {
     const reminders = await apiRequest(`/assignments/${assignment.id}/reminders`);
+    if (list.dataset.assignmentId !== String(assignment.id)) return;
     list.replaceChildren(); if (!reminders.length) list.append(translated("li", "No reminders yet.", "empty-message"));
     reminders.forEach(reminder => {
       const row = element("li", null, "learning-row"), copy = element("div", null, "row-copy");
@@ -345,8 +354,8 @@ async function checkOpenReminders() {
     const result = await Promise.all(active.map(async task => ({ task, reminders: await apiRequest(`/assignments/${task.id}/reminders`) })));
     const due = [], delivered = [];
     result.forEach(({task,reminders}) => reminders.forEach(reminder => {
-      const key = `${reminder.id}:${reminder.trigger_at_utc}`, instant = new Date(reminder.trigger_at_utc).getTime();
-      if (reminder.is_enabled && instant > from && instant <= now && (!reminder.last_scheduled_at || new Date(reminder.last_scheduled_at).getTime() < instant) && !shownReminders.has(key)) { due.push(task.title); shownReminders.add(key); delivered.push({task,reminder}); }
+      const key = `${reminder.id}:${reminder.trigger_at_utc}`;
+      if (LearningCore.reminderIsDue(reminder, from, now) && !shownReminders.has(key)) { due.push(task.title); shownReminders.add(key); delivered.push({task,reminder}); }
     }));
     if (due.length) announce(`${tr("Reminder")}: ${due.join(" · ")}`);
     await Promise.all(delivered.map(({task,reminder}) => apiRequest(`/assignments/${task.id}/reminders/${reminder.id}`, jsonOptions("PATCH", {last_scheduled_at: new Date(now).toISOString()}))));
