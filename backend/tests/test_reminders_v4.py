@@ -234,6 +234,23 @@ class ReminderV4ApiTests(unittest.TestCase):
         self.assertEqual(self.stored(relative)['trigger_at_utc'], '2026-09-11T03:30:00.000Z')
         self.assertEqual(self.stored(fixed)['trigger_at_utc'], fixed['trigger_at_utc'])
 
+    def test_out_of_range_resolved_dates_return_422_and_roll_back(self):
+        reminder = self.create_reminder(schedule_kind='due_relative', lead_minutes=30)
+        for due_date, zone in (
+            ('0001-01-01 00:00:00', 'Asia/Shanghai'),
+            ('9999-12-31 23:59:00', 'America/New_York'),
+        ):
+            with self.subTest(due_date=due_date):
+                response = self.client.patch(f"/assignments/{self.task['id']}", json={
+                    'due_date': due_date, 'timezone_id': zone,
+                })
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertIn('supported dates', response.json()['detail'])
+                self.assertEqual(self.stored(reminder)['trigger_at_utc'], reminder['trigger_at_utc'])
+                stored_task = self.client.get(f"/assignments/{self.task['id']}").json()
+                self.assertEqual(stored_task['due_date'], self.task['due_date'])
+                self.assertEqual(stored_task['timezone_id'], self.task['timezone_id'])
+
     def test_simple_task_patch_preserves_professional_fields(self):
         reminder = self.create_reminder(schedule_kind='due_relative', lead_minutes=30)
         updated = self.patch_task(title='只改标题', due_date=None)
