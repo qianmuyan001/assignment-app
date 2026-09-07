@@ -131,26 +131,6 @@ private func sharedFixtureTasks() throws -> [Assignment] {
 }
 
 
-private final class TemporaryDatabase {
-    let directoryURL: URL
-    let databaseURL: URL
-
-    init(fileName: String = "assignments.db") throws {
-        directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("AssignmentApp2Tests-\(UUID().uuidString)", isDirectory: true)
-        databaseURL = directoryURL.appendingPathComponent(fileName, isDirectory: false)
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-    }
-
-    func cleanup() {
-        try? FileManager.default.removeItem(at: directoryURL)
-    }
-}
-
-
 private func withSQLite<T>(
     at databaseURL: URL,
     _ body: (OpaquePointer) throws -> T
@@ -161,11 +141,11 @@ private func withSQLite<T>(
         let message = database.map { String(cString: sqlite3_errmsg($0)) }
             ?? "Unable to open SQLite database."
         if let database {
-            sqlite3_close(database)
+            closeTestSQLiteConnection(database)
         }
         throw TestSupportError.sqlite(message)
     }
-    defer { sqlite3_close(database) }
+    defer { closeTestSQLiteConnection(database) }
     return try body(database)
 }
 
@@ -709,283 +689,283 @@ struct AppleNavigationChromeTests {
 struct SQLiteRepositoryTests {
     @Test("Adding a task persists every editable field with legacy status storage")
     func addTask() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        let dueDate = try LocalWallTime.date(from: "2026-08-08 16:30:00")
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            let dueDate = try LocalWallTime.date(from: "2026-08-08 16:30:00")
 
-        let created = try repository.create(
-            AssignmentDraft(
-                courseName: "  Physics  ",
-                title: "  Wave lab  ",
-                dueDate: dueDate,
-                assignmentDescription: "Initial notes 🧪",
-                link: "https://example.test/lab?a=1&b=二",
-                status: .todo,
-                priority: .high
+            let created = try repository.create(
+                AssignmentDraft(
+                    courseName: "  Physics  ",
+                    title: "  Wave lab  ",
+                    dueDate: dueDate,
+                    assignmentDescription: "Initial notes 🧪",
+                    link: "https://example.test/lab?a=1&b=二",
+                    status: .todo,
+                    priority: .high
+                )
             )
-        )
 
-        #expect(created.id > 0)
-        #expect(created.courseName == "Physics")
-        #expect(created.title == "Wave lab")
-        #expect(created.assignmentDescription == "Initial notes 🧪")
-        #expect(created.link == "https://example.test/lab?a=1&b=二")
-        #expect(created.status == .todo)
-        #expect(created.priority == .high)
-        let persistedAssignments = try repository.fetchAll()
-        #expect(persistedAssignments == [created])
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT status FROM assignments WHERE id = \(created.id)"
-            ) == "not_started"
-        )
+            #expect(created.id > 0)
+            #expect(created.courseName == "Physics")
+            #expect(created.title == "Wave lab")
+            #expect(created.assignmentDescription == "Initial notes 🧪")
+            #expect(created.link == "https://example.test/lab?a=1&b=二")
+            #expect(created.status == .todo)
+            #expect(created.priority == .high)
+            let persistedAssignments = try repository.fetchAll()
+            #expect(persistedAssignments == [created])
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT status FROM assignments WHERE id = \(created.id)"
+                ) == "not_started"
+            )
+        }
     }
 
     @Test("Editing a task preserves its identity and replaces editable values")
     func editTask() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        var assignment = try repository.create(
-            AssignmentDraft(courseName: "Physics", title: "Wave lab")
-        )
-        let originalID = assignment.id
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            var assignment = try repository.create(
+                AssignmentDraft(courseName: "Physics", title: "Wave lab")
+            )
+            let originalID = assignment.id
 
-        assignment.courseName = "计算机科学"
-        assignment.title = "Updated compiler's \"parser\" 📚"
-        assignment.assignmentDescription = "Edited <>&\n第二行"
-        assignment.link = "https://例子.测试/?q=值&n=2"
-        assignment.priority = .low
-        assignment.status = .inProgress
-        let updated = try repository.update(assignment)
+            assignment.courseName = "计算机科学"
+            assignment.title = "Updated compiler's \"parser\" 📚"
+            assignment.assignmentDescription = "Edited <>&\n第二行"
+            assignment.link = "https://例子.测试/?q=值&n=2"
+            assignment.priority = .low
+            assignment.status = .inProgress
+            let updated = try repository.update(assignment)
 
-        #expect(updated.id == originalID)
-        #expect(updated.courseName == "计算机科学")
-        #expect(updated.title == "Updated compiler's \"parser\" 📚")
-        #expect(updated.assignmentDescription == "Edited <>&\n第二行")
-        #expect(updated.link == "https://例子.测试/?q=值&n=2")
-        #expect(updated.priority == .low)
-        #expect(updated.status == .inProgress)
+            #expect(updated.id == originalID)
+            #expect(updated.courseName == "计算机科学")
+            #expect(updated.title == "Updated compiler's \"parser\" 📚")
+            #expect(updated.assignmentDescription == "Edited <>&\n第二行")
+            #expect(updated.link == "https://例子.测试/?q=值&n=2")
+            #expect(updated.priority == .low)
+            #expect(updated.status == .inProgress)
+        }
     }
 
     @Test("Deleting a task soft-deletes only the selected row")
     func deleteTask() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        let first = try repository.create(
-            AssignmentDraft(courseName: "Math", title: "Delete me")
-        )
-        let second = try repository.create(
-            AssignmentDraft(courseName: "History", title: "Keep me")
-        )
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            let first = try repository.create(
+                AssignmentDraft(courseName: "Math", title: "Delete me")
+            )
+            let second = try repository.create(
+                AssignmentDraft(courseName: "History", title: "Keep me")
+            )
 
-        try repository.delete(id: first.id)
+            try repository.delete(id: first.id)
 
-        let remainingIDs = try repository.fetchAll().map(\.id)
-        #expect(remainingIDs == [second.id])
-        #expect(
-            try scalarInt(at: temporary.databaseURL, sql: "SELECT COUNT(*) FROM assignments")
-                == 2
-        )
-        #expect(
-            try scalarInt(
-                at: temporary.databaseURL,
-                sql: "SELECT COUNT(*) FROM assignments WHERE deleted_at IS NOT NULL"
-            ) == 1
-        )
+            let remainingIDs = try repository.fetchAll().map(\.id)
+            #expect(remainingIDs == [second.id])
+            #expect(
+                try scalarInt(at: temporary.databaseURL, sql: "SELECT COUNT(*) FROM assignments")
+                    == 2
+            )
+            #expect(
+                try scalarInt(
+                    at: temporary.databaseURL,
+                    sql: "SELECT COUNT(*) FROM assignments WHERE deleted_at IS NOT NULL"
+                ) == 1
+            )
+        }
     }
 
     @Test("Changing todo to done stores completed and exposes completed time")
     func markDone() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        let created = try repository.create(
-            AssignmentDraft(courseName: "Math", title: "Finish me", status: .todo)
-        )
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            let created = try repository.create(
+                AssignmentDraft(courseName: "Math", title: "Finish me", status: .todo)
+            )
 
-        let completed = try repository.updateStatus(id: created.id, status: .done)
+            let completed = try repository.updateStatus(id: created.id, status: .done)
 
-        #expect(completed.status == .done)
-        #expect(completed.completedAt != nil)
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT status FROM assignments WHERE id = \(created.id)"
-            ) == "completed"
-        )
+            #expect(completed.status == .done)
+            #expect(completed.completedAt != nil)
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT status FROM assignments WHERE id = \(created.id)"
+                ) == "completed"
+            )
+        }
     }
 
     @Test("Changing done back to todo clears the derived completed time")
     func restoreTodo() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        let created = try repository.create(
-            AssignmentDraft(courseName: "Math", title: "Restore me", status: .done)
-        )
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            let created = try repository.create(
+                AssignmentDraft(courseName: "Math", title: "Restore me", status: .done)
+            )
 
-        let restored = try repository.updateStatus(id: created.id, status: .todo)
+            let restored = try repository.updateStatus(id: created.id, status: .todo)
 
-        #expect(restored.status == .todo)
-        #expect(restored.completedAt == nil)
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT status FROM assignments WHERE id = \(created.id)"
-            ) == "not_started"
-        )
+            #expect(restored.status == .todo)
+            #expect(restored.completedAt == nil)
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT status FROM assignments WHERE id = \(created.id)"
+                ) == "not_started"
+            )
+        }
     }
 
     @Test("A user_version zero v1 database migrates without losing IDs or status meaning")
     func migrateV1DataAndStatuses() throws {
-        let temporary = try TemporaryDatabase(fileName: "legacy.db")
-        defer { temporary.cleanup() }
-        try createV1Database(at: temporary.databaseURL)
+        try withTemporarySQLiteDatabase(fileName: "legacy.db") { temporary in
+            try createV1Database(at: temporary.databaseURL)
 
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        let assignments = try repository.fetchAll()
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            let assignments = try repository.fetchAll()
 
-        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
-        #expect(repository.lastMigrationResult.fromVersion == 1)
-        #expect(repository.lastMigrationResult.toVersion == SQLiteSchemaV4.databaseVersion)
-        #expect(repository.lastMigrationResult.migrated)
-        #expect(repository.lastMigrationResult.strategy == .v1AdditiveToV4)
-        #expect(assignments.map(\.id) == [41, 42])
-        #expect(assignments.map(\.status) == [.done, .todo])
-        #expect(assignments.allSatisfy { $0.priority == .medium })
+            #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
+            #expect(repository.lastMigrationResult.fromVersion == 1)
+            #expect(repository.lastMigrationResult.toVersion == SQLiteSchemaV4.databaseVersion)
+            #expect(repository.lastMigrationResult.migrated)
+            #expect(repository.lastMigrationResult.strategy == .v1AdditiveToV4)
+            #expect(assignments.map(\.id) == [41, 42])
+            #expect(assignments.map(\.status) == [.done, .todo])
+            #expect(assignments.allSatisfy { $0.priority == .medium })
+        }
     }
 
     @Test("Migration creates a readable standalone backup before schema changes")
     func migrationCreatesBackup() throws {
-        let temporary = try TemporaryDatabase(fileName: "legacy.db")
-        defer { temporary.cleanup() }
-        try createV1Database(at: temporary.databaseURL)
+        try withTemporarySQLiteDatabase(fileName: "legacy.db") { temporary in
+            try createV1Database(at: temporary.databaseURL)
 
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        guard let backupURL = repository.lastMigrationResult.backupURL else {
-            Issue.record("Migration did not report its backup URL.")
-            return
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            guard let backupURL = repository.lastMigrationResult.backupURL else {
+                Issue.record("Migration did not report its backup URL.")
+                return
+            }
+
+            let backupColumns = try tableColumns(at: backupURL)
+            #expect(FileManager.default.fileExists(atPath: backupURL.path))
+            #expect(try scalarInt(at: backupURL, sql: "PRAGMA user_version") == 0)
+            #expect(!backupColumns.contains("priority"))
+            #expect(
+                try scalarText(
+                    at: backupURL,
+                    sql: "SELECT title FROM assignments WHERE id = 41"
+                ) == "Legacy's \"special\" task 📚"
+            )
         }
-
-        let backupColumns = try tableColumns(at: backupURL)
-        #expect(FileManager.default.fileExists(atPath: backupURL.path))
-        #expect(try scalarInt(at: backupURL, sql: "PRAGMA user_version") == 0)
-        #expect(!backupColumns.contains("priority"))
-        #expect(
-            try scalarText(
-                at: backupURL,
-                sql: "SELECT title FROM assignments WHERE id = 41"
-            ) == "Legacy's \"special\" task 📚"
-        )
     }
 
     @Test("Injected migration failure rolls back v1 and leaves the backup recoverable")
     func failedMigrationRestoresOriginal() throws {
-        let temporary = try TemporaryDatabase(fileName: "legacy.db")
-        defer { temporary.cleanup() }
-        try createV1Database(at: temporary.databaseURL)
-        var injectorRan = false
-        var migrationError: DatabaseMigrationError?
+        try withTemporarySQLiteDatabase(fileName: "legacy.db") { temporary in
+            try createV1Database(at: temporary.databaseURL)
+            var injectorRan = false
+            var migrationError: DatabaseMigrationError?
 
-        do {
-            _ = try SQLiteAssignmentRepository(
-                databaseURL: temporary.databaseURL,
-                migrationFailureInjector: {
-                    injectorRan = true
-                    throw InjectedMigrationFailure()
-                }
+            do {
+                _ = try SQLiteAssignmentRepository(
+                    databaseURL: temporary.databaseURL,
+                    migrationFailureInjector: {
+                        injectorRan = true
+                        throw InjectedMigrationFailure()
+                    }
+                )
+                Issue.record("Migration unexpectedly succeeded after fault injection.")
+            } catch let error as DatabaseMigrationError {
+                migrationError = error
+            } catch {
+                Issue.record("Unexpected migration error type: \(error)")
+            }
+
+            let restoredColumns = try tableColumns(at: temporary.databaseURL)
+            #expect(injectorRan)
+            #expect(migrationError != nil)
+            #expect(migrationError?.errorDescription?.contains("rolled back") == true)
+            #expect(try scalarInt(at: temporary.databaseURL, sql: "PRAGMA user_version") == 0)
+            #expect(!restoredColumns.contains("priority"))
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT title FROM assignments WHERE id = 41"
+                ) == "Legacy's \"special\" task 📚"
             )
-            Issue.record("Migration unexpectedly succeeded after fault injection.")
-        } catch let error as DatabaseMigrationError {
-            migrationError = error
-        } catch {
-            Issue.record("Unexpected migration error type: \(error)")
-        }
-
-        let restoredColumns = try tableColumns(at: temporary.databaseURL)
-        #expect(injectorRan)
-        #expect(migrationError != nil)
-        #expect(migrationError?.errorDescription?.contains("rolled back") == true)
-        #expect(try scalarInt(at: temporary.databaseURL, sql: "PRAGMA user_version") == 0)
-        #expect(!restoredColumns.contains("priority"))
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT title FROM assignments WHERE id = 41"
-            ) == "Legacy's \"special\" task 📚"
-        )
-        if let backupURL = migrationError?.backupURL {
-            #expect(FileManager.default.fileExists(atPath: backupURL.path))
-            #expect(try scalarInt(at: backupURL, sql: "PRAGMA user_version") == 0)
-        } else {
-            Issue.record("Migration failure did not preserve a backup URL.")
+            if let backupURL = migrationError?.backupURL {
+                #expect(FileManager.default.fileExists(atPath: backupURL.path))
+                #expect(try scalarInt(at: backupURL, sql: "PRAGMA user_version") == 0)
+            } else {
+                Issue.record("Migration failure did not preserve a backup URL.")
+            }
         }
     }
 
     @Test("Chinese, emoji, newlines, quotes, and URL characters survive migration")
     func specialCharactersSurviveMigration() throws {
-        let temporary = try TemporaryDatabase(fileName: "legacy.db")
-        defer { temporary.cleanup() }
-        try createV1Database(at: temporary.databaseURL)
+        try withTemporarySQLiteDatabase(fileName: "legacy.db") { temporary in
+            try createV1Database(at: temporary.databaseURL)
 
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
-        guard let assignment = try repository.fetchAll().first(where: { $0.id == 41 }) else {
-            Issue.record("Migrated Unicode fixture is missing.")
-            return
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+            guard let assignment = try repository.fetchAll().first(where: { $0.id == 41 }) else {
+                Issue.record("Migrated Unicode fixture is missing.")
+                return
+            }
+
+            #expect(assignment.courseName == "语文 / English")
+            #expect(assignment.title == "Legacy's \"special\" task 📚")
+            #expect(assignment.assignmentDescription == "保留 <>& and emoji 🧪")
+            #expect(assignment.link == "https://example.test/?a=1&b=二")
+            #expect(assignment.sourceURL == "https://例子.测试/source")
         }
-
-        #expect(assignment.courseName == "语文 / English")
-        #expect(assignment.title == "Legacy's \"special\" task 📚")
-        #expect(assignment.assignmentDescription == "保留 <>& and emoji 🧪")
-        #expect(assignment.link == "https://example.test/?a=1&b=二")
-        #expect(assignment.sourceURL == "https://例子.测试/source")
     }
 
     @Test("A fresh database is v4 and task creation keeps shared defaults")
     func databaseV4VersionAndPriorityDefault() throws {
-        let temporary = try TemporaryDatabase()
-        defer { temporary.cleanup() }
-        let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
+        try withTemporarySQLiteDatabase { temporary in
+            let repository = try SQLiteAssignmentRepository(databaseURL: temporary.databaseURL)
 
-        _ = try repository.create(
-            AssignmentDraft(courseName: "Biology", title: "Default priority")
-        )
+            _ = try repository.create(
+                AssignmentDraft(courseName: "Biology", title: "Default priority")
+            )
 
-        let assignmentColumns = try tableColumns(at: temporary.databaseURL)
-        #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
-        #expect(repository.lastMigrationResult.strategy == .createV4)
-        #expect(assignmentColumns.count == 22)
-        #expect(assignmentColumns.contains("uuid"))
-        #expect(assignmentColumns.contains("progress_percent"))
-        // 30 v3 contract indexes plus the 8 learning-scene indexes v4 adds.
-        #expect(
-            try scalarInt(
-                at: temporary.databaseURL,
-                sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
-            ) == 38
-        )
-        // 12 v3 contract triggers plus the 2 learning-scene UUID triggers.
-        #expect(
-            try scalarInt(
-                at: temporary.databaseURL,
-                sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"
-            ) == 14
-        )
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT priority FROM assignments WHERE title = 'Default priority'"
-            ) == "medium"
-        )
-        #expect(
-            try scalarText(
-                at: temporary.databaseURL,
-                sql: "SELECT status FROM assignments WHERE title = 'Default priority'"
-            ) == "not_started"
-        )
+            let assignmentColumns = try tableColumns(at: temporary.databaseURL)
+            #expect(try repository.schemaVersion == SQLiteSchemaV4.databaseVersion)
+            #expect(repository.lastMigrationResult.strategy == .createV4)
+            #expect(assignmentColumns.count == 22)
+            #expect(assignmentColumns.contains("uuid"))
+            #expect(assignmentColumns.contains("progress_percent"))
+            // 30 v3 contract indexes plus the 8 learning-scene indexes v4 adds.
+            #expect(
+                try scalarInt(
+                    at: temporary.databaseURL,
+                    sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
+                ) == 38
+            )
+            // 12 v3 contract triggers plus the 2 learning-scene UUID triggers.
+            #expect(
+                try scalarInt(
+                    at: temporary.databaseURL,
+                    sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"
+                ) == 14
+            )
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT priority FROM assignments WHERE title = 'Default priority'"
+                ) == "medium"
+            )
+            #expect(
+                try scalarText(
+                    at: temporary.databaseURL,
+                    sql: "SELECT status FROM assignments WHERE title = 'Default priority'"
+                ) == "not_started"
+            )
+        }
     }
 }
