@@ -18,10 +18,15 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from shared.schema_v3 import (
-    DATABASE_VERSION,
     create_v3_schema,
     migrate_v2_to_v3,
     validate_v3_schema,
+)
+
+from shared.schema_v4 import (
+    DATABASE_VERSION,
+    migrate_v3_to_v4,
+    validate_v4_schema,
 )
 
 _DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / "assignments.db"
@@ -87,7 +92,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def ensure_assignment_schema() -> MigrationResult:
-    """Create or safely upgrade the configured local database to schema v3.
+    """Create or safely upgrade the configured local database to schema v4.
 
     A process-wide advisory lock and SQLite ``BEGIN IMMEDIATE`` transaction
     cover version re-check, online backup, migration, validation, commit, and
@@ -152,13 +157,18 @@ def _migrate_database_while_locked(
                 f"version {DATABASE_VERSION}."
             )
 
-        if table_exists and inferred_version not in {1, 2, 3}:
+        if raw_version > 0 and not table_exists:
+            raise DatabaseMigrationError(
+                f"Database schema version {raw_version} is missing assignments."
+            )
+
+        if table_exists and inferred_version not in {1, 2, 3, 4}:
             raise DatabaseMigrationError(
                 f"Unsupported database schema version {raw_version}."
             )
 
         if inferred_version == DATABASE_VERSION:
-            validate_v3_schema(connection)
+            validate_current_schema(connection)
             connection.commit()
             return MigrationResult(
                 from_version=DATABASE_VERSION,
@@ -174,10 +184,8 @@ def _migrate_database_while_locked(
 
         if not table_exists:
             create_v3_schema(connection)
-            if migration_hook is not None:
-                migration_hook(connection)
-            validate_v3_schema(connection)
-            strategy = "create-v3"
+            _migrate_v3_with_payload_check(connection, migration_hook=migration_hook)
+            strategy = "create-v4"
         else:
             strategy_parts: list[str] = []
             if inferred_version == 1:
@@ -185,16 +193,11 @@ def _migrate_database_while_locked(
                 _validate_v2_schema(connection)
                 connection.execute("PRAGMA user_version = 2")
                 strategy_parts.append(f"v1-v2-{v2_strategy}")
-            elif inferred_version != 2:
-                raise DatabaseMigrationError(
-                    f"No migration dispatcher for schema {inferred_version}."
-                )
-
-            migrate_v2_to_v3(
-                connection,
-                migration_hook=migration_hook,
-            )
-            strategy_parts.append("v2-v3-additive")
+            if inferred_version in {1, 2}:
+                migrate_v2_to_v3(connection)
+                strategy_parts.append("v2-v3-additive")
+            _migrate_v3_with_payload_check(connection, migration_hook=migration_hook)
+            strategy_parts.append("v3-v4-additive")
             strategy = "+".join(strategy_parts)
 
         _validate_committed_candidate(connection)
@@ -236,6 +239,60 @@ def _migrate_database_while_locked(
     finally:
         if connection:
             connection.close()
+
+
+
+def _migrate_v3_with_payload_check(
+    connection: sqlite3.Connection,
+    *,
+    migration_hook: Callable[[sqlite3.Connection], None] | None,
+) -> None:
+    """Prove every inherited column and extension survives the additive step."""
+    schema_before = {
+        (str(row[0]), str(row[1])): (str(row[2]), row[3])
+        for row in connection.execute(
+            "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+        )
+    }
+    preserved = {}
+    for (kind, name) in schema_before:
+        if kind != "table":
+            continue
+        quoted = '"' + name.replace('"', '""') + '"'
+        columns = tuple(str(row[1]) for row in connection.execute(f"PRAGMA table_info({quoted})"))
+        preserved[name] = (columns, _column_payload_fingerprint(connection, name, columns))
+
+    migrate_v3_to_v4(connection, migration_hook=migration_hook)
+    schema_after = {
+        (str(row[0]), str(row[1])): (str(row[2]), row[3])
+        for row in connection.execute("SELECT type,name,tbl_name,sql FROM sqlite_master")
+    }
+    for key, original in schema_before.items():
+        # ALTER TABLE intentionally adds schedule_kind to this declaration.
+        if key == ("table", "reminders"):
+            continue
+        if schema_after.get(key) != original:
+            raise DatabaseMigrationError(f"v4 migration altered inherited schema object {key[1]}")
+    for name, (columns, original) in preserved.items():
+        if _column_payload_fingerprint(connection, name, columns) != original:
+            raise DatabaseMigrationError(f"v4 migration altered inherited payload in {name}")
+
+
+def _column_payload_fingerprint(
+    connection: sqlite3.Connection,
+    table: str,
+    columns: tuple[str, ...],
+) -> str:
+    quoted_table = '"' + table.replace('"', '""') + '"'
+    quoted_columns = ','.join('"' + name.replace('"', '""') + '"' for name in columns)
+    order = ','.join(str(index + 1) for index in range(len(columns)))
+    digest = sha256()
+    for row in connection.execute(f"SELECT {quoted_columns} FROM {quoted_table} ORDER BY {order}"):
+        # repr retains SQLite value types, BLOB bytes, nulls, and Unicode; no
+        # normalization of a wall-time or custom metadata value is allowed.
+        digest.update(repr(tuple(row)).encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
 
 
 def _connect(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
@@ -349,8 +406,27 @@ def _database_matches_snapshot(
         return False
 
 
+def validate_current_schema(connection: sqlite3.Connection) -> None:
+    """Validate both inherited v3 invariants and additive v4 invariants.
+
+    The shared v3 validator requires its exact version marker. Temporarily
+    selecting that marker inside the already protected transaction lets us
+    reuse its UUID, lineage, child-row, index, and trigger checks unchanged.
+    The v4 marker is restored even when validation raises; callers roll back.
+    """
+
+    if not connection.in_transaction:
+        raise DatabaseMigrationError("Schema validation requires an active transaction")
+    validate_v4_schema(connection)
+    connection.execute("PRAGMA user_version = 3")
+    try:
+        validate_v3_schema(connection)
+    finally:
+        connection.execute("PRAGMA user_version = 4")
+
+
 def _validate_committed_candidate(connection: sqlite3.Connection) -> None:
-    validate_v3_schema(connection)
+    validate_current_schema(connection)
     if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
         raise DatabaseMigrationError("SQLite integrity check failed after migration.")
     foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()
