@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,15 +22,18 @@ def resolved_deadline(assignment: models.Assignment) -> datetime | None:
     wall = assignment.due_date
     if wall is None:
         return None
-    if assignment.timezone_id:
-        aware = wall.replace(tzinfo=ZoneInfo(assignment.timezone_id), fold=0)
-        round_trip = aware.astimezone(timezone.utc).astimezone(aware.tzinfo)
-    else:
-        aware = wall.replace(fold=0).astimezone()
-        round_trip = aware.astimezone(timezone.utc).astimezone()
-    if round_trip.replace(tzinfo=None) != wall:
-        return None
-    return aware.astimezone(timezone.utc)
+    try:
+        if assignment.timezone_id:
+            aware = wall.replace(tzinfo=ZoneInfo(assignment.timezone_id), fold=0)
+            round_trip = aware.astimezone(timezone.utc).astimezone(aware.tzinfo)
+        else:
+            aware = wall.replace(fold=0).astimezone()
+            round_trip = aware.astimezone(timezone.utc).astimezone()
+        if round_trip.replace(tzinfo=None) != wall:
+            return None
+        return aware.astimezone(timezone.utc)
+    except (OverflowError, ValueError, ZoneInfoNotFoundError) as exc:
+        raise SchemaV4Error("due date cannot be resolved in its time zone within supported dates") from exc
 
 
 def relative_trigger(assignment: models.Assignment, lead_minutes: int) -> str:
@@ -53,8 +56,11 @@ def disabled_reason(
     if reminder.schedule_kind == "due_relative":
         if assignment.due_date is None:
             return "missing_due_date"
-        if resolved_deadline(assignment) is None:
-            return "nonexistent_due_time"
+        try:
+            if resolved_deadline(assignment) is None:
+                return "nonexistent_due_time"
+        except SchemaV4Error:
+            return "unresolvable_due_time"
     if assignment.deleted_at is not None:
         return "task_deleted"
     if assignment.status == "done":
