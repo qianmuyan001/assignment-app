@@ -95,6 +95,14 @@ jobs:
           ASSIGNMENT_CATALYST_TESTS: passed
         run: ./native/apple/package-catalyst.sh
 
+      - name: Shut down and delete the owned simulator
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 native/apple/scripts/ipad-simulator.py delete \
+            --state "$RUNNER_TEMP/ipad-simulator.json" | tee "$RUNNER_TEMP/ipad-simulator-cleanup.log"
+
       - name: Upload Apple package and test evidence
         if: success()
         uses: actions/upload-artifact@v4
@@ -124,11 +132,3 @@ jobs:
             ${{ runner.temp }}/catalyst-unit.xcresult
             ${{ runner.temp }}/*.log
             ${{ runner.temp }}/ipad-simulator.json
-
-      - name: Shut down and delete the owned simulator
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 native/apple/scripts/ipad-simulator.py delete \
-            --state "$RUNNER_TEMP/ipad-simulator.json"
