@@ -128,7 +128,7 @@ async function renderCalendar(parent) {
   exams.forEach(exam => events.push({ title: exam.name, day: exam.starts_at_utc ? LearningCore.dateKey(new Date(exam.starts_at_utc)) : exam.starts_at_local.slice(0,10), kind: "Exam", time: exam.starts_at_utc ? new Date(exam.starts_at_utc) : null, open: () => openLearningEditor("exam", exam) }));
   warningList(parent, exams.flatMap(exam => exam.warnings || []));
   const grid = element("div", null, "calendar-grid"); grid.setAttribute("aria-label", tr("Calendar"));
-  weekdays.forEach(day => grid.append(translated("div", day, "calendar-weekday")));
+  weekdays.forEach(day => { const label = element("div", preferences.language === "en" ? day.slice(0,3) : tr(day), "calendar-weekday"); label.setAttribute("aria-label", tr(day)); grid.append(label); });
   const year = learning.month.getFullYear(), month = learning.month.getMonth(), offset = (new Date(year, month, 1).getDay() + 6) % 7, count = new Date(year, month + 1, 0).getDate();
   for (let i = 0; i < offset; i++) { const gap = element("div", null, "calendar-gap"); gap.setAttribute("aria-hidden", "true"); grid.append(gap); }
   const monthEvents = [];
@@ -374,3 +374,6 @@ window.addEventListener("hashchange", () => changeView(location.hash.slice(1),fa
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkOpenReminders(); });
 window.setInterval(checkOpenReminders, 15000);
 changeView(location.hash.slice(1) || "tasks", false);
+
+// Start requests after both the existing shelf and learning adapters are loaded.
+loadAssignments();
