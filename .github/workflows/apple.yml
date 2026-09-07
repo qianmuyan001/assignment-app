@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 native/apple/scripts/ipad-simulator.py create \
-            --state "$RUNNER_TEMP/ipad-simulator.json" | tee "$RUNNER_TEMP/ipad-simulator.log"
+            --state "$RUNNER_TEMP/ipad-simulator.json" 2>&1 | tee "$RUNNER_TEMP/ipad-simulator.log"
 
       - name: Run iPad unit tests
         shell: bash
@@ -55,7 +55,7 @@ jobs:
             -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/ipad-unit.xcresult" \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO test | tee "$RUNNER_TEMP/ipad-unit.log"
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/ipad-unit.log"
 
       - name: Run iPad UI smoke tests
         shell: bash
@@ -71,7 +71,7 @@ jobs:
             -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/ipad-ui.xcresult" \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO test | tee "$RUNNER_TEMP/ipad-ui.log"
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/ipad-ui.log"
 
       - name: Run Mac Catalyst unit tests
         shell: bash
@@ -84,7 +84,19 @@ jobs:
             -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
             -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/catalyst-unit.xcresult" \
-            CODE_SIGNING_ALLOWED=NO test | tee "$RUNNER_TEMP/catalyst-unit.log"
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/catalyst-unit.log"
+
+      - name: Build Mac Catalyst Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project native/apple/AssignmentApp2.xcodeproj \
+            -scheme AssignmentApp2 \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
+            -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/catalyst-release.log"
 
       - name: Package and launch-smoke Mac Catalyst
         shell: bash
@@ -101,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 native/apple/scripts/ipad-simulator.py delete \
-            --state "$RUNNER_TEMP/ipad-simulator.json" | tee "$RUNNER_TEMP/ipad-simulator-cleanup.log"
+            --state "$RUNNER_TEMP/ipad-simulator.json" 2>&1 | tee "$RUNNER_TEMP/ipad-simulator-cleanup.log"
 
       - name: Upload Apple package and test evidence
         if: success()
