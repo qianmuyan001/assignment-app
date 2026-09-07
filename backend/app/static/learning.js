@@ -150,6 +150,7 @@ function courseName(item) { return item.course_name || state.courses.find(course
 function meetingRow(meeting, editable = true) {
   const item = element("li", null, "learning-row"), copy = element("div", null, "row-copy");
   copy.append(element("strong", courseName(meeting)), element("span", `${meeting.start_time_local.slice(0,5)}–${meeting.end_time_local.slice(0,5)} · ${meeting.timezone_id}`, "muted"));
+  if (meeting.occurrences?.length) copy.append(element("span", [...new Set(meeting.occurrences.map(occurrence => occurrence.date))].join(" · "), "muted"));
   if (meeting.location || meeting.teacher_override) copy.append(element("span", [meeting.location, meeting.teacher_override].filter(Boolean).join(" · "), "muted"));
   if (meeting.deleted_at) copy.append(translated("span", "Deleted", "deleted-label")); warningList(copy, meeting.warnings); item.append(copy);
   if (editable) item.append(recordActions("meeting", meeting)); return item;
@@ -176,6 +177,10 @@ async function renderTimetable(parent) {
   const deleted = checkboxField("deleted-meetings", "Show deleted", learning.showDeleted); deleted.input.addEventListener("change", () => { learning.showDeleted = deleted.input.checked; renderLearning(); }); toolbar.append(deleted.wrapper); parent.append(toolbar);
   if (!courses.length) { empty(parent, "Create a course first, then add a meeting."); parent.append(actionButton("Manage courses", openOrgDialog)); }
   if (!meetings.length) { empty(parent, "No classes scheduled."); return; }
+  if (learning.timetableMode === "today") {
+    const section = element("section", null, "timetable-day"); section.append(translated("h3", "Today's classes"));
+    const list = element("ul", null, "learning-list"); meetings.forEach(meeting => list.append(meetingRow(meeting))); section.append(list); parent.append(section); return;
+  }
   const weekView = element("div", null, "timetable-week");
   weekdays.forEach((day, index) => {
     const items = meetings.filter(meeting => meeting.weekday === index + 1); if (!items.length && learning.timetableMode === "today") return;

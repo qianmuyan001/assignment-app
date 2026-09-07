@@ -24,7 +24,14 @@ const LearningCore = (() => {
     const candidates = [...offsets].map(offset => naive - offset).filter(time => represented(time) === naive);
     return candidates.length ? new Date(Math.min(...candidates)) : null;
   }
-  function dueInstant(task) { return wallInstant(task.due_date, task.timezone_id || Intl.DateTimeFormat().resolvedOptions().timeZone); }
+  function dueInstant(task) {
+    if (Object.prototype.hasOwnProperty.call(task, "due_at_utc")) {
+      if (!task.due_at_utc) return null;
+      const resolved = new Date(task.due_at_utc);
+      return Number.isNaN(resolved.getTime()) ? null : resolved;
+    }
+    return wallInstant(task.due_date, task.timezone_id || Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }
   function matchesScope(task, scope, now = new Date(), zone) {
     const done = ["done", "completed"].includes(task.status);
     if (scope === "all") return true;
