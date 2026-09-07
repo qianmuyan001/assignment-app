@@ -272,6 +272,7 @@ function layoutCards(now) {
     if (far !== entry.isFar) {
       entry.isFar = far;
       entry.element.classList.toggle("is-far", far);
+      entry.element.setAttribute("aria-hidden", String(far));
     }
 
     if (far && entry.leaveAt === null) {
@@ -347,6 +348,8 @@ function createCardElement(assignment) {
   const card = document.createElement("article");
   card.className = "flow-card";
   card.dataset.assignmentId = String(assignment.id);
+  card.id = `assignment-card-${assignment.id}`;
+  card.setAttribute("role", "option");
 
   const disc = document.createElement("div");
   disc.className = "disc-core";
@@ -407,6 +410,7 @@ function updateCardContent(entry, assignment) {
     classes.push("is-past-due");
   }
 
+  entry.element.setAttribute("aria-selected", String(assignment.id === state.selectedId));
   if (assignment.id === state.selectedId) {
     classes.push("is-selected");
   }
@@ -544,6 +548,8 @@ function moveSelection(delta) {
 }
 
 function updateFlowControls() {
+  if (state.selectedId !== null) dom.coverFlow.setAttribute("aria-activedescendant", `assignment-card-${state.selectedId}`);
+  else dom.coverFlow.removeAttribute("aria-activedescendant");
   const count = state.visible.length;
   dom.previousCard.disabled = count <= 1 || state.selectedIndex === 0;
   dom.nextCard.disabled = count <= 1 || state.selectedIndex === count - 1;
@@ -1024,6 +1030,8 @@ function renderDetail() {
     ? tr("Hide Full Details")
     : tr("Show Full Details");
   view.expandButton.setAttribute("aria-expanded", String(state.detailExpanded));
+  view.extraWrap.inert = !state.detailExpanded;
+  view.extraWrap.setAttribute("aria-hidden", String(!state.detailExpanded));
   view.extraWrap.classList.toggle("is-open", state.detailExpanded);
 
   setDetailRow(view.rows.due, formatTaskDeadline(assignment) || tr("None"));
