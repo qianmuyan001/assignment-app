@@ -675,7 +675,8 @@ struct LearningSceneRepositoryTests {
                     )
                 )
             })
-            #expect(try fixture.organization.fetchMeetings(courseID: nil, includeDeleted: true).isEmpty)
+            let meetings = try fixture.organization.fetchMeetings(courseID: nil, includeDeleted: true)
+            #expect(meetings.isEmpty)
         }
     }
 
@@ -781,7 +782,8 @@ struct LearningSceneRepositoryTests {
                     timezoneID: "Mars/Olympus_Mons"
                 ))
             })
-            #expect(try fixture.organization.fetchExams(courseID: nil, includeDeleted: true).isEmpty)
+            let exams = try fixture.organization.fetchExams(courseID: nil, includeDeleted: true)
+            #expect(exams.isEmpty)
         }
     }
 
