@@ -20,23 +20,7 @@ final class AssignmentApp2UITests: XCTestCase {
 
     @MainActor
     func testLaunchesWithAnIsolatedDatabase() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let app = XCUIApplication()
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
-        app.launchArguments.append(Self.skipOnboardingArgument)
-        app.launchArguments.append(Self.englishLanguageArgument)
+        let app = isolatedApplication()
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
@@ -46,24 +30,7 @@ final class AssignmentApp2UITests: XCTestCase {
 
     @MainActor
     func testSidebarAndSearchStateSmoke() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let app = XCUIApplication()
-        app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
-        app.launchArguments.append(Self.skipOnboardingArgument)
-        app.launchArguments.append(Self.englishLanguageArgument)
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestSidebarExpanded"])
         app.launch()
 
         let today = app.buttons["sidebar-today"]
@@ -135,27 +102,10 @@ final class AssignmentApp2UITests: XCTestCase {
 
     @MainActor
     func testCompactSidebarAccessibilityAtLargestTextAndRapidRetarget() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let app = XCUIApplication()
-        app.launchArguments += [
+        let app = isolatedApplication(arguments: [
             "-assignmentApp.uiTestSidebarCompact",
             "-assignmentApp.uiTestDynamicTypeAccessibility5",
-            Self.skipOnboardingArgument,
-            Self.englishLanguageArgument,
-        ]
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
+        ])
         app.launch()
 
         let destinations = [
@@ -193,23 +143,11 @@ final class AssignmentApp2UITests: XCTestCase {
     /// is captured. It runs against a throwaway database.
     @MainActor
     func testLearningScenesSmoke() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let app = XCUIApplication()
-        app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
-        app.launchArguments.append(Self.skipOnboardingArgument)
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestSidebarExpanded"])
+        // Hosted macOS runners report GMT. Exercise the default device-zone
+        // path under that exact environment instead of hiding the CI failure
+        // by selecting a different zone in the editor.
+        app.launchEnvironment["TZ"] = "GMT"
         app.launch()
 
         // MARK: Timetable
@@ -241,6 +179,7 @@ final class AssignmentApp2UITests: XCTestCase {
         capture("ipad-meeting-editor", app: app)
 
         app.buttons["Save"].tap()
+        assertEditorSaved("New Meeting", app: app)
 
         let meetingTitle = app.staticTexts["Physics"]
         XCTAssertTrue(meetingTitle.waitForExistence(timeout: 5), "Saved meeting appears")
@@ -284,6 +223,7 @@ final class AssignmentApp2UITests: XCTestCase {
         capture("ipad-exam-editor", app: app)
 
         app.buttons["Save"].tap()
+        assertEditorSaved("New Exam", app: app)
 
         let examTitle = app.staticTexts["Midterm"]
         XCTAssertTrue(examTitle.waitForExistence(timeout: 5), "Saved exam appears")
@@ -336,51 +276,24 @@ final class AssignmentApp2UITests: XCTestCase {
     /// walkthrough, the task calendar, the backup centre and the about page —
     /// and switches the interface language through the real picker.
     ///
-    /// This is the only suite that deliberately does **not** pass the
-    /// onboarding opt-out on its first launch, so the walkthrough is covered
-    /// rather than assumed away.
+    /// The skip path is forced and asserted here; the separate walkthrough
+    /// test advances all pages and checks completion survives a restart.
     @MainActor
     func testFoundationPagesSmoke() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
+        let app = isolatedApplication(
+            arguments: [
+                "-assignmentApp.uiTestSidebarExpanded",
+                "-assignmentApp.uiTestResetOnboarding",
+                "-assignmentApp.uiTestShowOnboarding",
+            ],
+            skipOnboarding: false
         )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let app = XCUIApplication()
-        app.launchArguments.append("-assignmentApp.uiTestSidebarExpanded")
-        // This suite switches to Chinese part-way through, and the choice is
-        // stored in `UserDefaults`. Pinning English at launch is what keeps
-        // that switch from leaking into the suites that run afterwards.
-        app.launchArguments.append(Self.englishLanguageArgument)
-        // `ASSIGNMENT_DB_PATH` is reset every run, but UserDefaults (including
-        // the onboarding completion flag) survive across runs on a long-lived
-        // simulator. The walkthrough is therefore only dismissed here if it
-        // happens to be up; `testOnboardingWalkthroughSmoke` is what actually
-        // exercises it, by forcing it open.
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
         app.launch()
 
-        // MARK: First-run walkthrough (best-effort)
-
-        // The walkthrough is dismissed if it is up. If the device has
-        // completed it before, this whole block is a no-op and the suite moves
-        // on. A dedicated standalone run captures the walkthrough screenshot.
-        let skipButton = app.buttons["Skip"]
-        if skipButton.waitForExistence(timeout: 5) {
-            skipButton.tap()
-            XCTAssertTrue(
-                waitForDisappearance(of: skipButton, timeout: 5),
-                "Walkthrough can be skipped"
-            )
-        }
+        let skip = app.buttons["onboarding-skip"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 10), "First-run walkthrough offers Skip")
+        skip.tap()
+        XCTAssertTrue(waitForDisappearance(of: skip, timeout: 5), "Walkthrough can be skipped")
 
         // MARK: Task calendar
 
@@ -509,32 +422,13 @@ final class AssignmentApp2UITests: XCTestCase {
     /// by hand.
     @MainActor
     func testOnboardingWalkthroughSmoke() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "AssignmentApp2UITests-onboarding-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
+        let app = isolatedApplication(
+            arguments: [
+                "-assignmentApp.uiTestResetOnboarding",
+                "-assignmentApp.uiTestShowOnboarding",
+            ],
+            skipOnboarding: false
         )
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let databasePath = directoryURL
-            .appendingPathComponent("assignments.db")
-            .path
-
-        let app = XCUIApplication()
-        app.launchEnvironment["ASSIGNMENT_DB_PATH"] = databasePath
-        // `Reset` before `Show`: the completion flag in `UserDefaults`
-        // outlives the simulator, so without it the walkthrough would reopen
-        // in its "revisited from Settings" shape and the first-launch path —
-        // the one worth testing — would never be exercised.
-        app.launchArguments.append(contentsOf: [
-            "-assignmentApp.uiTestResetOnboarding",
-            "-assignmentApp.uiTestShowOnboarding",
-            Self.englishLanguageArgument
-        ])
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
 
@@ -633,7 +527,8 @@ final class AssignmentApp2UITests: XCTestCase {
         // MARK: The same walkthrough in Simplified Chinese
 
         app.terminate()
-        app.launchArguments = [
+        app.launchArguments.removeAll { $0.hasPrefix("-assignmentApp.uiTestLanguage:") }
+        app.launchArguments += [
             "-assignmentApp.uiTestResetOnboarding",
             "-assignmentApp.uiTestShowOnboarding",
             "-assignmentApp.uiTestLanguage:simplifiedChinese"
@@ -652,6 +547,55 @@ final class AssignmentApp2UITests: XCTestCase {
             "The next action is localized"
         )
         capture("ipad-onboarding-chinese", app: app)
+    }
+
+    /// A failed save keeps its editor and raises a validation alert. Wait for
+    /// either outcome, then report the actual alert rather than timing out on
+    /// a list row that cannot exist yet.
+    @MainActor
+    private func assertEditorSaved(_ title: String, app: XCUIApplication) {
+        let editor = app.navigationBars[title]
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                !editor.exists || app.alerts.firstMatch.exists
+            },
+            object: app
+        )
+        let result = XCTWaiter.wait(for: [settled], timeout: 10)
+        if result != .completed || editor.exists || app.alerts.firstMatch.exists {
+            attachHierarchy(of: app, named: "save-failed-\(title)")
+        }
+        XCTAssertEqual(result, .completed, "Saving the editor reaches a visible outcome")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "Saving must not raise a validation alert")
+        XCTAssertFalse(editor.exists, "A successful save dismisses the editor")
+    }
+
+    /// Each test gets a UUID namespace inside the app's own temporary directory.
+    /// The runner never deletes an app database while its process is alive.
+    /// CI removes the whole disposable simulator only after shutting it down.
+    @MainActor
+    private func isolatedApplication(
+        arguments: [String] = [],
+        skipOnboarding: Bool = true
+    ) -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        let token = UUID().uuidString
+        app.launchArguments = [
+            "-assignmentApp.testDatabaseToken", token,
+            Self.englishLanguageArgument,
+        ] + arguments
+        if skipOnboarding { app.launchArguments.append(Self.skipOnboardingArgument) }
+        print("ASSIGNMENT_UI_DATABASE_TOKEN \(token)")
+        addTeardownBlock { @MainActor in
+            app.terminate()
+            XCTAssertTrue(
+                app.wait(for: .notRunning, timeout: 10),
+                "The application must exit before disposable simulator cleanup"
+            )
+            XCUIDevice.shared.orientation = .portrait
+        }
+        return app
     }
 
     /// Polls instead of using `wait(for:)`, because `continueAfterFailure` is
