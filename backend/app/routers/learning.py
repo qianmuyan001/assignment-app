@@ -48,7 +48,10 @@ def _merged_values(row: dict[str, Any], patch: BaseModel, create_type: type[Base
     values = {name: row[name] for name in create_type.model_fields}
     values.update(patch.model_dump(exclude_unset=True))
     try:
-        return create_type.model_validate(values).model_dump()
+        # PATCH validates supplied fields with the draft limits, while complete
+        # stored validation preserves longer shared-valid imported text verbatim.
+        stored_type = wire.MeetingStored if create_type is wire.MeetingCreate else wire.ExamStored
+        return stored_type.model_validate(values).model_dump()
     except ValidationError as exc:
         errors = [{**error, "loc": ("body", *error["loc"])} for error in exc.errors()]
         raise RequestValidationError(errors) from exc

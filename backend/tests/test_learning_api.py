@@ -168,7 +168,8 @@ def _check_overlap_resolves_timezones_and_effective_windows(scene_api):
     {"end_time_local": "09:00:00"}, {"end_time_local": "08:00:00"},
     {"timezone_id": "Mars/Olympus"}, {"timezone_id": "GMT+08:00"},
     {"effective_start_date": "2026-02-30"}, {"effective_end_date": "2026-01-01"},
-    {"sort_order": -1}, {"uuid": "replacement"},
+    {"sort_order": -1}, {"uuid": "replacement"}, {"location": "x" * 256},
+    {"teacher_override": "x" * 256},
 ])
 def _check_meeting_invalid_create_is_atomic(scene_api, changes):
     client, engine, courses = scene_api
@@ -232,6 +233,7 @@ def _check_exam_crud_status_order_and_restore(scene_api):
     {"name": "   "}, {"course_id": 0}, {"starts_at_local": "2026-02-30 12:00:00"},
     {"starts_at_local": "2026-09-10T09:00:00"}, {"starts_at_local": "2026-09-10 09:00:00+08:00"},
     {"timezone_id": "invalid"}, {"status": "done"}, {"linked_assignment_id": 123},
+    {"location": "x" * 256}, {"scope": "x" * 1001}, {"notes": "x" * 4001},
 ])
 def _check_exam_invalid_create_or_edit_preserves_data(scene_api, changes):
     client, _, courses = scene_api
@@ -432,6 +434,31 @@ def _check_null_task_timezone_instant_is_independent_of_viewer_zone(scene_api):
         task = next(item for item in overview["due_today"] if item["id"] == task_id)
         results.append(task["due_at_utc"])
     assert results[0] == results[1] == expected.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _check_shared_valid_long_imported_text_is_readable_and_preserved(scene_api):
+    client, engine, courses = scene_api
+    meeting = create(client, "/course-meetings", meeting_payload(courses[0]))
+    exam = create(client, "/exams", exam_payload(courses[0]))
+    long_text = "持久保留 Imported " * 400
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE course_meetings SET teacher_override=:value"), {"value": long_text})
+        connection.execute(text("UPDATE exams SET name=:name,scope=:value,notes=:value"), {"name": "Exam " * 60, "value": long_text})
+    meeting_read = client.get(f"/course-meetings/{meeting['id']}")
+    assert meeting_read.status_code == 200
+    assert meeting_read.json()["teacher_override"] == long_text
+    changed = client.patch(f"/course-meetings/{meeting['id']}", json={"location": "A102"})
+    assert changed.status_code == 200
+    assert changed.json()["teacher_override"] == long_text
+    changed_exam = client.patch(f"/exams/{exam['id']}", json={"status": "completed"})
+    assert changed_exam.status_code == 200
+    assert changed_exam.json()["scope"] == long_text
+    assert changed_exam.json()["notes"] == long_text
+    assert changed_exam.json()["name"] == "Exam " * 60
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT teacher_override FROM course_meetings")).scalar() == long_text
+        assert connection.execute(text("SELECT scope FROM exams")).scalar() == long_text
+        assert connection.execute(text("SELECT notes FROM exams")).scalar() == long_text
 
 
 class LearningApiTests(unittest.TestCase):
