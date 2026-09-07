@@ -359,7 +359,8 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
       lsof -a -p "$SMOKE_PID" -Fn > "$OUTPUT_DIR/logs/catalyst-open-files.log" 2>/dev/null
       # Inspect path strings first; never point sqlite3 at a discovered user DB.
       if grep -Fqx "n$SMOKE_DATABASE" "$OUTPUT_DIR/logs/catalyst-open-files.log"; then
-        if grep -F 'n'"$HOME/Library/Containers/com.qianmuyan.assignmentapp/" \
+        if grep -F -e 'n'"$HOME/Library/Containers/com.qianmuyan.assignmentapp/" \
+          -e 'n'"$HOME/Library/Application Support/AssignmentApp2/" \
           "$OUTPUT_DIR/logs/catalyst-open-files.log"; then
           fail_launch "Smoke process unexpectedly opened the production container."
         fi
