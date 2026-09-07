@@ -91,13 +91,13 @@ def list_meetings(
     include_deleted: bool = False,
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
+    """on_date uses the viewer timezone; week_start uses stored ISO weekdays."""
     zone = _validated_time_zone(_zone(timezone_id))
     if sum((week_start is not None, on_date is not None, current_week)) > 1:
         raise HTTPException(422, "Choose only one of week_start, on_date, or current_week")
     days = None
-    if on_date is not None:
-        days = [_day(on_date)]
-    elif week_start is not None or current_week:
+    selected_day = _day(on_date)
+    if week_start is not None or current_week:
         anchor = _day(week_start) if week_start is not None else _now().astimezone(zone).date()
         monday = anchor - timedelta(days=anchor.weekday())
         days = [monday + timedelta(days=offset) for offset in range(7)]
@@ -116,6 +116,8 @@ def list_meetings(
         "SELECT s.*,c.name AS course_name FROM course_meetings s JOIN courses c ON c.id=s.course_id"
         + where + " ORDER BY s.weekday,s.start_time_local,s.sort_order,s.id"
     ), params).mappings()]
+    if selected_day is not None:
+        return learning.meetings_for_viewer_day(db, rows, selected_day, timezone_id)
     if days is not None:
         rows = [row for row in rows if any(meeting_occurs_on(learning.meeting_window(row), day.isoformat()) for day in days)]
     return learning.meeting_responses(db, rows, days)

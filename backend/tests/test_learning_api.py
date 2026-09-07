@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import datetime, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -402,6 +403,35 @@ def _check_unknown_course_rejected_and_deleted_course_restore_blocked(scene_api)
     assert client.post(f"/exams/{exam['id']}/restore").status_code == 404
     assert client.get(f"/course-meetings/{meeting['id']}?include_deleted=true").json()["deleted_at"]
     assert client.get(f"/exams/{exam['id']}?include_deleted=true").json()["deleted_at"]
+
+
+def _check_timetable_today_matches_overview_across_weekday_boundary(scene_api):
+    client, _, courses = scene_api
+    sunday = create(client, "/course-meetings", meeting_payload(courses[0], weekday=7,
+        start_time_local="21:00:00", end_time_local="22:00:00", timezone_id="America/New_York"))
+    monday = create(client, "/course-meetings", meeting_payload(courses[0], weekday=1,
+        start_time_local="21:00:00", end_time_local="22:00:00", timezone_id="America/New_York"))
+    timetable = client.get("/course-meetings?on_date=2026-09-07&timezone_id=Asia/Shanghai").json()
+    overview = client.get("/overview/today?timezone_id=Asia/Shanghai").json()
+    assert [row["id"] for row in timetable] == [sunday["id"]]
+    assert timetable == overview["meetings"]
+    assert timetable[0]["occurrences"][0]["date"] == "2026-09-06"
+    week = client.get("/course-meetings?week_start=2026-09-07&timezone_id=Asia/Shanghai").json()
+    assert [row["id"] for row in week] == [monday["id"], sunday["id"]]
+    assert next(row for row in week if row["id"] == sunday["id"])["occurrences"][0]["date"] == "2026-09-13"
+
+
+def _check_null_task_timezone_instant_is_independent_of_viewer_zone(scene_api):
+    client, engine, courses = scene_api
+    task_id = add_task(engine, courses[0], "Legacy unzoned task", "2026-09-07 18:00:00")
+    expected = datetime(2026, 9, 7, 18).astimezone(timezone.utc)
+    results = []
+    for viewer_zone in ("Asia/Shanghai", "Pacific/Honolulu"):
+        viewer_day = expected.astimezone(ZoneInfo(viewer_zone)).date().isoformat()
+        overview = client.get("/overview/today", params={"timezone_id": viewer_zone, "on_date": viewer_day}).json()
+        task = next(item for item in overview["due_today"] if item["id"] == task_id)
+        results.append(task["due_at_utc"])
+    assert results[0] == results[1] == expected.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 class LearningApiTests(unittest.TestCase):

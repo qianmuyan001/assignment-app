@@ -23,6 +23,7 @@ from shared.schema_v4 import (
 )
 
 from .. import models, schemas
+from .reminder_schedule import resolved_deadline
 
 
 @contextmanager
@@ -133,6 +134,41 @@ def task_response(assignment: models.Assignment) -> dict[str, Any]:
     }
 
 
+def meetings_for_viewer_day(
+    db: Session, meetings: list[dict[str, Any]], day: date, zone_name: str,
+) -> list[dict[str, Any]]:
+    """Resolve recurrence dates into the viewer's half-open calendar day.
+
+    Returned occurrence.date remains the stored meeting timezone's date. Week
+    views continue to use stored ISO weekdays and their declared local dates.
+    """
+    zone = ZoneInfo(zone_name)
+    start = datetime.combine(day, time.min, zone).astimezone(timezone.utc)
+    end = datetime.combine(day + timedelta(days=1), time.min, zone).astimezone(timezone.utc)
+    # Meeting dates belong to their declared timezone, while the selected Today
+    # interval belongs to the viewer. Inspect adjacent local dates across zones.
+    occurring = []
+    for meeting in meetings:
+        window = meeting_window(meeting)
+        meeting_zone = ZoneInfo(meeting["timezone_id"])
+        local_first = start.astimezone(meeting_zone).date()
+        local_last = (end - timedelta(microseconds=1)).astimezone(meeting_zone).date()
+        days = [local_first + timedelta(days=offset) for offset in range((local_last - local_first).days + 1)]
+        response = meeting_responses(db, [meeting], days)[0]
+        relevant = []
+        for occurrence in response["occurrences"]:
+            if occurrence["starts_at_utc"] is None:
+                # A nonexistent wall time remains visible with its warning.
+                relevant.append(occurrence)
+            elif start <= datetime.fromisoformat(occurrence["starts_at_utc"]) < end:
+                relevant.append(occurrence)
+        if relevant:
+            response["occurrences"] = relevant
+            occurring.append(response)
+    occurring.sort(key=lambda row: (row["occurrences"][0]["starts_at_utc"] or "~", row["id"]))
+    return occurring
+
+
 def today_overview(db: Session, zone_name: str, *, now: datetime, selected_date: date | None = None) -> dict[str, Any]:
     zone = ZoneInfo(zone_name)
     day = selected_date or now.astimezone(zone).date()
@@ -144,28 +180,9 @@ def today_overview(db: Session, zone_name: str, *, now: datetime, selected_date:
         "JOIN courses c ON c.id=s.course_id WHERE s.deleted_at IS NULL "
         "ORDER BY s.start_time_local,s.sort_order,s.id"
     )).mappings()]
-    # Meeting dates belong to their declared timezone, while the selected Today
-    # interval belongs to the viewer. Inspect adjacent local dates across zones.
-    occurring = []
-    warnings = []
-    for meeting in meetings:
-        window = meeting_window(meeting)
-        meeting_zone = ZoneInfo(meeting["timezone_id"])
-        local_first = start.astimezone(meeting_zone).date()
-        local_last = (end - timedelta(microseconds=1)).astimezone(meeting_zone).date()
-        days = [local_first + timedelta(days=offset) for offset in range((local_last - local_first).days + 1)]
-        response = meeting_responses(db, [meeting], days)[0]
-        relevant = []
-        for occurrence in response["occurrences"]:
-            if occurrence["starts_at_utc"] is None:
-                warnings.extend(response["warnings"])
-                # A nonexistent wall time remains visible with its warning.
-                relevant.append(occurrence)
-            elif start <= datetime.fromisoformat(occurrence["starts_at_utc"]) < end:
-                relevant.append(occurrence)
-        if relevant:
-            response["occurrences"] = relevant
-            occurring.append(response)
+    occurring = meetings_for_viewer_day(db, meetings, day, zone_name)
+    warnings = [warning for meeting in occurring for warning in meeting["warnings"]
+                if warning["code"] == "nonexistent_local_time"]
     exams = []
     exam_rows = [dict(row) for row in db.execute(text(
         "SELECT e.*,c.name AS course_name FROM exams e JOIN courses c ON c.id=e.course_id "
@@ -184,7 +201,7 @@ def today_overview(db: Session, zone_name: str, *, now: datetime, selected_date:
     )).all()
     resolved_tasks = []
     for assignment in tasks:
-        instant = resolve_wall_instant(assignment.due_date, assignment.timezone_id or zone_name)
+        instant = resolved_deadline(assignment)
         if instant is None:
             warnings.append({"code": "unresolvable_task_deadline", "message": "A daylight-saving change skips a task deadline; edit its local time.", "related_id": assignment.id})
         else:
