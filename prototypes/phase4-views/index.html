@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Assignment · 多视图工作台</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <a class="skip-link" href="#view-panel">跳至任务</a>
+  <div class="app">
+    <aside class="sidebar" aria-label="工作区导航">
+      <a class="brand" href="./index.html"><span class="brand-symbol">A</span><span>Assignment<span class="brand-sub">学习工作台</span></span></a>
+      <div class="workspace-label">2026 秋季学期</div>
+      <nav id="scope-nav" aria-label="任务范围"></nav>
+      <div class="nav-heading">课程</div>
+      <nav id="course-nav" aria-label="课程"></nav>
+      <div class="sidebar-bottom"><span class="avatar">林</span><div>林同学<small>本地工作区</small></div><span class="local-dot" aria-label="本地"></span></div>
+    </aside>
+    <main class="workspace">
+      <header class="workspace-header">
+        <div><div class="breadcrumb">工作区 <span>/</span> 任务</div><h1 id="scope-title">全部任务</h1><div class="header-meta"><span id="total-count"></span><span class="separator">·</span><span>8 月 31 日，星期一</span></div></div>
+        <div class="header-actions"><span class="sample-badge">模拟数据</span><button class="icon-button" id="undo" title="撤销上一次修改" aria-label="撤销上一次修改" disabled><i data-lucide="undo-2"></i></button><button class="icon-button" id="settings-open" title="显示设置" aria-label="显示设置"><i data-lucide="settings-2"></i></button></div>
+      </header>
+      <div class="viewbar"><div id="view-tabs" role="tablist" aria-label="任务视图"></div><button id="detail-toggle" class="icon-button" aria-label="显示任务详情" title="显示任务详情" aria-pressed="false"><i data-lucide="panel-right"></i></button></div>
+      <form class="querybar" id="query-form" role="search">
+        <label class="search-field"><i data-lucide="search"></i><input id="search" type="search" placeholder="搜索任务、课程或描述" aria-label="搜索任务、课程或描述" autocomplete="off"></label>
+        <label class="sr-only" for="status-filter">状态筛选</label><select id="status-filter"><option value="all">全部状态</option><option value="todo">未开始</option><option value="in_progress">进行中</option><option value="done">已完成</option></select>
+        <label class="sr-only" for="priority-filter">优先级筛选</label><select id="priority-filter"><option value="all">全部优先级</option><option value="high">高优先级</option><option value="medium">中优先级</option><option value="low">低优先级</option></select>
+        <label class="sort-control"><i data-lucide="arrow-down-wide-narrow"></i><select id="sort" aria-label="排序"><option value="due">截止日期</option><option value="priority">优先级</option></select></label>
+        <button type="button" class="icon-button" id="clear" title="清除筛选与搜索" aria-label="清除筛选与搜索"><i data-lucide="filter-x"></i></button>
+      </form>
+      <div class="results-strip"><span id="result-count" role="status"></span><span id="query-summary"></span><button id="reveal-selection" class="text-button" hidden>定位所选任务</button></div>
+      <div class="work-area"><section id="view-panel" role="tabpanel" tabindex="0"></section><aside id="inspector" aria-label="任务详情" hidden></aside></div>
+      <footer class="workspace-footer"><span id="selection-status">未选择任务</span><span id="render-status"></span></footer>
+    </main>
+  </div>
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-heading"><h2 id="settings-title">显示设置</h2><button class="icon-button" id="settings-close" aria-label="关闭显示设置" title="关闭"><i data-lucide="x"></i></button></div>
+    <label class="setting-row">减少动态效果<input type="checkbox" id="reduce-motion"></label>
+    <p class="setting-note" id="motion-status"></p>
+    <label class="setting-row">任务字段<select id="display-mode"><option value="professional">专业</option><option value="simple">简洁</option></select></label>
+    <label class="setting-row">样本规模<select id="dataset-size"><option value="24">24 条</option><option value="10000">10,000 条</option></select></label>
+    <button class="secondary-button" id="reset-demo"><i data-lucide="rotate-ccw"></i>重置模拟数据</button>
+  </dialog>
+  <div id="live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast" role="status" hidden></div>
+  <script src="./vendor/lucide.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
