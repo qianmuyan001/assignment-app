@@ -341,4 +341,31 @@
   <data name="SaveTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save tag</value></data>
   <data name="NewTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>New tag</value></data>
   <data name="DeleteTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Delete tag</value></data>
+  <data name="NaturalLanguageImportButton.Content" xml:space="preserve"><value>Import text</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Turn text into assignment candidates</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Import assignments from text</value></data>
+  <data name="NaturalLanguageCandidateTitle.Header" xml:space="preserve"><value>Title</value></data>
+  <data name="NaturalLanguageCandidateCourse.Header" xml:space="preserve"><value>Course</value></data>
+  <data name="NaturalLanguageCandidatePriority.Header" xml:space="preserve"><value>Priority</value></data>
+  <data name="NaturalLanguagePriorityDefault.Content" xml:space="preserve"><value>Normal</value></data>
+  <data name="NaturalLanguagePriorityLow.Content" xml:space="preserve"><value>Low</value></data>
+  <data name="NaturalLanguagePriorityMedium.Content" xml:space="preserve"><value>Medium</value></data>
+  <data name="NaturalLanguagePriorityHigh.Content" xml:space="preserve"><value>High</value></data>
+  <data name="NaturalLanguageCandidateDate.Header" xml:space="preserve"><value>Due date</value></data>
+  <data name="NaturalLanguageCandidateDate.PlaceholderText" xml:space="preserve"><value>YYYY-MM-DD</value></data>
+  <data name="NaturalLanguageCandidateTime.Header" xml:space="preserve"><value>Time</value></data>
+  <data name="NaturalLanguageCandidateTime.PlaceholderText" xml:space="preserve"><value>HH:MM</value></data>
+  <data name="NaturalLanguageImportTitle" xml:space="preserve"><value>Import assignments from text</value></data>
+  <data name="NaturalLanguageInputHelp" xml:space="preserve"><value>Paste one or more Chinese sentences. Nothing is saved until you review and confirm the candidates.</value></data>
+  <data name="NaturalLanguageInputPlaceholder" xml:space="preserve"><value>Example: 高数第五章习题下周三前提交。周五开小组会，记得准备演示文稿。</value></data>
+  <data name="NaturalLanguageInputName" xml:space="preserve"><value>Text to parse into assignments</value></data>
+  <data name="ParseText" xml:space="preserve"><value>Parse text</value></data>
+  <data name="NaturalLanguageInputRequired" xml:space="preserve"><value>Enter some text before parsing.</value></data>
+  <data name="NaturalLanguageNoCandidates" xml:space="preserve"><value>No assignment candidates were found. Edit the text or add the assignment manually.</value></data>
+  <data name="NaturalLanguageReviewHelp" xml:space="preserve"><value>Select the candidates to import and correct any uncertain fields before saving.</value></data>
+  <data name="NaturalLanguageSourceName" xml:space="preserve"><value>Text import</value></data>
+  <data name="NaturalLanguageSelectCandidate" xml:space="preserve"><value>Select at least one candidate.</value></data>
+  <data name="NaturalLanguageTitleRequired" xml:space="preserve"><value>Every selected candidate needs a title.</value></data>
+  <data name="NaturalLanguageInvalidDate" xml:space="preserve"><value>Use YYYY-MM-DD for due dates.</value></data>
+  <data name="NaturalLanguageInvalidTime" xml:space="preserve"><value>Use 24-hour HH:MM for due times.</value></data>
 </root>

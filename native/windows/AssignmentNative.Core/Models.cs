@@ -144,6 +144,9 @@ public sealed class AssignmentDraft
 
 public class AssignmentCandidate
 {
+    [JsonIgnore]
+    public string? SourceSnippet { get; set; }
+
     [JsonPropertyName("course_name")]
     public string? CourseName { get; set; }
 

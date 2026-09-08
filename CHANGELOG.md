@@ -6,8 +6,19 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Added
+
+- Added an offline Chinese natural-language parser to Windows Core for task
+  segmentation, relative and absolute due dates, common spoken times, course
+  aliases, priorities, links, confidence, and ambiguity warnings.
+- Added a localized WinUI text-import flow with editable, multi-select candidate
+  review before any data is saved. Confirmed candidates are inserted in one
+  SQLite transaction and marked with the `natural_language` source type.
+
 ### Fixed
 
+- Made Schema v4 reference-artifact tests read UTF-8 explicitly so they also run
+  under the default Chinese Windows code page.
 - Retry transient Windows file-sharing violations when attachment payloads are
   mutated, on both WinUI (`AttachmentFileStore`) and backend
   (`attachment_store`) paths. Payloads briefly stay locked while an external

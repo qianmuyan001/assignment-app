@@ -1,9 +1,9 @@
 # Windows native app
 
-This is the independent Windows Assignment App 2.0 preview. It uses WinUI 3,
+This is the independent Windows Assignment App 2.1 preview. It uses WinUI 3,
 Windows App SDK, Microsoft.Data.Sqlite, and a UI-independent Core library.
 
-## Included in the 2.0 preview
+## Included in the 2.1 preview
 
 - Manual task add, edit, delete, and status changes.
 - All, Today, This Week, Overdue, and Completed task views.
@@ -12,6 +12,9 @@ Windows App SDK, Microsoft.Data.Sqlite, and a UI-independent Core library.
 - Loading, error, empty, validation, and delete-confirmation states.
 - Persistent simple/professional display mode and system/light/dark theme.
 - Existing signed-in WebView2 source browser and local-AI review flow.
+- Offline Chinese text import with task splitting, date/time, course, priority,
+  and link extraction. The review dialog lets users select and correct candidates
+  before a single transactional write; parsing never writes data by itself.
 - Versioned SQLite schema v3 migration with an online backup, transactional
   validation, rollback verification, and in-place online-backup recovery.
 - Phase 1 Core repositories for courses, projects, tags, task-tag links,
@@ -53,7 +56,7 @@ Database resolution order is:
    publish directory.
 
 For a 1.0 database outside the repository, set the environment variable before
-the first 2.0 launch:
+the first 2.1 launch:
 
 ```powershell
 $env:ASSIGNMENT_DB_PATH = 'C:\absolute\path\to\assignments.db'

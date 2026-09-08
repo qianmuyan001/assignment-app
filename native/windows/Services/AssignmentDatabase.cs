@@ -57,21 +57,25 @@ public sealed class AssignmentDatabase
         IEnumerable<AssignmentCandidate> candidates,
         string fallbackCourse,
         string sourceName,
-        string sourceUrl) => _database.InsertCandidates(
+        string sourceUrl,
+        string sourceType = "secure_web") => _database.InsertCandidates(
             candidates,
             fallbackCourse,
             sourceName,
-            sourceUrl);
+            sourceUrl,
+            sourceType);
 
     public int InsertCandidates(
         IEnumerable<CoreCandidate> candidates,
         string fallbackCourse,
         string sourceName,
-        string sourceUrl) => _database.InsertCandidates(
+        string sourceUrl,
+        string sourceType = "secure_web") => _database.InsertCandidates(
             candidates,
             fallbackCourse,
             sourceName,
-            sourceUrl);
+            sourceUrl,
+            sourceType);
 
     public string CreateBackup(string? destinationPath = null) =>
         _database.CreateBackup(destinationPath);

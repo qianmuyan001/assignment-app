@@ -39,6 +39,71 @@
                     </StackPanel>
                 </Border>
             </DataTemplate>
+            <DataTemplate x:Key="NaturalLanguageCandidateTemplate"
+                          x:DataType="local:AssignmentCandidate">
+                <Border Style="{StaticResource TaskCardStyle}" Margin="0,0,0,8">
+                    <StackPanel Spacing="8">
+                        <TextBox x:Uid="NaturalLanguageCandidateTitle"
+                                 Header="Title"
+                                 Text="{x:Bind Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Uid="NaturalLanguageCandidateCourse"
+                                     Header="Course"
+                                     Text="{x:Bind CourseName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <ComboBox x:Uid="NaturalLanguageCandidatePriority"
+                                      Grid.Column="1"
+                                      Header="Priority"
+                                      SelectedValue="{x:Bind Priority, Mode=TwoWay}"
+                                      SelectedValuePath="Tag"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBoxItem x:Uid="NaturalLanguagePriorityDefault"
+                                              Content="Normal" Tag=""/>
+                                <ComboBoxItem x:Uid="NaturalLanguagePriorityLow"
+                                              Content="Low" Tag="low"/>
+                                <ComboBoxItem x:Uid="NaturalLanguagePriorityMedium"
+                                              Content="Medium" Tag="medium"/>
+                                <ComboBoxItem x:Uid="NaturalLanguagePriorityHigh"
+                                              Content="High" Tag="high"/>
+                            </ComboBox>
+                        </Grid>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Uid="NaturalLanguageCandidateDate"
+                                     Header="Due date"
+                                     PlaceholderText="YYYY-MM-DD"
+                                     Text="{x:Bind DueDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox x:Uid="NaturalLanguageCandidateTime"
+                                     Grid.Column="1"
+                                     Header="Time"
+                                     PlaceholderText="HH:MM"
+                                     Text="{x:Bind DueTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+                        <TextBlock Text="{x:Bind SourceSnippet}"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontSize="12"
+                                   Opacity="0.62"/>
+                        <ItemsControl ItemsSource="{x:Bind Warnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                               FontSize="12"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
         </NavigationView.Resources>
 
         <NavigationView.PaneHeader>
@@ -108,6 +173,14 @@
                                 Style="{StaticResource AccentButtonStyle}"
                                 Padding="14,8"
                                 IsEnabled="False"/>
+                        <Button x:Name="NaturalLanguageImportButton"
+                                x:Uid="NaturalLanguageImportButton"
+                                Content="Import text"
+                                Click="NaturalLanguageImport_Click"
+                                Padding="14,8"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Turn text into assignment candidates"
+                                AutomationProperties.Name="Import assignments from text"/>
                         <Button x:Name="ManageOrganizationButton" x:Uid="ManageOrganizationButton"
                                 Content="Courses &amp; tags"
                                 Click="ManageOrganization_Click"

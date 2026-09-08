@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using AssignmentNative.Core;
 using AssignmentNative.Services;
@@ -23,6 +24,7 @@ public sealed partial class MainWindow : Window
 
     private readonly CredentialVaultService _credentials = new();
     private readonly LocalAiParser _parser = new();
+    private readonly NaturalLanguageScheduleParser _naturalLanguageParser = new();
     private readonly AppSettingsStore _settingsStore = new();
     private AssignmentDatabase? _database;
     private SecureBrowserService? _browser;
@@ -116,6 +118,7 @@ public sealed partial class MainWindow : Window
                 ? AppText.Format("SchemaVersionBackup", _database.SchemaVersion, backupPath)
                 : AppText.Format("SchemaVersion", _database.SchemaVersion);
             AddAssignmentButton.IsEnabled = true;
+            NaturalLanguageImportButton.IsEnabled = true;
             await ReconcileAttachmentFilesAsync(_database);
             await ReloadAssignmentsAsync(showLoading: false);
             ReconcileNotifications();
@@ -228,6 +231,7 @@ public sealed partial class MainWindow : Window
             EmptyState.Visibility = Visibility.Collapsed;
         }
         AddAssignmentButton.IsEnabled = !isLoading && _database is not null;
+        NaturalLanguageImportButton.IsEnabled = !isLoading && _database is not null;
     }
 
     private void UpdateEmptyState()
@@ -462,6 +466,214 @@ public sealed partial class MainWindow : Window
                 ApplyOrganizationTags(id, tagIds);
             }
         }
+    }
+
+    private async void NaturalLanguageImport_Click(object sender, RoutedEventArgs e)
+    {
+        if (_database is null)
+        {
+            ShowError(AppText.Get("DatabaseUnavailableAdd"));
+            return;
+        }
+
+        var input = new TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 180,
+            MaxHeight = 320,
+            PlaceholderText = AppText.Get("NaturalLanguageInputPlaceholder")
+        };
+        AutomationProperties.SetName(input, AppText.Get("NaturalLanguageInputName"));
+        var validation = new InfoBar
+        {
+            Severity = InfoBarSeverity.Error,
+            IsClosable = false,
+            IsOpen = false
+        };
+        var content = new StackPanel { Spacing = 10, MaxWidth = 620 };
+        content.Children.Add(new TextBlock
+        {
+            Text = AppText.Get("NaturalLanguageInputHelp"),
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7
+        });
+        content.Children.Add(input);
+        content.Children.Add(validation);
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = AppText.Get("NaturalLanguageImportTitle"),
+            Content = content,
+            PrimaryButtonText = AppText.Get("ParseText"),
+            CloseButtonText = AppText.Get("Cancel"),
+            DefaultButton = ContentDialogButton.Primary
+        };
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            if (!string.IsNullOrWhiteSpace(input.Text))
+            {
+                return;
+            }
+            validation.Message = AppText.Get("NaturalLanguageInputRequired");
+            validation.IsOpen = true;
+            args.Cancel = true;
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        var parsed = await Task.Run(() =>
+            _naturalLanguageParser.Parse(input.Text, DateTimeOffset.Now));
+        if (parsed.Candidates.Count == 0)
+        {
+            await ShowNoticeAsync(parsed.Warnings.FirstOrDefault()
+                ?? AppText.Get("NaturalLanguageNoCandidates"));
+            return;
+        }
+
+        var candidates = parsed.Candidates.Select(candidate => new AssignmentCandidate
+        {
+            CourseName = candidate.CourseName,
+            Title = candidate.Title,
+            DueDate = candidate.DueDate,
+            DueTime = candidate.DueTime,
+            Description = candidate.Description,
+            SourceName = candidate.SourceName,
+            SourceUrl = candidate.SourceUrl,
+            Priority = candidate.Priority,
+            Confidence = candidate.Confidence,
+            Warnings = [.. candidate.Warnings],
+            SourceSnippet = candidate.SourceSnippet
+        }).ToList();
+        await ReviewNaturalLanguageCandidatesAsync(candidates);
+    }
+
+    private async Task ReviewNaturalLanguageCandidatesAsync(
+        IReadOnlyList<AssignmentCandidate> candidates)
+    {
+        var list = new ListView
+        {
+            ItemsSource = candidates,
+            SelectionMode = ListViewSelectionMode.Multiple,
+            MaxHeight = 480,
+            MaxWidth = 680,
+            ItemTemplate = (DataTemplate)Navigation.Resources[
+                "NaturalLanguageCandidateTemplate"]
+        };
+        list.SelectAll();
+        var validation = new InfoBar
+        {
+            Severity = InfoBarSeverity.Error,
+            IsClosable = false,
+            IsOpen = false
+        };
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = AppText.Get("NaturalLanguageReviewHelp"),
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7
+        });
+        content.Children.Add(validation);
+        content.Children.Add(list);
+
+        List<AssignmentCandidate> selected = [];
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = AppText.Format("ReviewCandidates", candidates.Count),
+            Content = content,
+            PrimaryButtonText = AppText.Get("AddSelected"),
+            CloseButtonText = AppText.Get("Cancel"),
+            DefaultButton = ContentDialogButton.Primary
+        };
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            selected = list.SelectedItems.Cast<AssignmentCandidate>().ToList();
+            var error = ValidateNaturalLanguageCandidates(selected);
+            if (error is null)
+            {
+                return;
+            }
+            validation.Message = error;
+            validation.IsOpen = true;
+            args.Cancel = true;
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary ||
+            selected.Count == 0 ||
+            _database is null)
+        {
+            return;
+        }
+
+        var database = _database;
+        SetLoading(true);
+        try
+        {
+            var inserted = await Task.Run(() => database.InsertCandidates(
+                selected,
+                fallbackCourse: "",
+                sourceName: AppText.Get("NaturalLanguageSourceName"),
+                sourceUrl: "",
+                sourceType: "natural_language"));
+            await ReloadAssignmentsAsync(showLoading: false);
+            await ShowNoticeAsync(AppText.Format("AssignmentsImported", inserted));
+        }
+        catch (Exception error)
+        {
+            ShowError(AppText.Get("ImportedAssignmentsSaveError"), error);
+        }
+        finally
+        {
+            SetLoading(false);
+        }
+    }
+
+    private static string? ValidateNaturalLanguageCandidates(
+        IReadOnlyList<AssignmentCandidate> candidates)
+    {
+        if (candidates.Count == 0)
+        {
+            return AppText.Get("NaturalLanguageSelectCandidate");
+        }
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate.Title))
+            {
+                return AppText.Get("NaturalLanguageTitleRequired");
+            }
+            if (string.IsNullOrWhiteSpace(candidate.DueDate))
+            {
+                candidate.DueTime = null;
+                continue;
+            }
+            if (!DateOnly.TryParseExact(
+                    candidate.DueDate.Trim(),
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out _))
+            {
+                return AppText.Get("NaturalLanguageInvalidDate");
+            }
+            if (!TimeOnly.TryParseExact(
+                    string.IsNullOrWhiteSpace(candidate.DueTime)
+                        ? "23:59"
+                        : candidate.DueTime.Trim(),
+                    "HH:mm",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out _))
+            {
+                return AppText.Get("NaturalLanguageInvalidTime");
+            }
+        }
+        return null;
     }
 
     private async void EditAssignment_Click(object sender, RoutedEventArgs e)

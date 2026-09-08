@@ -341,4 +341,31 @@
   <data name="SaveTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存标签</value></data>
   <data name="NewTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新建标签</value></data>
   <data name="DeleteTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除标签</value></data>
+  <data name="NaturalLanguageImportButton.Content" xml:space="preserve"><value>导入文本</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>将文字整理为作业候选项</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>从文字导入作业</value></data>
+  <data name="NaturalLanguageCandidateTitle.Header" xml:space="preserve"><value>标题</value></data>
+  <data name="NaturalLanguageCandidateCourse.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="NaturalLanguageCandidatePriority.Header" xml:space="preserve"><value>优先级</value></data>
+  <data name="NaturalLanguagePriorityDefault.Content" xml:space="preserve"><value>普通</value></data>
+  <data name="NaturalLanguagePriorityLow.Content" xml:space="preserve"><value>低</value></data>
+  <data name="NaturalLanguagePriorityMedium.Content" xml:space="preserve"><value>中</value></data>
+  <data name="NaturalLanguagePriorityHigh.Content" xml:space="preserve"><value>高</value></data>
+  <data name="NaturalLanguageCandidateDate.Header" xml:space="preserve"><value>截止日期</value></data>
+  <data name="NaturalLanguageCandidateDate.PlaceholderText" xml:space="preserve"><value>YYYY-MM-DD</value></data>
+  <data name="NaturalLanguageCandidateTime.Header" xml:space="preserve"><value>时间</value></data>
+  <data name="NaturalLanguageCandidateTime.PlaceholderText" xml:space="preserve"><value>HH:MM</value></data>
+  <data name="NaturalLanguageImportTitle" xml:space="preserve"><value>从文字导入作业</value></data>
+  <data name="NaturalLanguageInputHelp" xml:space="preserve"><value>粘贴一句或多句文字。完成候选项检查并确认前，不会保存任何内容。</value></data>
+  <data name="NaturalLanguageInputPlaceholder" xml:space="preserve"><value>例如：高数第五章习题下周三前提交。周五开小组会，记得准备演示文稿。</value></data>
+  <data name="NaturalLanguageInputName" xml:space="preserve"><value>需要解析为作业的文字</value></data>
+  <data name="ParseText" xml:space="preserve"><value>解析文字</value></data>
+  <data name="NaturalLanguageInputRequired" xml:space="preserve"><value>请先输入需要解析的文字。</value></data>
+  <data name="NaturalLanguageNoCandidates" xml:space="preserve"><value>没有识别到作业候选项，请修改文字或手动添加。</value></data>
+  <data name="NaturalLanguageReviewHelp" xml:space="preserve"><value>选择需要导入的候选项，并在保存前修正不确定的字段。</value></data>
+  <data name="NaturalLanguageSourceName" xml:space="preserve"><value>文字导入</value></data>
+  <data name="NaturalLanguageSelectCandidate" xml:space="preserve"><value>请至少选择一个候选项。</value></data>
+  <data name="NaturalLanguageTitleRequired" xml:space="preserve"><value>每个选中的候选项都必须填写标题。</value></data>
+  <data name="NaturalLanguageInvalidDate" xml:space="preserve"><value>截止日期必须使用 YYYY-MM-DD 格式。</value></data>
+  <data name="NaturalLanguageInvalidTime" xml:space="preserve"><value>截止时间必须使用 24 小时制 HH:MM 格式。</value></data>
 </root>

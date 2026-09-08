@@ -39,6 +39,11 @@ internal static class Program
             ("overdue calculation", OverdueCalculation),
             ("completed assignment is not overdue", CompletedIsNotOverdue),
             ("assignment without due date", NoDueDate),
+            ("natural language parser resolves Chinese schedule", NaturalLanguageParserResolvesChineseSchedule),
+            ("natural language parser flags missing deadline", NaturalLanguageParserFlagsMissingDeadline),
+            ("natural language parser matches core corpus", NaturalLanguageParserMatchesCoreCorpus),
+            ("natural language import records source type", NaturalLanguageImportRecordsSourceType),
+            ("natural language import is atomic", NaturalLanguageImportIsAtomic),
             ("priority sorting", PrioritySorting),
             ("search title course and description", SearchFields),
             ("status course and priority filters", CombinedFilters),
@@ -337,6 +342,111 @@ internal static class Program
         False(TaskRules.IsDueThisWeek(item, now, TestTimeZone));
         False(TaskRules.IsOverdue(item, now));
         Equal(1, TaskRules.Apply([item], Query(AssignmentView.All, now)).Count);
+    }
+
+    private static void NaturalLanguageParserResolvesChineseSchedule()
+    {
+        var parser = new NaturalLanguageScheduleParser();
+        var now = new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8));
+        var result = parser.Parse(
+            "高数作业第五章，下周三前提交。" +
+            "周五下午两点在教学楼开小组会，记得准备演示文稿。",
+            now);
+
+        Equal(3, result.Candidates.Count);
+        var homework = result.Candidates[0];
+        Equal("高数作业第五章", homework.Title);
+        Equal("高等数学", homework.CourseName);
+        Equal("2026-09-16", homework.DueDate);
+        Equal("23:59", homework.DueTime);
+
+        var meeting = result.Candidates[1];
+        True(meeting.Title.Contains("小组会", StringComparison.Ordinal));
+        Equal("2026-09-04", meeting.DueDate);
+        Equal("14:00", meeting.DueTime);
+
+        Equal("演示文稿", result.Candidates[2].Title);
+    }
+
+    private static void NaturalLanguageParserFlagsMissingDeadline()
+    {
+        var parser = new NaturalLanguageScheduleParser();
+        var now = new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8));
+        var result = parser.Parse("买三本参考书，不急", now);
+
+        Equal(1, result.Candidates.Count);
+        Equal(TaskPriorities.Low, result.Candidates[0].Priority);
+        Equal<string?>(null, result.Candidates[0].DueDate);
+        True(result.Candidates[0].Warnings.Any(
+            warning => warning.Contains("截止", StringComparison.Ordinal)));
+    }
+
+    private static void NaturalLanguageParserMatchesCoreCorpus()
+    {
+        var parser = new NaturalLanguageScheduleParser();
+        var now = new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8));
+        var cases = new[]
+        {
+            (Text: "明天早上9点交数据库作业", Date: "2026-09-04", Time: "09:00", Priority: (string?)null),
+            (Text: "月底前提交月度总结，很重要", Date: "2026-09-30", Time: "23:59", Priority: TaskPriorities.High),
+            (Text: "后天晚上八点视频会议", Date: "2026-09-05", Time: "20:00", Priority: (string?)null),
+            (Text: "下个月第一周复习线代", Date: "2026-10-05", Time: "23:59", Priority: (string?)null)
+        };
+
+        foreach (var item in cases)
+        {
+            var candidate = parser.Parse(item.Text, now).Candidates.Single();
+            Equal(item.Date, candidate.DueDate);
+            Equal(item.Time, candidate.DueTime);
+            Equal(item.Priority, candidate.Priority);
+        }
+        Equal(0, parser.Parse("窗外的梧桐树叶黄了，风吹起来很舒服", now)
+            .Candidates.Count);
+    }
+
+    private static void NaturalLanguageImportRecordsSourceType()
+    {
+        using var workspace = new TestWorkspace();
+        var database = workspace.Database();
+        var candidate = new AssignmentCandidate
+        {
+            CourseName = "高等数学",
+            Title = "第五章习题",
+            DueDate = "2026-09-16",
+            DueTime = "23:59",
+            Priority = TaskPriorities.High
+        };
+
+        Equal(1, database.InsertCandidates(
+            [candidate], "", "Text import", "", "natural_language"));
+        Equal(0, database.InsertCandidates(
+            [candidate], "", "Text import", "", "natural_language"));
+
+        using var connection = RawOpen(workspace.DatabasePath);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_type FROM assignments LIMIT 1";
+        Equal("natural_language", Convert.ToString(
+            command.ExecuteScalar(), CultureInfo.InvariantCulture));
+    }
+
+    private static void NaturalLanguageImportIsAtomic()
+    {
+        using var workspace = new TestWorkspace();
+        var database = workspace.Database();
+        var candidates = new[]
+        {
+            new AssignmentCandidate { Title = "Valid", CourseName = "Math" },
+            new AssignmentCandidate
+            {
+                Title = "Invalid",
+                CourseName = "Math",
+                Priority = "impossible"
+            }
+        };
+
+        Throws<ArgumentOutOfRangeException>(() => database.InsertCandidates(
+            candidates, "", "Text import", "", "natural_language"));
+        Equal(0, database.FetchAssignments().Count);
     }
 
     private static void PrioritySorting()
