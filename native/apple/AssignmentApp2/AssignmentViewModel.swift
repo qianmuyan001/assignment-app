@@ -13,6 +13,7 @@ final class AssignmentViewModel: ObservableObject {
     @Published var sortOrder: AssignmentSortOrder = .dueDate
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var hasLoadedAssignments = false
     @Published private(set) var databaseLocation = ""
     @Published private(set) var organizationCourses: [Course] = []
     @Published private(set) var organizationProjects: [AssignmentProject] = []
@@ -184,6 +185,7 @@ final class AssignmentViewModel: ObservableObject {
         defer { isLoading = false }
         do {
             assignments = try repository.fetchAll()
+            hasLoadedAssignments = true
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -327,10 +329,7 @@ final class AssignmentViewModel: ObservableObject {
     }
 
     func refreshNotificationAuthorization() {
-        Task {
-            let status = await AssignmentNotificationScheduler.shared.authorizationStatus()
-            notificationAuthorization = status
-        }
+        reconcileNotifications()
     }
 
     func requestNotificationAuthorization() {

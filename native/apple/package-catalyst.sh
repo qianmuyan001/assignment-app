@@ -5,13 +5,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT="$SCRIPT_DIR/AssignmentApp2.xcodeproj"
-VERSION="$(tr -d '[:space:]' < "$REPOSITORY_ROOT/VERSION")"
+VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
 
 : "${DEVELOPER_DIR:=/Applications/Xcode-beta.app/Contents/Developer}"
 : "${ASSIGNMENT_DERIVED_DATA:=/private/tmp/assignment-app-catalyst-derived-$(uuidgen)}"
 : "${ASSIGNMENT_ARTIFACT_ROOT:=$REPOSITORY_ROOT/artifacts/apple}"
 : "${ASSIGNMENT_RUN_STAMP:=$(date -u +%Y%m%d-%H%M%SZ)}"
 : "${ASSIGNMENT_CATALYST_ARCH:=arm64}"
+: "${ASSIGNMENT_CONFIGURATION:=Debug}"
+: "${ASSIGNMENT_CREATE_DMG:=1}"
+[[ "$ASSIGNMENT_CONFIGURATION" == Debug || "$ASSIGNMENT_CONFIGURATION" == Release ]] || exit 1
+[[ "$ASSIGNMENT_CATALYST_ARCH" == arm64 ]] || { echo "Only arm64 is validated" >&2; exit 1; }
+CONFIGURATION="$ASSIGNMENT_CONFIGURATION"
+CONFIGURATION_LOWER="$(echo "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
 : "${ASSIGNMENT_REQUIRE_CLEAN_TREE:=0}"
 : "${ASSIGNMENT_SKIP_LAUNCH_SMOKE:=0}"
 : "${ASSIGNMENT_IPAD_TESTS:=not-run-by-packager}"
@@ -39,7 +45,7 @@ if [[ "${ASSIGNMENT_LOCAL_RUNNABLE:-0}" != "0" ]]; then
   exit 1
 fi
 SANDBOX_ENABLED=true
-OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-$RUN_STAMP"
+OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/$CONFIGURATION_LOWER-$RUN_STAMP"
 SMOKE_BUNDLE_ID="com.qianmuyan.assignmentapp.rcsmoke.$(uuidgen | tr '[:upper:]' '[:lower:]')"
 SMOKE_CONTAINER="$HOME/Library/Containers/$SMOKE_BUNDLE_ID"
 SMOKE_DIR="$SMOKE_CONTAINER/Data/Library/Application Support/AssignmentApp2"
@@ -48,9 +54,9 @@ if [[ -e "$SMOKE_CONTAINER" ]]; then
   echo "Refusing to reuse an existing smoke container: $SMOKE_CONTAINER" >&2
   exit 1
 fi
-SOURCE_APP="$DERIVED_DATA/Build/Products/Debug-maccatalyst/Assignment App.app"
+SOURCE_APP="$DERIVED_DATA/Build/Products/$CONFIGURATION-maccatalyst/Assignment App.app"
 OUTPUT_APP="$OUTPUT_DIR/Assignment App.app"
-OUTPUT_ZIP="$OUTPUT_DIR/Assignment-App-$VERSION-Catalyst-Debug-$ASSIGNMENT_CATALYST_ARCH.zip"
+OUTPUT_ZIP="$OUTPUT_DIR/Assignment-App-$VERSION-Catalyst-$CONFIGURATION-$ASSIGNMENT_CATALYST_ARCH.zip"
 ENTITLEMENTS="$SCRIPT_DIR/AssignmentApp2/AssignmentApp2.entitlements"
 DESTINATION="platform=macOS,arch=$ASSIGNMENT_CATALYST_ARCH,variant=Mac Catalyst"
 
@@ -167,13 +173,13 @@ case "$SIGN_ROOT" in
   *) echo "Unexpected signing directory: $SIGN_ROOT" >&2; exit 1 ;;
 esac
 SIGN_APP="$SIGN_ROOT/Assignment App.app"
-SIGN_ZIP="$SIGN_ROOT/Assignment-App-$VERSION-Catalyst-Debug-$ASSIGNMENT_CATALYST_ARCH.zip"
+SIGN_ZIP="$SIGN_ROOT/Assignment-App-$VERSION-Catalyst-$CONFIGURATION-$ASSIGNMENT_CATALYST_ARCH.zip"
 
 
 xcodebuild \
   -project "$PROJECT" \
   -scheme AssignmentApp2 \
-  -configuration Debug \
+  -configuration "$CONFIGURATION" \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA" \
   CLANG_ENABLE_CODE_COVERAGE=NO \
@@ -224,8 +230,9 @@ ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP" "$SIGN_APP"
 # Re-identify the actual transferable app BEFORE signing. Finder launches of
 # this internal package can never select the production sandbox container.
 plutil -replace CFBundleIdentifier -string "$SMOKE_BUNDLE_ID" "$SIGN_APP/Contents/Info.plist"
+plutil -insert AssignmentGitSHA -string "$SOURCE_REVISION" "$SIGN_APP/Contents/Info.plist"
 xattr -cr "$SIGN_APP"
-codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$SIGN_APP" \
+python3 "$SCRIPT_DIR/scripts/sign-apple-bundle.py" "$SIGN_APP" --entitlements "$ENTITLEMENTS" \
   2>&1 | tee "$OUTPUT_DIR/logs/codesign.log"
 codesign --verify --deep --strict --verbose=2 "$SIGN_APP" \
   2>&1 | tee "$OUTPUT_DIR/logs/codesign-verify.log"
@@ -273,6 +280,18 @@ if [[ "$SANDBOX_ENABLED" == "true" ]]; then
     "$OUTPUT_DIR/logs/archive-entitlements.plist")" == "true" ]]
 fi
 
+OUTPUT_DMG="${OUTPUT_ZIP%.zip}.dmg"
+DMG_RESULT=not-created
+if [[ "$ASSIGNMENT_CREATE_DMG" == "1" ]]; then
+  mkdir "$SIGN_ROOT/dmg"
+  ditto --norsrc --noextattr --noqtn --noacl "$SIGN_APP" "$SIGN_ROOT/dmg/Assignment App.app"
+  ln -s /Applications "$SIGN_ROOT/dmg/Applications"
+  hdiutil create -volname "Assignment App $VERSION Internal" -srcfolder "$SIGN_ROOT/dmg" \
+    -format UDZO "$OUTPUT_DMG" > "$OUTPUT_DIR/logs/dmg-create.log" 2>&1
+  hdiutil verify "$OUTPUT_DMG" > "$OUTPUT_DIR/logs/dmg-verify.log" 2>&1
+  DMG_RESULT=verified-not-installed
+fi
+python3 "$SCRIPT_DIR/scripts/check-apple-version.py" "$OUTPUT_APP" > "$OUTPUT_DIR/logs/apple-version.log"
 LAUNCH_SMOKE_RESULT="skipped"
 SMOKE_SCHEMA_VERSION="not-checked"
 
@@ -289,24 +308,31 @@ capture_crash_report() {
       newest="$candidate"
     fi
   done
-  if [[ -n "$newest" ]]; then
+  if [[ -n "$newest" ]] && grep -Fq "$VERIFY_DIR/Assignment App.app/" "$newest"; then
     cp "$newest" "$OUTPUT_DIR/logs/catalyst-launch-crash.ips"
   fi
 }
 
 write_build_info() {
   {
-    echo "Assignment App $VERSION Apple Debug package"
+    echo "Assignment App $VERSION Apple $CONFIGURATION internal package"
     echo "created_utc=$PACKAGE_CREATED_UTC"
     echo "run_stamp=$RUN_STAMP"
     echo "scheme=AssignmentApp2"
-    echo "configuration=Debug"
+    echo "configuration=$CONFIGURATION"
     echo "destination=$DESTINATION"
     echo "architecture=$ASSIGNMENT_CATALYST_ARCH"
     echo "bundle_identifier=$SMOKE_BUNDLE_ID"
     echo "runtime_database_path=$SMOKE_DATABASE"
     echo "distribution=internal-testing-only; ad-hoc; not-notarized; not-a-production-release"
     echo "version=$VERSION"
+    echo "build_number=$(plutil -extract CFBundleVersion raw -o - "$OUTPUT_APP/Contents/Info.plist")"
+    echo "minimum_system=$(plutil -extract LSMinimumSystemVersion raw -o - "$OUTPUT_APP/Contents/Info.plist")"
+    echo "sdk=$(xcrun --sdk macosx --show-sdk-version)"
+    echo "actual_architectures=$(lipo -archs "$OUTPUT_APP/Contents/MacOS/Assignment App")"
+    echo "formal_acceptance=not-executed"
+    echo "developer_id=not-executed; notarization=not-executed; gatekeeper=not-executed"
+    echo "dmg_structure=$DMG_RESULT"
     echo "derived_data=$DERIVED_DATA"
     echo "source_revision=$SOURCE_REVISION"
     echo "source_tree_dirty=$SOURCE_TREE_DIRTY"
@@ -325,6 +351,7 @@ write_build_info() {
     xcrun swift --version
     echo
     shasum -a 256 "$OUTPUT_ZIP"
+    if [[ -f "$OUTPUT_DMG" ]]; then shasum -a 256 "$OUTPUT_DMG"; fi
   } > "$OUTPUT_DIR/build-info.txt"
 }
 

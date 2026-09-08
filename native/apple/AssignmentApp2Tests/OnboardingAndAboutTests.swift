@@ -176,8 +176,6 @@ struct AboutVersionInfoTests {
         let versionFile = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // AssignmentApp2Tests
             .deletingLastPathComponent()   // apple
-            .deletingLastPathComponent()   // native
-            .deletingLastPathComponent()   // repository root
             .appendingPathComponent("VERSION", isDirectory: false)
 
         let recorded = try String(contentsOf: versionFile, encoding: .utf8)
@@ -310,6 +308,14 @@ struct AboutVersionInfoTests {
             DiagnosticsSummary.containsOnlySafeFields(withoutHeader, info: value)
                 == false
         )
+    }
+
+    @Test func diagnosticsRejectsInjectedMetadataAndForgedSafeKey() {
+        let value = info(gitSHA: "abc1234\nplatform=secret")
+        let text = DiagnosticsSummary.make(info: value)
+        #expect(!text.contains("secret"))
+        #expect(DiagnosticsSummary.containsOnlySafeFields(text, info: value))
+        #expect(!DiagnosticsSummary.containsOnlySafeFields(text + "\nplatform=secret", info: value))
     }
 
     // MARK: Changelog

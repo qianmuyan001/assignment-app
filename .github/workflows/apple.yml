@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,6 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  shared-version-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared version contract (requires separate platform-version coordination)
+        run: python3 scripts/check_version_sync.py
   build-test-package:
     # The project is authored by Xcode 27 (objectVersion 110). GitHub's
     # macos-26 image currently selects Xcode 26.x, so use the dedicated
@@ -32,8 +39,8 @@ jobs:
           xcrun swift --version
           xcodebuild -showsdks
 
-      - name: Check cross-platform version metadata
-        run: python3 scripts/check_version_sync.py
+      - name: Check Apple version metadata
+        run: python3 native/apple/scripts/check-apple-version.py
 
       - name: Create a disposable iPad simulator
         id: simulator
@@ -102,6 +109,7 @@ jobs:
         shell: bash
         env:
           ASSIGNMENT_REQUIRE_CLEAN_TREE: "1"
+          ASSIGNMENT_CONFIGURATION: Release
           ASSIGNMENT_RUN_STAMP: ci-${{ github.run_id }}-${{ github.run_attempt }}
           ASSIGNMENT_IPAD_TESTS: passed
           ASSIGNMENT_IPAD_UI_TESTS: passed
@@ -111,7 +119,7 @@ jobs:
       - name: Reject SQLite lifecycle diagnostics in raw logs
         shell: bash
         env:
-          APPLE_PACKAGE_LOGS: artifacts/apple/debug-ci-${{ github.run_id }}-${{ github.run_attempt }}/logs
+          APPLE_PACKAGE_LOGS: artifacts/apple/release-ci-${{ github.run_id }}-${{ github.run_attempt }}/logs
         run: |
           set -euo pipefail
           python3 native/apple/scripts/check-sqlite-diagnostics.py \
@@ -138,7 +146,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           path: |
-            artifacts/apple/debug-*
+            artifacts/apple/release-*
             ${{ runner.temp }}/ipad-unit.xcresult
             ${{ runner.temp }}/ipad-ui.xcresult
             ${{ runner.temp }}/catalyst-unit.xcresult
@@ -153,7 +161,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           path: |
-            artifacts/apple/debug-*/logs/**
+            artifacts/apple/release-*/logs/**
             ${{ runner.temp }}/ipad-unit.xcresult
             ${{ runner.temp }}/ipad-ui.xcresult
             ${{ runner.temp }}/catalyst-unit.xcresult

@@ -423,3 +423,5 @@
 "“%@” was imported and passed its checks. Review it below before restoring." = "“%@”已导入并通过检查。请在下方确认后再恢复。";
 "“%@” will be removed from the local database." = "“%@”将从本地数据库中移除。";
 "简体中文" = "简体中文";
+
+"This notification’s task is no longer available." = "此通知对应的任务已不存在。";

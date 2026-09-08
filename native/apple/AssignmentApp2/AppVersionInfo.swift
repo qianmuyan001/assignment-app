@@ -135,10 +135,10 @@ struct AboutDataSummary: Equatable {
 enum DiagnosticsSummary {
     static func make(info: AppVersionInfo) -> String {
         let lines = [
-            "Assignment App \(info.marketingVersion) (\(info.buildNumber))",
-            "platform=\(info.platform)",
-            "os=\(info.osVersion)",
-            "git_sha=" + (info.isTestBuild ? info.gitSHA : "not-embedded"),
+            "Assignment App \(safeMetadata(info.marketingVersion)) (\(safeMetadata(info.buildNumber)))",
+            "platform=\(safeMetadata(info.platform))",
+            "os=\(safeMetadata(info.osVersion))",
+            "git_sha=" + (info.isTestBuild && info.gitSHA.range(of: "^[0-9a-fA-F]{7,40}$", options: .regularExpression) != nil ? info.gitSHA : "not-embedded"),
             "schema_version=\(info.schemaVersion)",
             "language=\(info.language.diagnosticsName)",
             "notifications=\(info.notificationAuthorization.rawValue)",
@@ -147,11 +147,15 @@ enum DiagnosticsSummary {
             "meetings=\(info.dataSummary.meetingCount)",
             "exams=\(info.dataSummary.examCount)",
             "attachments=\(info.dataSummary.attachmentCount)",
-            "database_identity=" + (info.dataSummary.databaseIdentity.isEmpty
-                ? "unavailable"
-                : info.dataSummary.databaseIdentity),
+            "database_identity=" + (UUID(uuidString: info.dataSummary.databaseIdentity)?.uuidString.lowercased() ?? "unavailable"),
         ]
         return lines.joined(separator: "\n")
+    }
+
+    private static func safeMetadata(_ value: String) -> String {
+        guard value.count <= 120,
+              value.range(of: "^[a-zA-Z0-9 .()_-]+$", options: .regularExpression) != nil else { return "unavailable" }
+        return value
     }
 
     /// The only line prefixes `make` is allowed to emit. Anything else — a
@@ -193,7 +197,7 @@ enum DiagnosticsSummary {
         )
         if !location.isEmpty && text.contains(location) { return false }
 
-        return true
+        return text == make(info: info)
     }
 }
 

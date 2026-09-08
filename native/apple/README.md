@@ -1,4 +1,32 @@
-# Assignment App 2.0 for iPad and Mac Catalyst
+# Assignment App Apple 2.1.2 development preparation
+
+Apple version is now defined in `native/apple/VERSION` (2.1.2), build 2,
+and validated by `scripts/check-apple-version.py`. The unchanged root version
+contract still requires platform-version coordination; its proposed patch is
+in `docs/release/patches/platform-version-contract.patch`. No other platform
+version or shared schema was changed.
+
+This is development and release preparation, not an accepted or published
+version. See [development evidence](../../docs/phase-reports/apple-2.1.2-development.md),
+[acceptance manual](../../docs/release/apple-2.1.2-acceptance.md), and
+[release runbook](../../docs/release/apple-2.1.2-release-runbook.md).
+
+Internal packaging supports `ASSIGNMENT_CONFIGURATION=Release` and generates
+an ad-hoc arm64 `.app`, ZIP and DMG. Its random `rcsmoke` identity is never a
+formal distribution identity. The fixed `com.qianmuyan.assignmentapp.internal.upgrade`
+identity is reserved for continuous upgrade rehearsal. Both reject unexpected
+containers before opening SQLite. Formal data, backups and preferences are
+protected by read-only file fingerprints.
+
+Notification response routing is installed in the application launch delegate.
+Responses wait for a loaded database and an available editor, and are consumed
+once. Returning to the active scene reconciles authorization and reminders.
+Diagnostics are copied only on user action; no telemetry is enabled.
+
+The sections below describe the original implementation and historical results;
+those counts and packages are not evidence for the current 2.1.2 source.
+
+## Historical Apple 2.0 foundation
 
 `native/apple/AssignmentApp2.xcodeproj` is the Apple 2.0 alternative requested
 after the original iPadOS project could not be located. It is a real SwiftUI

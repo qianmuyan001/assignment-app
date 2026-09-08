@@ -47,6 +47,7 @@ extension FocusedValues {
 @main
 @MainActor
 struct AssignmentApp2App: App {
+    @UIApplicationDelegateAdaptor(AssignmentNotificationAppDelegate.self) private var appDelegate
     @StateObject private var languagePreference = LanguagePreference.shared
     @AppStorage(AssignmentPreferenceKeys.theme)
     private var themeValue = AppTheme.system.rawValue

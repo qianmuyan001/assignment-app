@@ -1,0 +1,14 @@
+--- a/scripts/check_version_sync.py
++++ b/scripts/check_version_sync.py
+@@ -41 +41,4 @@
+-    if apple_versions != {version}:
++    apple_version = read("native/apple/VERSION").strip()
++    if re.fullmatch(r"\d+\.\d+\.\d+", apple_version) is None:
++        fail("Invalid independent Apple version")
++    if apple_versions != {apple_version}:
+@@ -43 +46 @@
+-            "Apple MARKETING_VERSION values do not match VERSION: "
++            "Apple MARKETING_VERSION values do not match native/apple/VERSION: "
+@@ -78 +81 @@
+-        f"(root, README, CHANGELOG, Apple, Windows = {version})"
++        f"(root, README, CHANGELOG, Windows = {version}; Apple = {apple_version})"

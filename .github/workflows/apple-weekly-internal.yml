@@ -1,0 +1,12 @@
+name: Apple weekly internal candidate
+on:
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apple:
+    uses: ./.github/workflows/apple.yml
+# Produces internal ad-hoc ZIP/DMG and evidence only. No release, upload to Apple,
+# or telemetry. The shared version-contract gate remains blocking until coordinated.

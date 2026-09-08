@@ -12,6 +12,8 @@ enum AssignmentPreferenceKeys {
 
 struct ContentView: View {
     @EnvironmentObject private var viewModel: AssignmentViewModel
+    @ObservedObject private var notificationRouter = AssignmentNotificationRouter.shared
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @AppStorage(AssignmentPreferenceKeys.displayMode)
@@ -27,6 +29,7 @@ struct ContentView: View {
     @State private var searchPresentation: SearchPresentationState = .closed
     @State private var didApplyUITestOverrides = false
     @State private var isShowingOnboarding = false
+    @State private var didResolveOnboarding = false
     @AppStorage(OnboardingState.completedKey)
     private var didCompleteOnboarding = false
 
@@ -81,6 +84,7 @@ struct ContentView: View {
             presentDeferredError()
         }
         .task {
+            defer { didResolveOnboarding = true; routeNotification() }
             // First launch only. `didCompleteOnboarding` is written the moment
             // the walkthrough ends — skipped or not — so it never reappears on
             // its own afterwards.
@@ -112,11 +116,33 @@ struct ContentView: View {
             isShowingOnboarding = true
         }
         .onChange(of: viewModel.errorMessage) { _, message in
+            if message == nil { routeNotification(); return }
             guard editorPresentation == nil, let message else { return }
             activeAlert = .error(message)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { viewModel.reload(); routeNotification() }
+        }
+        .onChange(of: notificationRouter.pending) { _, _ in routeNotification() }
+        .onChange(of: viewModel.hasLoadedAssignments) { _, _ in routeNotification() }
+        .onChange(of: isShowingOnboarding) { _, showing in if !showing { routeNotification() } }
+        .onChange(of: editorPresentation == nil) { _, empty in if empty { routeNotification() } }
+        .onChange(of: activeAlert == nil) { _, empty in if empty { routeNotification() } }
         .onChange(of: viewModel.selection) { _, _ in
             dismissSearchPreservingQuery()
+        }
+    }
+
+    private func routeNotification() {
+        guard didResolveOnboarding, !isShowingOnboarding, editorPresentation == nil, activeAlert == nil,
+              viewModel.hasLoadedAssignments, viewModel.errorMessage == nil,
+              let resolution = notificationRouter.resolve(availableTaskIDs: Set(viewModel.assignments.filter { $0.deletedAt == nil }.map(\.uuid))) else { return }
+        if case .task(let target) = resolution,
+           let assignment = viewModel.assignments.first(where: { $0.uuid == target }) {
+            viewModel.clearFilters()
+            showEditor(for: assignment)
+        } else {
+            activeAlert = .error(L10n.tr("This notification’s task is no longer available."))
         }
     }
 
@@ -443,7 +469,7 @@ struct ContentView: View {
                 isWriteEnabled: viewModel.isWriteEnabled,
                 isTaskDestination: !viewModel.selection.isDedicatedPage,
                 isSearchExpanded: searchPresentation.isExpanded,
-                isModalPresented: editorPresentation != nil || activeAlert != nil
+                isModalPresented: editorPresentation != nil || activeAlert != nil || isShowingOnboarding
             ),
             newTask: { showNewTaskEditor() },
             find: presentSearch,

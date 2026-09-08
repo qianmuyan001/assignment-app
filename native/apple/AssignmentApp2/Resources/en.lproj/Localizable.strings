@@ -423,3 +423,5 @@
 "“%@” was imported and passed its checks. Review it below before restoring." = "“%@” was imported and passed its checks. Review it below before restoring.";
 "“%@” will be removed from the local database." = "“%@” will be removed from the local database.";
 "简体中文" = "简体中文";
+
+"This notification’s task is no longer available." = "This notification’s task is no longer available.";

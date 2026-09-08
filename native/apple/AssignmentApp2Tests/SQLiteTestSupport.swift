@@ -56,3 +56,14 @@ func closeTestSQLiteConnection(_ database: OpaquePointer) {
     let result = sqlite3_close(database)
     #expect(result == SQLITE_OK, "SQLite test connection did not close cleanly")
 }
+
+/// Async repositories stay inside the awaited body; none may escape it.
+func withTemporarySQLiteDatabaseAsync(_ body: (TemporarySQLiteDatabase) async throws -> Void) async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AssignmentApp2AsyncTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        do { try FileManager.default.removeItem(at: directory) }
+        catch { Issue.record(error, "Could not remove async SQLite fixture") }
+    }
+    try await body(.init(directoryURL: directory, databaseURL: directory.appendingPathComponent("assignments.db")))
+}

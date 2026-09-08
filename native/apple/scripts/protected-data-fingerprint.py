@@ -41,7 +41,12 @@ def snapshot():
     ]
     names = ["assignments.db", "assignments.db-wal", "assignments.db-shm",
              "attachments", ".attachment-staging", ".attachment-presentations"]
-    return {str(root / name): fingerprint(root / name) for root in roots for name in names}
+    paths = [root / name for root in roots for name in names]
+    # Include backup/recovery directories, future files and persistent preferences.
+    paths += roots
+    paths += [home / "Library/Containers/com.qianmuyan.assignmentapp/Data/Library/Preferences/com.qianmuyan.assignmentapp.plist",
+              home / "Library/Preferences/com.qianmuyan.assignmentapp.plist"]
+    return {str(path): fingerprint(path) for path in paths}
 
 
 def main():

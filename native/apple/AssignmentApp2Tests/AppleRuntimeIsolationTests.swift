@@ -61,3 +61,19 @@ struct AppleRuntimeIsolationTests {
         }
     }
 }
+
+@Suite("Stable upgrade identity")
+struct UpgradeIdentityTests {
+    @Test func usesStableInternalContainer() throws {
+        let id = AppleRuntimeIsolation.upgradeBundleIdentifier
+        let home = URL(fileURLWithPath: "/private/tmp/Library/Containers/\(id)/Data")
+        #expect(try AppleRuntimeIsolation.packagedDatabaseURL(bundleIdentifier: id, home: home)?.path.hasPrefix(home.path + "/") == true)
+    }
+    @Test func malformedReservedIdentityCannotFallBack() {
+        for id in ["com.qianmuyan.assignmentapp.rcsmoke", "com.qianmuyan.assignmentapp.internal.typo"] {
+            #expect(throws: AppleRuntimeIsolation.IsolationError.self) {
+                try AppleRuntimeIsolation.packagedDatabaseURL(bundleIdentifier: id, home: URL(fileURLWithPath: "/private/tmp"))
+            }
+        }
+    }
+}

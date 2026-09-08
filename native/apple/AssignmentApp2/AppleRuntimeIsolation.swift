@@ -5,6 +5,7 @@ import Foundation
 /// A malformed identity or unexpected sandbox must fail before any database opens.
 enum AppleRuntimeIsolation {
     static let bundlePrefix = "com.qianmuyan.assignmentapp.rcsmoke."
+    static let upgradeBundleIdentifier = "com.qianmuyan.assignmentapp.internal.upgrade"
     static let uiTestTokenArgument = "-assignmentApp.testDatabaseToken"
 
     enum IsolationError: Error {
@@ -14,10 +15,16 @@ enum AppleRuntimeIsolation {
     }
 
     static func packagedDatabaseURL(bundleIdentifier: String, home: URL) throws -> URL? {
-        guard bundleIdentifier.hasPrefix(bundlePrefix) else { return nil }
-        let token = String(bundleIdentifier.dropFirst(bundlePrefix.count))
-        guard let uuid = UUID(uuidString: token), uuid.uuidString.lowercased() == token else {
-            throw IsolationError.invalidIdentity
+        let isUpgrade = bundleIdentifier == upgradeBundleIdentifier
+        let isReserved = bundleIdentifier.hasPrefix("com.qianmuyan.assignmentapp.rcsmoke")
+            || bundleIdentifier.hasPrefix("com.qianmuyan.assignmentapp.internal")
+        guard isReserved else { return nil }
+        if !isUpgrade {
+            let token = String(bundleIdentifier.dropFirst(bundlePrefix.count))
+            guard bundleIdentifier.hasPrefix(bundlePrefix),
+                  let uuid = UUID(uuidString: token), uuid.uuidString.lowercased() == token else {
+                throw IsolationError.invalidIdentity
+            }
         }
         let resolvedHome = home.standardizedFileURL.resolvingSymlinksInPath()
         guard resolvedHome.lastPathComponent == "Data",

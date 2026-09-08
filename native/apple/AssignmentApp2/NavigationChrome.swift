@@ -479,7 +479,7 @@ struct SearchToolbar: View {
             .accessibilityIdentifier("search-close")
         }
         .padding(.horizontal, 12)
-        .frame(minWidth: 190, idealWidth: 270, maxWidth: 340, minHeight: 44)
+        .frame(minWidth: 120, idealWidth: 270, maxWidth: 340, minHeight: 44)
         .modifier(SearchFieldChrome())
         .onKeyPress(.escape) {
             send(.dismissPreservingQuery)
