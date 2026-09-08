@@ -9,6 +9,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    computed_field,
     field_serializer,
     field_validator,
     model_validator,
@@ -19,6 +20,10 @@ from shared.schema_v3 import (
     is_iana_timezone_id,
     is_utc_audit_timestamp,
 )
+
+from shared.schema_v4 import SchemaV4Error
+
+from .services.reminder_schedule import resolved_deadline
 
 
 AssignmentStatus = Literal["todo", "in_progress", "done"]
@@ -296,6 +301,17 @@ class AssignmentRead(AssignmentBase):
     completed_at: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def due_at_utc(self) -> str | None:
+        """Expose the resolved instant without changing legacy wall-time fields."""
+        try:
+            due = resolved_deadline(self)
+        except SchemaV4Error:
+            # The original wall-time value remains available for correction.
+            return None
+        return due.isoformat(timespec="milliseconds").replace("+00:00", "Z") if due else None
 
     @field_serializer("due_date")
     def serialize_due_date(self, value: datetime | None) -> str | None:
@@ -590,14 +606,17 @@ class AttachmentRead(AttachmentCreate):
 
 
 class ReminderBase(BaseModel):
-    trigger_at_utc: str
-    lead_minutes: int = Field(default=0, ge=0)
+    schedule_kind: Literal["fixed", "due_relative"] = "fixed"
+    trigger_at_utc: str | None = None
+    lead_minutes: int = Field(default=0, ge=0, le=9223372036854775807)
     repeat_rule: str | None = None
     is_enabled: bool = True
 
     @field_validator("trigger_at_utc")
     @classmethod
-    def validate_trigger(cls, value: str) -> str:
+    def validate_trigger(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         cleaned = value.strip()
         if not is_utc_audit_timestamp(cleaned):
             raise ValueError("trigger_at_utc must be canonical ISO-8601 UTC with Z")
@@ -610,12 +629,17 @@ class ReminderBase(BaseModel):
 
 
 class ReminderCreate(ReminderBase):
-    pass
+    @model_validator(mode="after")
+    def validate_fixed_trigger(self) -> ReminderCreate:
+        if self.schedule_kind == "fixed" and self.trigger_at_utc is None:
+            raise ValueError("fixed reminders require trigger_at_utc")
+        return self
 
 
 class ReminderUpdate(BaseModel):
+    schedule_kind: Literal["fixed", "due_relative"] | None = None
     trigger_at_utc: str | None = None
-    lead_minutes: int | None = Field(default=None, ge=0)
+    lead_minutes: int | None = Field(default=None, ge=0, le=9223372036854775807)
     repeat_rule: str | None = None
     is_enabled: bool | None = None
     last_scheduled_at: str | None = None
@@ -643,7 +667,7 @@ class ReminderUpdate(BaseModel):
     def validate_repeat_rule(cls, value: str | None) -> str | None:
         return _validate_repeat_rule(value)
 
-    @field_validator("lead_minutes", "is_enabled")
+    @field_validator("lead_minutes", "is_enabled", "schedule_kind")
     @classmethod
     def validate_required_scalars(cls, value: object) -> object:
         if value is None:
@@ -654,6 +678,8 @@ class ReminderUpdate(BaseModel):
 class ReminderRead(ReminderBase):
     model_config = ConfigDict(from_attributes=True)
 
+    trigger_at_utc: str
+    disabled_reason: str | None = None
     id: int
     uuid: str
     assignment_id: int

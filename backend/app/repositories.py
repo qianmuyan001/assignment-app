@@ -1,4 +1,4 @@
-"""Schema-v3 data access helpers shared by the HTTP route layer."""
+"""Schema-v4 data access helpers shared by the HTTP route layer."""
 
 from __future__ import annotations
 
@@ -104,6 +104,7 @@ def list_schedulable_reminders(db: Session) -> list[models.Reminder]:
                 models.Reminder.deleted_at.is_(None),
                 models.Reminder.is_enabled.is_(True),
                 models.Assignment.deleted_at.is_(None),
+                models.Assignment.status != "done",
             )
             .order_by(models.Reminder.trigger_at_utc)
         ).all()

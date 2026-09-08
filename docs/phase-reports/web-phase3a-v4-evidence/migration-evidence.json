@@ -1,0 +1,21 @@
+{
+  "temporary_root": "/private/tmp/assignment-phase3a-migration-evidence-26vlu9uf",
+  "migration_database": "/private/tmp/assignment-phase3a-migration-evidence-26vlu9uf/populated-v3-to-v4.db",
+  "backup_database": "/private/tmp/assignment-phase3a-migration-evidence-26vlu9uf/populated-v3-to-v4.db.v3-to-v4.20260907T085106750412Z.e6ed0929.bak",
+  "rollback_database": "/private/tmp/assignment-phase3a-migration-evidence-26vlu9uf/rollback-v3.db",
+  "migration_from": 3,
+  "migration_to": 4,
+  "version_verified": 4,
+  "lineage_uuid": "5bcb47fc-4199-434f-9840-636d0dffab52",
+  "preserved_all_original_tables_and_extension_objects": true,
+  "fixed_reminder": [
+    [
+      "2026-10-31T17:00:00Z",
+      75,
+      "fixed"
+    ]
+  ],
+  "rollback_exact": true,
+  "failure_message": "Database migration failed; the complete original payload was restored and verified unchanged after transaction rollback. The recovery backup is preserved at /private/tmp/assignment-phase3a-migration-evidence-26vlu9uf/rollback-v3.db.v3-to-v4.20260907T085106783122Z.a365e1e3.bak.",
+  "real_user_database_accessed": false
+}
