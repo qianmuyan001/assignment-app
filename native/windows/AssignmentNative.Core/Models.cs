@@ -232,10 +232,23 @@ public enum AppLanguage
     SimplifiedChinese
 }
 
+public enum NaturalLanguageParserMode
+{
+    Auto,
+    CloudApi,
+    OfflineRules
+}
+
 public sealed class AppSettings
 {
     public AssignmentDisplayMode DetailMode { get; set; } = AssignmentDisplayMode.Simple;
     public AppTheme Theme { get; set; } = AppTheme.System;
     public NavigationPaneMode NavigationPaneMode { get; set; } = NavigationPaneMode.Expanded;
     public AppLanguage Language { get; set; } = AppLanguage.English;
+    public NaturalLanguageParserMode NaturalLanguageParserMode { get; set; } =
+        NaturalLanguageParserMode.Auto;
+    public string ScheduleApiBaseUrl { get; set; } =
+        ScheduleApiOptions.DefaultBaseUrl;
+    public string ScheduleApiModel { get; set; } =
+        ScheduleApiOptions.DefaultModel;
 }

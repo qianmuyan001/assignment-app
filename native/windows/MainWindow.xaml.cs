@@ -23,8 +23,9 @@ public sealed partial class MainWindow : Window
     public ObservableCollection<TaskRowViewModel> AssignmentRows { get; } = [];
 
     private readonly CredentialVaultService _credentials = new();
+    private readonly ScheduleApiCredentialStore _scheduleApiCredentials = new();
     private readonly LocalAiParser _parser = new();
-    private readonly NaturalLanguageScheduleParser _naturalLanguageParser = new();
+    private readonly NaturalLanguageParsingService _naturalLanguageParsingService = new();
     private readonly AppSettingsStore _settingsStore = new();
     private AssignmentDatabase? _database;
     private SecureBrowserService? _browser;
@@ -98,6 +99,21 @@ public sealed partial class MainWindow : Window
             _settings.Language == AppLanguage.SimplifiedChinese
                 ? "zh-CN"
                 : "en-US");
+        SelectByTag(
+            ScheduleParserModeBox,
+            _settings.NaturalLanguageParserMode switch
+            {
+                NaturalLanguageParserMode.CloudApi => "api",
+                NaturalLanguageParserMode.OfflineRules => "offline",
+                _ => "auto"
+            });
+        ScheduleApiBaseUrlBox.Text = string.IsNullOrWhiteSpace(_settings.ScheduleApiBaseUrl)
+            ? ScheduleApiOptions.DefaultBaseUrl
+            : _settings.ScheduleApiBaseUrl;
+        ScheduleApiModelBox.Text = string.IsNullOrWhiteSpace(_settings.ScheduleApiModel)
+            ? ScheduleApiOptions.DefaultModel
+            : _settings.ScheduleApiModel;
+        UpdateScheduleApiCredentialStatus();
         if (Navigation.SettingsItem is NavigationViewItem settingsItem)
         {
             settingsItem.Content = AppText.Get("Settings");
@@ -482,6 +498,7 @@ public sealed partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 180,
             MaxHeight = 320,
+            MaxLength = OpenAiScheduleParsingProvider.MaximumInputCharacters,
             PlaceholderText = AppText.Get("NaturalLanguageInputPlaceholder")
         };
         AutomationProperties.SetName(input, AppText.Get("NaturalLanguageInputName"));
@@ -526,16 +543,40 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var parsed = await Task.Run(() =>
-            _naturalLanguageParser.Parse(input.Text, DateTimeOffset.Now));
-        if (parsed.Candidates.Count == 0)
+        NaturalLanguageParsingOutcome outcome;
+        SetLoading(true);
+        try
         {
-            await ShowNoticeAsync(parsed.Warnings.FirstOrDefault()
+            var provider = CreateScheduleApiProvider(_settings.NaturalLanguageParserMode);
+            outcome = await _naturalLanguageParsingService.ParseAsync(
+                input.Text,
+                DateTimeOffset.Now,
+                _settings.NaturalLanguageParserMode,
+                provider);
+        }
+        catch (ScheduleParsingProviderException error)
+        {
+            await ShowNoticeAsync(ScheduleApiFailureMessage(error.Failure));
+            return;
+        }
+        catch
+        {
+            await ShowNoticeAsync(AppText.Get("ScheduleApiErrorUnexpected"));
+            return;
+        }
+        finally
+        {
+            SetLoading(false);
+        }
+
+        if (outcome.Result.Candidates.Count == 0)
+        {
+            await ShowNoticeAsync(outcome.Result.Warnings.FirstOrDefault()
                 ?? AppText.Get("NaturalLanguageNoCandidates"));
             return;
         }
 
-        var candidates = parsed.Candidates.Select(candidate => new AssignmentCandidate
+        var candidates = outcome.Result.Candidates.Select(candidate => new AssignmentCandidate
         {
             CourseName = candidate.CourseName,
             Title = candidate.Title,
@@ -549,11 +590,26 @@ public sealed partial class MainWindow : Window
             Warnings = [.. candidate.Warnings],
             SourceSnippet = candidate.SourceSnippet
         }).ToList();
-        await ReviewNaturalLanguageCandidatesAsync(candidates);
+        var fallbackNotice = outcome.FallbackUsed
+            ? outcome.FallbackFailure == ScheduleParsingFailure.NotConfigured
+                ? AppText.Get("ScheduleApiFallbackNotConfigured")
+                : AppText.Get("ScheduleApiFallbackFailed")
+            : null;
+        var apiUsed = outcome.ProviderName == "api";
+        await ReviewNaturalLanguageCandidatesAsync(
+            candidates,
+            fallbackNotice,
+            apiUsed
+                ? AppText.Get("NaturalLanguageApiSourceName")
+                : AppText.Get("NaturalLanguageSourceName"),
+            apiUsed ? "natural_language_api" : "natural_language");
     }
 
     private async Task ReviewNaturalLanguageCandidatesAsync(
-        IReadOnlyList<AssignmentCandidate> candidates)
+        IReadOnlyList<AssignmentCandidate> candidates,
+        string? parserNotice,
+        string sourceName,
+        string sourceType)
     {
         var list = new ListView
         {
@@ -572,6 +628,16 @@ public sealed partial class MainWindow : Window
             IsOpen = false
         };
         var content = new StackPanel { Spacing = 8 };
+        if (!string.IsNullOrWhiteSpace(parserNotice))
+        {
+            content.Children.Add(new InfoBar
+            {
+                Severity = InfoBarSeverity.Warning,
+                IsClosable = false,
+                IsOpen = true,
+                Message = parserNotice
+            });
+        }
         content.Children.Add(new TextBlock
         {
             Text = AppText.Get("NaturalLanguageReviewHelp"),
@@ -618,9 +684,9 @@ public sealed partial class MainWindow : Window
             var inserted = await Task.Run(() => database.InsertCandidates(
                 selected,
                 fallbackCourse: "",
-                sourceName: AppText.Get("NaturalLanguageSourceName"),
+                sourceName,
                 sourceUrl: "",
-                sourceType: "natural_language"));
+                sourceType));
             await ReloadAssignmentsAsync(showLoading: false);
             await ShowNoticeAsync(AppText.Format("AssignmentsImported", inserted));
         }
@@ -928,6 +994,147 @@ public sealed partial class MainWindow : Window
         }
         (Application.Current as App)?.SwitchLanguage(language, this);
     }
+
+    private async void SaveScheduleApi_Click(object sender, RoutedEventArgs e)
+    {
+        var mode = SelectedScheduleParserMode();
+        var baseUrl = ScheduleApiBaseUrlBox.Text.Trim();
+        var model = ScheduleApiModelBox.Text.Trim();
+        var enteredKey = ScheduleApiKeyBox.Password.Trim();
+        var previousMode = _settings.NaturalLanguageParserMode;
+        var previousBaseUrl = _settings.ScheduleApiBaseUrl;
+        var previousModel = _settings.ScheduleApiModel;
+        try
+        {
+            OpenAiScheduleParsingProvider.ValidateConfiguration(baseUrl, model);
+            if (mode == NaturalLanguageParserMode.CloudApi &&
+                enteredKey.Length == 0 &&
+                _scheduleApiCredentials.Retrieve() is null)
+            {
+                ScheduleApiStatusText.Text = AppText.Get("ScheduleApiKeyRequired");
+                return;
+            }
+
+            _settings.NaturalLanguageParserMode = mode;
+            _settings.ScheduleApiBaseUrl = baseUrl.TrimEnd('/');
+            _settings.ScheduleApiModel = model;
+            if (!SaveSettings())
+            {
+                _settings.NaturalLanguageParserMode = previousMode;
+                _settings.ScheduleApiBaseUrl = previousBaseUrl;
+                _settings.ScheduleApiModel = previousModel;
+                return;
+            }
+            if (enteredKey.Length > 0)
+            {
+                _scheduleApiCredentials.Save(enteredKey);
+                ScheduleApiKeyBox.Password = "";
+            }
+            ScheduleApiStatusText.Text = _scheduleApiCredentials.Retrieve() is null
+                ? AppText.Get("ScheduleApiSettingsSavedNoKey")
+                : AppText.Get("ScheduleApiSettingsSavedKeyPresent");
+        }
+        catch (ScheduleParsingProviderException error)
+        {
+            ScheduleApiStatusText.Text = ScheduleApiFailureMessage(error.Failure);
+        }
+        catch
+        {
+            await ShowNoticeAsync(AppText.Get("ScheduleApiCredentialSaveError"));
+        }
+    }
+
+    private async void CheckScheduleApi_Click(object sender, RoutedEventArgs e)
+    {
+        var apiKey = string.IsNullOrWhiteSpace(ScheduleApiKeyBox.Password)
+            ? _scheduleApiCredentials.Retrieve()
+            : ScheduleApiKeyBox.Password.Trim();
+        if (apiKey is null)
+        {
+            ScheduleApiStatusText.Text = AppText.Get("ScheduleApiKeyRequired");
+            return;
+        }
+
+        ScheduleApiStatusText.Text = AppText.Get("ScheduleApiChecking");
+        try
+        {
+            var provider = new OpenAiScheduleParsingProvider(new ScheduleApiOptions(
+                ScheduleApiBaseUrlBox.Text,
+                ScheduleApiModelBox.Text,
+                apiKey));
+            await provider.CheckConnectionAsync();
+            ScheduleApiStatusText.Text = AppText.Get("ScheduleApiReady");
+        }
+        catch (ScheduleParsingProviderException error)
+        {
+            ScheduleApiStatusText.Text = ScheduleApiFailureMessage(error.Failure);
+        }
+        catch
+        {
+            ScheduleApiStatusText.Text = AppText.Get("ScheduleApiErrorUnexpected");
+        }
+    }
+
+    private void RemoveScheduleApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        _scheduleApiCredentials.Remove();
+        ScheduleApiKeyBox.Password = "";
+        ScheduleApiStatusText.Text = AppText.Get("ScheduleApiKeyRemoved");
+    }
+
+    private NaturalLanguageParserMode SelectedScheduleParserMode() =>
+        SelectedTag(ScheduleParserModeBox, "auto") switch
+        {
+            "api" => NaturalLanguageParserMode.CloudApi,
+            "offline" => NaturalLanguageParserMode.OfflineRules,
+            _ => NaturalLanguageParserMode.Auto
+        };
+
+    private void UpdateScheduleApiCredentialStatus()
+    {
+        ScheduleApiStatusText.Text = _scheduleApiCredentials.Retrieve() is null
+            ? AppText.Get("ScheduleApiKeyMissing")
+            : AppText.Get("ScheduleApiKeySaved");
+    }
+
+    private IScheduleParsingProvider? CreateScheduleApiProvider(
+        NaturalLanguageParserMode mode)
+    {
+        if (mode == NaturalLanguageParserMode.OfflineRules)
+        {
+            return null;
+        }
+        var apiKey = _scheduleApiCredentials.Retrieve();
+        if (apiKey is null)
+        {
+            return null;
+        }
+        try
+        {
+            return new OpenAiScheduleParsingProvider(new ScheduleApiOptions(
+                _settings.ScheduleApiBaseUrl,
+                _settings.ScheduleApiModel,
+                apiKey));
+        }
+        catch (ScheduleParsingProviderException error)
+            when (mode == NaturalLanguageParserMode.Auto)
+        {
+            return new FailedScheduleParsingProvider(error);
+        }
+    }
+
+    private static string ScheduleApiFailureMessage(ScheduleParsingFailure failure) =>
+        AppText.Get(failure switch
+        {
+            ScheduleParsingFailure.NotConfigured => "ScheduleApiErrorNotConfigured",
+            ScheduleParsingFailure.InvalidConfiguration => "ScheduleApiErrorInvalidConfiguration",
+            ScheduleParsingFailure.Network => "ScheduleApiErrorNetwork",
+            ScheduleParsingFailure.Unauthorized => "ScheduleApiErrorUnauthorized",
+            ScheduleParsingFailure.RateLimited => "ScheduleApiErrorRateLimited",
+            ScheduleParsingFailure.Rejected => "ScheduleApiErrorRejected",
+            ScheduleParsingFailure.Server => "ScheduleApiErrorServer",
+            _ => "ScheduleApiErrorInvalidResponse"
+        });
 
     private void NavigationStyle_Click(object sender, RoutedEventArgs e)
     {
@@ -1356,6 +1563,18 @@ public sealed partial class MainWindow : Window
             CloseButtonText = AppText.Get("OK")
         };
         await dialog.ShowAsync();
+    }
+
+    private sealed class FailedScheduleParsingProvider(
+        ScheduleParsingProviderException error) : IScheduleParsingProvider
+    {
+        public string Name => "api";
+
+        public Task<NaturalLanguageParseResult> ParseAsync(
+            string text,
+            DateTimeOffset referenceTime,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<NaturalLanguageParseResult>(error);
     }
 }
 

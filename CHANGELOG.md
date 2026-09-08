@@ -14,6 +14,14 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 - Added a localized WinUI text-import flow with editable, multi-select candidate
   review before any data is saved. Confirmed candidates are inserted in one
   SQLite transaction and marked with the `natural_language` source type.
+- Added optional Responses-compatible cloud parsing for Windows text import,
+  with Auto, Cloud API, and Offline rules modes. API output is constrained by a
+  strict JSON schema and validated again locally before reaching the preview.
+- Added localized API settings for base URL and model. API keys are stored only
+  in Windows Credential Locker and are never written to the settings file.
+- Added automatic offline fallback for API configuration, network, authorization,
+  rate-limit, server, and invalid-response failures. API-only mode fails closed
+  instead of silently changing parser behavior.
 
 ### Fixed
 

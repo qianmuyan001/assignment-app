@@ -93,7 +93,7 @@ SQLite assignment schema without replacing or deleting the database.
 | --- | --- | --- | --- |
 | Apple | SwiftUI iPadOS + Mac Catalyst | Local app sandbox | Foundation RC source, iPad tests/UI smoke, Debug/Release builds, and Catalyst LaunchServices smoke passed; Catalyst unit runner and production distribution remain open |
 | macOS legacy | SwiftUI + WKWebView | macOS Keychain | Retired 1.0 baseline archived under `legacy/macos` |
-| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source; 50/50 Core tests; Debug and Release x64 builds; self-contained x64 publish and signed-in desktop launch verified; cold-start notification activation pending |
+| Windows | WinUI 3 + WebView2 | Windows Credential Locker | Phase 2.5 source plus reviewed natural-language text import and optional cloud parsing; 60/60 Core tests; Debug and Release x64 builds; self-contained x64 publish and signed-in desktop launch verified; cold-start notification activation pending |
 
 Phase 2 organization screens exist on Apple, Windows, and Web. Phase 2.5 stores
 attachment bytes outside SQLite at the database sibling key
@@ -307,7 +307,9 @@ Parser modes:
 - `AI`: uses AI only. If AI is not configured, the GUI shows a clear error.
 - `Rule-based`: skips AI and uses the local rule parser.
 
-The app still works without API keys. AI parsed assignments are never saved automatically; they always go to the pending review window first.
+The app still works without API keys. AI parsed assignments are never saved automatically; they always go to the pending review window first. The Windows
+client also exposes Auto, Cloud API, and Offline rules modes under **Settings >
+Schedule text parsing**; its API key is stored in Windows Credential Locker.
 
 OpenAI setup example:
 

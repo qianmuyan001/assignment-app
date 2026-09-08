@@ -85,7 +85,7 @@
   <data name="LocalDataHelp.Text" xml:space="preserve"><value>Task data stays in SQLite on this PC. Versioned migrations create a recoverable backup before changing an existing database.</value></data>
   <data name="PrivacyTitle.Text" xml:space="preserve"><value>Privacy</value></data>
   <data name="PrivacyPasswords.Text" xml:space="preserve"><value>• Passwords stay in Windows Credential Locker</value></data>
-  <data name="PrivacyContent.Text" xml:space="preserve"><value>• Course content stays on this PC</value></data>
+  <data name="PrivacyContent.Text" xml:space="preserve"><value>• Text stays on this PC unless the cloud parser is used</value></data>
   <data name="PrivacyBrowser.Text" xml:space="preserve"><value>• The local model cannot control the login browser</value></data>
   <data name="TaskEditorDialog.Title" xml:space="preserve"><value>Assignment</value></data>
   <data name="TaskEditorDialog.PrimaryButtonText" xml:space="preserve"><value>Save</value></data>
@@ -356,7 +356,7 @@
   <data name="NaturalLanguageCandidateTime.Header" xml:space="preserve"><value>Time</value></data>
   <data name="NaturalLanguageCandidateTime.PlaceholderText" xml:space="preserve"><value>HH:MM</value></data>
   <data name="NaturalLanguageImportTitle" xml:space="preserve"><value>Import assignments from text</value></data>
-  <data name="NaturalLanguageInputHelp" xml:space="preserve"><value>Paste one or more Chinese sentences. Nothing is saved until you review and confirm the candidates.</value></data>
+  <data name="NaturalLanguageInputHelp" xml:space="preserve"><value>Paste one or more Chinese sentences. The parser selected in Settings is used. Nothing is saved until you review and confirm the candidates.</value></data>
   <data name="NaturalLanguageInputPlaceholder" xml:space="preserve"><value>Example: 高数第五章习题下周三前提交。周五开小组会，记得准备演示文稿。</value></data>
   <data name="NaturalLanguageInputName" xml:space="preserve"><value>Text to parse into assignments</value></data>
   <data name="ParseText" xml:space="preserve"><value>Parse text</value></data>
@@ -368,4 +368,40 @@
   <data name="NaturalLanguageTitleRequired" xml:space="preserve"><value>Every selected candidate needs a title.</value></data>
   <data name="NaturalLanguageInvalidDate" xml:space="preserve"><value>Use YYYY-MM-DD for due dates.</value></data>
   <data name="NaturalLanguageInvalidTime" xml:space="preserve"><value>Use 24-hour HH:MM for due times.</value></data>
+  <data name="ScheduleApiTitle.Text" xml:space="preserve"><value>Schedule text parsing</value></data>
+  <data name="ScheduleParserModeBox.Header" xml:space="preserve"><value>Parser mode</value></data>
+  <data name="ScheduleParserModeAuto.Content" xml:space="preserve"><value>Auto (recommended)</value></data>
+  <data name="ScheduleParserModeCloudApi.Content" xml:space="preserve"><value>Cloud API</value></data>
+  <data name="ScheduleParserModeOffline.Content" xml:space="preserve"><value>Offline rules</value></data>
+  <data name="ScheduleApiBaseUrlBox.Header" xml:space="preserve"><value>Responses API base URL</value></data>
+  <data name="ScheduleApiBaseUrlBox.PlaceholderText" xml:space="preserve"><value>https://api.openai.com/v1</value></data>
+  <data name="ScheduleApiModelBox.Header" xml:space="preserve"><value>Model</value></data>
+  <data name="ScheduleApiKeyBox.Header" xml:space="preserve"><value>API key</value></data>
+  <data name="ScheduleApiKeyBox.PlaceholderText" xml:space="preserve"><value>Leave blank to keep the saved key</value></data>
+  <data name="SaveScheduleApiButton.Content" xml:space="preserve"><value>Save settings</value></data>
+  <data name="CheckScheduleApiButton.Content" xml:space="preserve"><value>Check connection</value></data>
+  <data name="RemoveScheduleApiKeyButton.Content" xml:space="preserve"><value>Remove key</value></data>
+  <data name="ScheduleApiStatusText.Text" xml:space="preserve"><value>No API key saved</value></data>
+  <data name="ScheduleApiHelp.Text" xml:space="preserve"><value>Auto uses the cloud API when configured and otherwise falls back to offline rules. Text is sent only when the cloud API is used. Remote endpoints must use HTTPS.</value></data>
+  <data name="ScheduleApiKeyRequired" xml:space="preserve"><value>Enter an API key or save one in Windows Credential Locker first.</value></data>
+  <data name="ScheduleApiSettingsSavedNoKey" xml:space="preserve"><value>Settings saved. No API key is stored.</value></data>
+  <data name="ScheduleApiSettingsSavedKeyPresent" xml:space="preserve"><value>Settings and API key saved.</value></data>
+  <data name="ScheduleApiCredentialSaveError" xml:space="preserve"><value>The API key could not be saved to Windows Credential Locker.</value></data>
+  <data name="ScheduleApiChecking" xml:space="preserve"><value>Checking the API connection…</value></data>
+  <data name="ScheduleApiReady" xml:space="preserve"><value>API connection succeeded.</value></data>
+  <data name="ScheduleApiKeyRemoved" xml:space="preserve"><value>The saved API key was removed.</value></data>
+  <data name="ScheduleApiKeyMissing" xml:space="preserve"><value>No API key saved.</value></data>
+  <data name="ScheduleApiKeySaved" xml:space="preserve"><value>An API key is saved in Windows Credential Locker.</value></data>
+  <data name="ScheduleApiFallbackNotConfigured" xml:space="preserve"><value>No cloud API key is configured, so offline rules were used.</value></data>
+  <data name="ScheduleApiFallbackFailed" xml:space="preserve"><value>The cloud API was unavailable or returned invalid data, so offline rules were used.</value></data>
+  <data name="ScheduleApiErrorNotConfigured" xml:space="preserve"><value>The cloud parser is not configured. Add an API key or choose Auto or Offline rules.</value></data>
+  <data name="ScheduleApiErrorInvalidConfiguration" xml:space="preserve"><value>Check the API base URL and model. Remote API addresses must use HTTPS.</value></data>
+  <data name="ScheduleApiErrorNetwork" xml:space="preserve"><value>The schedule API could not be reached. Check the network and try again.</value></data>
+  <data name="ScheduleApiErrorUnauthorized" xml:space="preserve"><value>The schedule API rejected the key. Check the saved API key.</value></data>
+  <data name="ScheduleApiErrorRateLimited" xml:space="preserve"><value>The schedule API rate limit was reached. Wait and try again.</value></data>
+  <data name="ScheduleApiErrorRejected" xml:space="preserve"><value>The schedule API rejected the request. Check the endpoint and model.</value></data>
+  <data name="ScheduleApiErrorServer" xml:space="preserve"><value>The schedule API reported a server error. Try again later.</value></data>
+  <data name="ScheduleApiErrorInvalidResponse" xml:space="preserve"><value>The schedule API returned data that did not pass validation.</value></data>
+  <data name="ScheduleApiErrorUnexpected" xml:space="preserve"><value>The schedule text could not be parsed because of an unexpected error.</value></data>
+  <data name="NaturalLanguageApiSourceName" xml:space="preserve"><value>AI text import</value></data>
 </root>

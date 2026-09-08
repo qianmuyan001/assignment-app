@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.Net;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using AssignmentNative.Core;
 using Microsoft.Data.Sqlite;
@@ -42,6 +44,11 @@ internal static class Program
             ("natural language parser resolves Chinese schedule", NaturalLanguageParserResolvesChineseSchedule),
             ("natural language parser flags missing deadline", NaturalLanguageParserFlagsMissingDeadline),
             ("natural language parser matches core corpus", NaturalLanguageParserMatchesCoreCorpus),
+            ("schedule API parser uses strict structured output", ScheduleApiParserUsesStrictStructuredOutput),
+            ("schedule API parser rejects insecure remote endpoint", ScheduleApiParserRejectsInsecureRemoteEndpoint),
+            ("schedule API parser rejects malformed output", ScheduleApiParserRejectsMalformedOutput),
+            ("auto schedule parser falls back offline", AutoScheduleParserFallsBackOffline),
+            ("API-only schedule parser fails closed", ApiOnlyScheduleParserFailsClosed),
             ("natural language import records source type", NaturalLanguageImportRecordsSourceType),
             ("natural language import is atomic", NaturalLanguageImportIsAtomic),
             ("priority sorting", PrioritySorting),
@@ -404,6 +411,129 @@ internal static class Program
             .Candidates.Count);
     }
 
+    private static void ScheduleApiParserUsesStrictStructuredOutput()
+    {
+        string? requestBody = null;
+        string? authorization = null;
+        Uri? requestUri = null;
+        var output =
+            """
+            {"assignments":[{"course_name":"数据库系统","title":"提交实验报告","due_date":"2026-09-04","due_time":"09:00","description":"完成实验报告并提交","source_url":"https://example.test/lab","priority":"high","confidence":"high","raw_text":"明天早上9点提交数据库实验报告","warnings":[]}]}
+            """;
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            requestBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            authorization = request.Headers.Authorization?.ToString();
+            requestUri = request.RequestUri;
+            return JsonResponse(JsonSerializer.Serialize(new { output_text = output }));
+        });
+        var options = new ScheduleApiOptions(
+            "https://api.example.test/v1",
+            "schedule-model",
+            "sk-test-secret");
+        var provider = new OpenAiScheduleParsingProvider(
+            options,
+            new HttpClient(handler));
+
+        var result = provider.ParseAsync(
+            "明天早上9点提交数据库实验报告，详见 https://example.test/lab",
+            new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8)))
+            .GetAwaiter().GetResult();
+
+        Equal("Bearer sk-test-secret", authorization);
+        Equal("https://api.example.test/v1/responses", requestUri?.AbsoluteUri);
+        False(options.ToString().Contains("sk-test-secret", StringComparison.Ordinal));
+        True(requestBody!.Contains("schedule-model", StringComparison.Ordinal));
+        True(requestBody.Contains("json_schema", StringComparison.Ordinal));
+        using (var requestDocument = JsonDocument.Parse(requestBody))
+        {
+            False(requestDocument.RootElement.GetProperty("store").GetBoolean());
+            using var contextDocument = JsonDocument.Parse(requestDocument.RootElement
+                .GetProperty("input")[1]
+                .GetProperty("content")[0]
+                .GetProperty("text")
+                .GetString()!);
+            True(contextDocument.RootElement
+                    .GetProperty("reference_local")
+                    .GetString()!
+                    .Contains("2026-09-03", StringComparison.Ordinal));
+            Equal("+08:00", contextDocument.RootElement
+                .GetProperty("utc_offset")
+                .GetString());
+        }
+        Equal(1, result.Candidates.Count);
+        var candidate = result.Candidates.Single();
+        Equal("提交实验报告", candidate.Title);
+        Equal("2026-09-04", candidate.DueDate);
+        Equal("09:00", candidate.DueTime);
+        Equal(TaskPriorities.High, candidate.Priority);
+        Equal("明天早上9点提交数据库实验报告", candidate.SourceSnippet);
+        Equal("https://example.test/lab", candidate.SourceUrl);
+    }
+
+    private static void ScheduleApiParserRejectsInsecureRemoteEndpoint()
+    {
+        var error = ThrowsResult<ScheduleParsingProviderException>(() =>
+            _ = new OpenAiScheduleParsingProvider(
+                new ScheduleApiOptions(
+                    "http://api.example.test/v1",
+                    "schedule-model",
+                    "sk-test")));
+        Equal(ScheduleParsingFailure.InvalidConfiguration, error.Failure);
+    }
+
+    private static void ScheduleApiParserRejectsMalformedOutput()
+    {
+        foreach (var output in new[] { "not-json", "{\"assignments\":null}" })
+        {
+            var handler = new StubHttpMessageHandler(_ =>
+                JsonResponse(JsonSerializer.Serialize(new { output_text = output })));
+            var provider = new OpenAiScheduleParsingProvider(
+                new ScheduleApiOptions(
+                    "https://api.example.test/v1",
+                    "schedule-model",
+                    "sk-test"),
+                new HttpClient(handler));
+
+            var error = ThrowsResult<ScheduleParsingProviderException>(() =>
+                provider.ParseAsync(
+                    "明天交作业",
+                    new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8)))
+                    .GetAwaiter().GetResult());
+            Equal(ScheduleParsingFailure.InvalidResponse, error.Failure);
+        }
+    }
+
+    private static void AutoScheduleParserFallsBackOffline()
+    {
+        var service = new NaturalLanguageParsingService();
+        var outcome = service.ParseAsync(
+            "明天早上9点交数据库作业",
+            new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8)),
+            NaturalLanguageParserMode.Auto,
+            new FailingScheduleParsingProvider(ScheduleParsingFailure.Network))
+            .GetAwaiter().GetResult();
+
+        Equal("rule", outcome.ProviderName);
+        True(outcome.FallbackUsed);
+        Equal(ScheduleParsingFailure.Network, outcome.FallbackFailure);
+        Equal("2026-09-04", outcome.Result.Candidates.Single().DueDate);
+    }
+
+    private static void ApiOnlyScheduleParserFailsClosed()
+    {
+        var service = new NaturalLanguageParsingService();
+        var error = ThrowsResult<ScheduleParsingProviderException>(() =>
+            service.ParseAsync(
+                "明天交作业",
+                new DateTimeOffset(2026, 9, 3, 10, 0, 0, TimeSpan.FromHours(8)),
+                NaturalLanguageParserMode.CloudApi,
+                apiProvider: null)
+                .GetAwaiter().GetResult());
+
+        Equal(ScheduleParsingFailure.NotConfigured, error.Failure);
+    }
+
     private static void NaturalLanguageImportRecordsSourceType()
     {
         using var workspace = new TestWorkspace();
@@ -537,7 +667,10 @@ internal static class Program
             DetailMode = AssignmentDisplayMode.Professional,
             Theme = AppTheme.Dark,
             NavigationPaneMode = NavigationPaneMode.Compact,
-            Language = AppLanguage.SimplifiedChinese
+            Language = AppLanguage.SimplifiedChinese,
+            NaturalLanguageParserMode = NaturalLanguageParserMode.CloudApi,
+            ScheduleApiBaseUrl = "https://api.example.test/v1",
+            ScheduleApiModel = "schedule-model"
         });
 
         var restored = settingsStore.Load();
@@ -545,6 +678,12 @@ internal static class Program
         Equal(AppTheme.Dark, restored.Theme);
         Equal(NavigationPaneMode.Compact, restored.NavigationPaneMode);
         Equal(AppLanguage.SimplifiedChinese, restored.Language);
+        Equal(NaturalLanguageParserMode.CloudApi, restored.NaturalLanguageParserMode);
+        Equal("https://api.example.test/v1", restored.ScheduleApiBaseUrl);
+        Equal("schedule-model", restored.ScheduleApiModel);
+        False(typeof(AppSettings).GetProperties().Any(property =>
+            property.Name.Contains("key", StringComparison.OrdinalIgnoreCase) ||
+            property.Name.Contains("secret", StringComparison.OrdinalIgnoreCase)));
     }
 
     private static void SettingsPathOverrideIsolates()
@@ -2151,6 +2290,11 @@ internal static class Program
         SchemaV3Contract.Validate(connection);
     }
 
+    private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(json, Encoding.UTF8, "application/json")
+    };
+
     private static string V1LogicalSnapshot(string path)
     {
         using var connection = RawOpen(path);
@@ -2260,6 +2404,27 @@ internal static class Program
                 Directory.Delete(DirectoryPath, recursive: true);
             }
         }
+    }
+
+    private sealed class StubHttpMessageHandler(
+        Func<HttpRequestMessage, HttpResponseMessage> handler) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) => Task.FromResult(handler(request));
+    }
+
+    private sealed class FailingScheduleParsingProvider(ScheduleParsingFailure failure)
+        : IScheduleParsingProvider
+    {
+        public string Name => "api";
+
+        public Task<NaturalLanguageParseResult> ParseAsync(
+            string text,
+            DateTimeOffset referenceTime,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<NaturalLanguageParseResult>(
+                new ScheduleParsingProviderException(failure, "Test provider failure."));
     }
 
     private sealed class TestFailureException(string message) : Exception(message);

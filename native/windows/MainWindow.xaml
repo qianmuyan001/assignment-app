@@ -602,6 +602,60 @@
                     </Border>
                     <Border Style="{StaticResource TaskCardStyle}">
                         <StackPanel Spacing="12">
+                            <TextBlock x:Uid="ScheduleApiTitle"
+                                       Text="Schedule text parsing"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <ComboBox x:Name="ScheduleParserModeBox"
+                                      x:Uid="ScheduleParserModeBox"
+                                      Header="Parser mode"
+                                      SelectedIndex="0">
+                                <ComboBoxItem x:Uid="ScheduleParserModeAuto"
+                                              Content="Auto"
+                                              Tag="auto"/>
+                                <ComboBoxItem x:Uid="ScheduleParserModeCloudApi"
+                                              Content="Cloud API"
+                                              Tag="api"/>
+                                <ComboBoxItem x:Uid="ScheduleParserModeOffline"
+                                              Content="Offline rules"
+                                              Tag="offline"/>
+                            </ComboBox>
+                            <TextBox x:Name="ScheduleApiBaseUrlBox"
+                                     x:Uid="ScheduleApiBaseUrlBox"
+                                     Header="API base URL"
+                                     PlaceholderText="https://api.openai.com/v1"/>
+                            <TextBox x:Name="ScheduleApiModelBox"
+                                     x:Uid="ScheduleApiModelBox"
+                                     Header="Model"/>
+                            <PasswordBox x:Name="ScheduleApiKeyBox"
+                                         x:Uid="ScheduleApiKeyBox"
+                                         Header="API key"
+                                         PasswordRevealMode="Peek"/>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Uid="SaveScheduleApiButton"
+                                        Content="Save settings"
+                                        Click="SaveScheduleApi_Click"/>
+                                <Button x:Uid="CheckScheduleApiButton"
+                                        Content="Check connection"
+                                        Click="CheckScheduleApi_Click"/>
+                                <Button x:Uid="RemoveScheduleApiKeyButton"
+                                        Content="Remove key"
+                                        Click="RemoveScheduleApiKey_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="ScheduleApiStatusText"
+                                       x:Uid="ScheduleApiStatusText"
+                                       Text="No API key saved"
+                                       TextWrapping="Wrap"
+                                       Opacity="0.7"/>
+                            <TextBlock x:Uid="ScheduleApiHelp"
+                                       Text="Auto uses the cloud API when configured and otherwise falls back to offline rules. Text is sent only when the cloud API is used."
+                                       TextWrapping="Wrap"
+                                       FontSize="12"
+                                       Opacity="0.65"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource TaskCardStyle}">
+                        <StackPanel Spacing="12">
                             <TextBlock x:Uid="LocalAiTitle" Text="Local AI" FontSize="18"
                                        FontWeight="SemiBold"/>
                             <TextBox x:Name="AiEndpointBox" x:Uid="AiEndpointBox"
@@ -637,7 +691,8 @@
                             <TextBlock x:Uid="PrivacyTitle" Text="Privacy" FontSize="18"
                                        FontWeight="SemiBold"/>
                             <TextBlock x:Uid="PrivacyPasswords" Text="• Passwords stay in Windows Credential Locker"/>
-                            <TextBlock x:Uid="PrivacyContent" Text="• Course content stays on this PC"/>
+                            <TextBlock x:Uid="PrivacyContent" Text="• Text stays on this PC unless the cloud parser is used"
+                                       TextWrapping="Wrap"/>
                             <TextBlock x:Uid="PrivacyBrowser" Text="• The local model cannot control the login browser"
                                        TextWrapping="Wrap"/>
                         </StackPanel>

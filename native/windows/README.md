@@ -15,6 +15,9 @@ Windows App SDK, Microsoft.Data.Sqlite, and a UI-independent Core library.
 - Offline Chinese text import with task splitting, date/time, course, priority,
   and link extraction. The review dialog lets users select and correct candidates
   before a single transactional write; parsing never writes data by itself.
+- Optional Responses-compatible cloud parsing for pasted schedule text, with
+  Auto, Cloud API, and Offline rules modes. Auto falls back to the deterministic
+  local parser when the API is not configured or cannot return valid data.
 - Versioned SQLite schema v3 migration with an online backup, transactional
   validation, rollback verification, and in-place online-backup recovery.
 - Phase 1 Core repositories for courses, projects, tags, task-tag links,
@@ -45,6 +48,33 @@ WinUI views -> Services shim -> AssignmentNative.Core -> SQLite
 `AssignmentNative.Core` targets plain `net8.0`, so its data and rule tests run
 without WinUI. The WinUI executable targets
 `net8.0-windows10.0.19041.0` and is published separately for Windows x64.
+
+## Schedule text API
+
+Open **Settings > Schedule text parsing** to choose a mode:
+
+- **Auto** uses the configured cloud API and falls back to offline rules when
+  configuration, connectivity, authorization, rate limiting, server errors, or
+  response validation prevent an API result.
+- **Cloud API** requires a valid connection and fails closed when the API cannot
+  be used.
+- **Offline rules** never sends pasted text over the network.
+
+The initial cloud provider calls a Responses-compatible endpoint at
+`<base-url>/responses` and requires strict JSON-schema output. The default base
+URL is `https://api.openai.com/v1`; the model is configurable. Remote endpoints
+must use HTTPS, while HTTP is accepted only for localhost or another loopback
+address. Redirects are not followed. Input is capped at 24,000 characters and
+responses are bounded and validated locally for types, lengths, dates, times,
+priorities, URLs, exact source snippets, and candidate count.
+Requests explicitly set `store: false`; the configured provider's data-handling
+and retention terms still apply.
+
+The API key is stored under the app's fixed entry in Windows Credential Locker.
+Only parser mode, base URL, and model are written to `settings-v2.json`. A key is
+never displayed after saving. Cloud results use the same editable, multi-select
+review dialog as offline results and cannot write to SQLite until the user
+confirms them.
 
 ## Database location and compatibility
 
@@ -134,15 +164,15 @@ From the repository root:
 dotnet run --project .\native\windows\AssignmentNative.Core.Tests\AssignmentNative.Core.Tests.csproj -c Release
 ```
 
-The 48-test harness covers existing task CRUD/rules plus schema v3 migration,
+The 60-test harness covers existing task CRUD/rules plus schema v3 migration,
 shared UUID and Unicode-normalization vectors, organization CRUD, task tags,
 derived subtask progress, safe attachment metadata, canonical recurrence,
 soft-delete restore, immutable database identity, concurrent initialization,
 failure recovery, and real attachment-payload lifecycle/rollback/reconciliation,
 including reparse-point rejection when the host permits symbolic-link creation.
-It creates temporary databases only. All 48 passed on the local macOS host with
-`.NET 10` rolling forward the `net8.0` Core target; this validates Core only,
-not WinUI compilation or launch.
+It also covers offline and API schedule parsing, strict API output, endpoint
+security, fallback behavior, and settings persistence. It creates temporary
+databases only.
 
 ## Build and run
 
