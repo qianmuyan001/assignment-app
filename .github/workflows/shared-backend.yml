@@ -44,3 +44,14 @@ jobs:
 
       - name: Run isolated backend API and Web asset tests
         run: python -m unittest discover -s backend/tests -v
+
+      - name: Set up Node for Web rule tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test Web rules
+        run: node --test backend/tests/web_ui.test.cjs
+
+      - name: Check distribution contents and guards
+        run: python -m unittest discover -s scripts/tests -v

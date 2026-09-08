@@ -40,6 +40,22 @@ jobs:
         # launch acceptance on a signed-in Windows x64 machine.
         run: ./native/windows/publish-x64.ps1 -RequireCleanTree -SkipSmokeTest
 
+      - name: Bundle Windows with Web
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem artifacts/windows -Directory -Filter 'x64-*')
+          if ($packages.Count -ne 1) { throw "Expected exactly one native package" }
+          python scripts/package_distribution.py --platform windows --native "$($packages[0].FullName)/publish" --build-info "$($packages[0].FullName)/build-info.txt"
+          if ($LASTEXITCODE -ne 0) { throw "Distribution packaging failed" }
+
+      - name: Upload Windows with Web
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-app-windows-with-web-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: artifacts/distributions/*
+
       - name: Upload Windows x64 package and evidence
         if: success()
         uses: actions/upload-artifact@v4

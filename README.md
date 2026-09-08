@@ -9,10 +9,37 @@ Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 Current source version: **2.1.0**. See [CHANGELOG.md](CHANGELOG.md) for source
 history. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Windows and Mac packages, both with Web
+
+`main` is the single maintained branch. Platform implementations stay in
+`native/windows/` and `native/apple/`; both distribution packages include the
+same FastAPI/Web application and shared rules from that exact commit.
+
+| Package | Desktop entry | Web entry |
+| --- | --- | --- |
+| Windows x64 + Web | `Native/AssignmentNative.exe` | `Web/start.bat` |
+| Mac Catalyst (Apple Silicon) + Web | `Native/Assignment App.app` | `Web/start.command` |
+
+Download the `assignment-app-windows-with-web-<SHA>` or
+`assignment-app-macos-with-web-<SHA>` artifact from the matching successful
+[GitHub Actions run](https://github.com/qianmuyan001/assignment-app/actions).
+Each contains a platform ZIP, checksum, source manifest and native build evidence.
+These are internal test packages: the Mac package is ad-hoc-signed Debug;
+Windows is self-contained Release and its signing state is recorded in the package.
+They are not a new signed/public release.
+
+The Web option requires Python 3.12+ and an internet connection for its first
+start. It opens the local browser interface at `http://127.0.0.1:8000`.
+Desktop and Web use separate databases by default; automatic synchronization is
+not implemented. Apple and Web support schema v4; Windows native remains on
+schema v3, so do not open a Web/Apple v4 database with Windows native.
+No user database, attachment payloads or backups are included in either bundle.
+See [platform packaging instructions](docs/platform-packages.md).
+
 ## Assignment App 2.1
 
-The repository contains the shared task contract, a versioned SQLite v3
-migration, and Apple, Windows, and Web implementations of the task-management
+The repository contains shared task contracts, versioned SQLite v3/v4
+migrations, and Apple, Windows, and Web implementations of the task-management
 and Phase 2 organization workflow. They use the same task fields, status and
 priority mappings, UUID lineage, courses, projects, tags, subtasks, attachment
 metadata, reminders, date-list rules, fixtures, and acceptance cases. Phase 2.5
@@ -86,8 +113,9 @@ The active backend lives in `backend/`, and its web client lives in
 
 ## Native macOS and Windows versions
 
-The performance-focused clients now live in `native/` and share the existing
-SQLite assignment schema without replacing or deleting the database.
+The native clients live in `native/`. They share task contracts, with schema v4
+implemented on Apple/Web and schema v3 on Windows. Each client backs up its
+configured database before supported migrations.
 
 | Platform | UI/browser | Secure credential store | Status |
 | --- | --- | --- | --- |
@@ -134,10 +162,10 @@ build and security details.
 
 ## Continuous integration and evidence
 
-Three workflows define the release and Phase 2.5 verification gates:
+Three workflows validate each commit and produce separate platform artifacts:
 
 - `.github/workflows/shared-backend.yml`: version consistency, Python error
-  lint, 57 shared contract/migration tests, and isolated FastAPI/Web tests.
+  lint, shared contract/migration tests, and isolated FastAPI/Web tests.
 - `.github/workflows/apple.yml`: iPad unit and UI tests, Catalyst unit tests,
   clean-tree packaging, signature checks, and packaged-app database smoke.
 - `.github/workflows/windows.yml`: real Windows x64 Core tests, WinUI publish,
@@ -147,8 +175,7 @@ Three workflows define the release and Phase 2.5 verification gates:
 Adding a workflow is not proof that it passed. A platform is accepted only when
 the workflow or a matching local environment produces logs and an artifact whose
 `build-info.txt` records the exact Git SHA, source cleanliness, toolchain,
-architecture, test result, smoke result, and signing state. No workflow was
-pushed or executed remotely during the Phase 2.5 closeout. The local macOS host
+architecture, test result, smoke result, and signing state. The local macOS host
 cannot substitute for the required signed-in Windows desktop acceptance.
 
 ## One-click Start

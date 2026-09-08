@@ -130,6 +130,24 @@ jobs:
           python3 native/apple/scripts/ipad-simulator.py delete \
             --state "$RUNNER_TEMP/ipad-simulator.json" 2>&1 | tee "$RUNNER_TEMP/ipad-simulator-cleanup.log"
 
+      - name: Bundle Mac with Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=(artifacts/apple/debug-*)
+          test "${#packages[@]}" -eq 1
+          python3 scripts/package_distribution.py --platform macos \
+            --native "${packages[0]}/Assignment App.app" \
+            --build-info "${packages[0]}/build-info.txt"
+
+      - name: Upload Mac with Web
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-app-macos-with-web-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: artifacts/distributions/*
+
       - name: Upload Apple package and test evidence
         if: success()
         uses: actions/upload-artifact@v4

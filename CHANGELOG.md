@@ -8,6 +8,13 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ### Added
 
+- Consolidated all remote updates and committed Apple/Web follow-up work into
+  `main`; preserved multi-view and synchronization design documents.
+- Added separate Windows x64 and Mac Catalyst packages, each including the
+  same standalone Web application, startup scripts, manifest and checksums.
+- Integrated Web schema v4 learning workflows and verified backup/restore,
+  plus Apple RC isolation, timezone and SQLite test-lifetime fixes.
+
 - Added an offline Chinese natural-language parser to Windows Core for task
   segmentation, relative and absolute due dates, common spoken times, course
   aliases, priorities, links, confidence, and ambiguity warnings.
