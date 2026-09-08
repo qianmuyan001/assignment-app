@@ -403,6 +403,30 @@ struct LearningSceneRuleTests {
 
     // MARK: - Time zones
 
+    @Test("System GMT is stored as UTC while regional and custom zones stay strict")
+    func systemGMTNormalization() throws {
+        let gmt = try #require(TimeZone(secondsFromGMT: 0))
+        #expect(gmt.identifier == "GMT")
+        #expect(LearningTimeZoneChoice.system.resolvedIdentifier(
+            customIdentifier: "ignored",
+            systemTimeZone: gmt
+        ) == "UTC")
+        let regional = try #require(TimeZone(identifier: shanghai))
+        #expect(LearningTimeZoneChoice.system.resolvedIdentifier(
+            customIdentifier: "ignored",
+            systemTimeZone: regional
+        ) == shanghai)
+        for invalid in ["GMT", "EST", "Not/AZone", ""] {
+            let resolved = LearningTimeZoneChoice.custom.resolvedIdentifier(
+                customIdentifier: " \(invalid) "
+            )
+            #expect(resolved == invalid)
+            #expect(throws: LearningSceneError.self) {
+                _ = try LearningRules.validatedTimeZone(resolved)
+            }
+        }
+    }
+
     @Test("Time zone identifiers follow the shared IANA contract")
     func timeZoneContract() throws {
         #expect(throws: (any Error).self) {

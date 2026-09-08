@@ -564,6 +564,26 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
     }
 
     static func defaultDatabaseURL() -> URL {
+        do {
+            if let isolated = try AppleRuntimeIsolation.packagedDatabaseURL(
+                bundleIdentifier: Bundle.main.bundleIdentifier ?? "",
+                home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            ) {
+                FileHandle.standardError.write(Data("assignment_rc_database_path=\(isolated.path)\n".utf8))
+                return isolated
+            }
+            #if DEBUG
+            if let isolated = try AppleRuntimeIsolation.uiTestDatabaseURL(
+                arguments: ProcessInfo.processInfo.arguments,
+                temporaryDirectory: FileManager.default.temporaryDirectory
+            ) {
+                FileHandle.standardError.write(Data("assignment_ui_database_path=\(isolated.path)\n".utf8))
+                return isolated
+            }
+            #endif
+        } catch {
+            preconditionFailure("Refusing unsafe Apple test data path: \(error)")
+        }
         #if DEBUG
         // XCTest host initialization can occur before test setUp. Ignore every
         // caller-supplied environment override in a test process and use a

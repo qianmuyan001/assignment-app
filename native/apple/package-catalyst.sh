@@ -8,7 +8,7 @@ PROJECT="$SCRIPT_DIR/AssignmentApp2.xcodeproj"
 VERSION="$(tr -d '[:space:]' < "$REPOSITORY_ROOT/VERSION")"
 
 : "${DEVELOPER_DIR:=/Applications/Xcode-beta.app/Contents/Developer}"
-: "${ASSIGNMENT_DERIVED_DATA:=/private/tmp/assignment-app-xcode-derived-data}"
+: "${ASSIGNMENT_DERIVED_DATA:=/private/tmp/assignment-app-catalyst-derived-$(uuidgen)}"
 : "${ASSIGNMENT_ARTIFACT_ROOT:=$REPOSITORY_ROOT/artifacts/apple}"
 : "${ASSIGNMENT_RUN_STAMP:=$(date -u +%Y%m%d-%H%M%SZ)}"
 : "${ASSIGNMENT_CATALYST_ARCH:=arm64}"
@@ -33,13 +33,20 @@ export DEVELOPER_DIR
 
 DERIVED_DATA="$ASSIGNMENT_DERIVED_DATA"
 RUN_STAMP="$ASSIGNMENT_RUN_STAMP"
-LOCAL_RUNNABLE="${ASSIGNMENT_LOCAL_RUNNABLE:-0}"
+PACKAGE_CREATED_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if [[ "${ASSIGNMENT_LOCAL_RUNNABLE:-0}" != "0" ]]; then
+  echo "Internal packages require App Sandbox; unsandboxed packaging is no longer supported." >&2
+  exit 1
+fi
 SANDBOX_ENABLED=true
-if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
-  OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-local-$RUN_STAMP"
-  SANDBOX_ENABLED=false
-else
-  OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-$RUN_STAMP"
+OUTPUT_DIR="$ASSIGNMENT_ARTIFACT_ROOT/debug-$RUN_STAMP"
+SMOKE_BUNDLE_ID="com.qianmuyan.assignmentapp.rcsmoke.$(uuidgen | tr '[:upper:]' '[:lower:]')"
+SMOKE_CONTAINER="$HOME/Library/Containers/$SMOKE_BUNDLE_ID"
+SMOKE_DIR="$SMOKE_CONTAINER/Data/Library/Application Support/AssignmentApp2"
+SMOKE_DATABASE="$SMOKE_DIR/assignments.db"
+if [[ -e "$SMOKE_CONTAINER" ]]; then
+  echo "Refusing to reuse an existing smoke container: $SMOKE_CONTAINER" >&2
+  exit 1
 fi
 SOURCE_APP="$DERIVED_DATA/Build/Products/Debug-maccatalyst/Assignment App.app"
 OUTPUT_APP="$OUTPUT_DIR/Assignment App.app"
@@ -74,6 +81,71 @@ if [[ -e "$OUTPUT_DIR" ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR/logs"
+python3 "$SCRIPT_DIR/scripts/protected-data-fingerprint.py" "$OUTPUT_DIR/logs/protected-before.json"
+
+SIGN_ROOT=""
+VERIFY_DIR=""
+SMOKE_APP_LAUNCHED=false
+SMOKE_PID=""
+stop_smoke() {
+  if [[ "$SMOKE_APP_LAUNCHED" == "true" ]]; then
+    local pid
+    pid="$(pgrep -f "$VERIFY_DIR/Assignment App.app/Contents/MacOS" || :)"
+    for pid in $pid; do
+      [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+      if ! kill -TERM "$pid"; then
+        if kill -0 "$pid" 2>/dev/null; then return 1; fi
+      fi
+      for attempt in {1..100}; do
+        if ! kill -0 "$pid" 2>/dev/null; then break; fi
+        sleep 0.1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "Smoke process did not exit; retaining its database directory." >&2
+        return 1
+      fi
+    done
+    SMOKE_APP_LAUNCHED=false
+  fi
+}
+cleanup() {
+  local result=$?
+  trap - EXIT
+  if stop_smoke; then
+    if [[ -d "$SMOKE_DIR" ]]; then
+      # Only delete this run's data after ALL processes have released its files.
+      local open_files inspection_status=0
+      open_files="$(lsof -t +D "$SMOKE_DIR" 2> "$OUTPUT_DIR/logs/smoke-handle-inspection.log")" || inspection_status=$?
+      if [[ -n "$open_files" || -s "$OUTPUT_DIR/logs/smoke-handle-inspection.log" || "$inspection_status" -gt 1 ]]; then
+        echo "Smoke data is still in use; preserving $SMOKE_DIR" >&2
+        result=1
+      else
+        case "$SMOKE_DIR" in
+          "$HOME/Library/Containers/com.qianmuyan.assignmentapp.rcsmoke."*/Data/Library/Application\ Support/AssignmentApp2)
+            rm -rf "$SMOKE_DIR" ;;
+          *) echo "Refusing unexpected cleanup path" >&2; result=1 ;;
+        esac
+      fi
+    fi
+    case "$VERIFY_DIR" in
+      /private/tmp/assignment-app-catalyst-verify.*) rm -rf "$VERIFY_DIR" ;;
+    esac
+    case "$SIGN_ROOT" in
+      /private/tmp/assignment-app-catalyst-sign.*) rm -rf "$SIGN_ROOT" ;;
+    esac
+  else
+    result=1
+  fi
+  if ! python3 "$SCRIPT_DIR/scripts/protected-data-fingerprint.py" \
+    "$OUTPUT_DIR/logs/protected-after.json" --compare "$OUTPUT_DIR/logs/protected-before.json" \
+    > "$OUTPUT_DIR/logs/protected-comparison.log" 2>&1; then
+    cat "$OUTPUT_DIR/logs/protected-comparison.log" >&2
+    result=1
+  fi
+  exit "$result"
+}
+trap cleanup EXIT
+
 if [[ "$SOURCE_TREE_DIRTY" == "true" ]]; then
   printf '%s\n' "$SOURCE_STATUS" > "$OUTPUT_DIR/logs/source-status.log"
 else
@@ -97,20 +169,6 @@ esac
 SIGN_APP="$SIGN_ROOT/Assignment App.app"
 SIGN_ZIP="$SIGN_ROOT/Assignment-App-$VERSION-Catalyst-Debug-$ASSIGNMENT_CATALYST_ARCH.zip"
 
-if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
-  ENTITLEMENTS="$OUTPUT_DIR/logs/local-debug.entitlements"
-  cat > "$ENTITLEMENTS" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>com.apple.security.get-task-allow</key>
-	<true/>
-</dict>
-</plist>
-EOF
-  echo "Local runnable mode: signing without App Sandbox." | tee "$OUTPUT_DIR/logs/local-runnable-note.log"
-fi
 
 xcodebuild \
   -project "$PROJECT" \
@@ -163,6 +221,9 @@ fi
 # extended attributes into the deliverable. They can invalidate strict
 # signature verification and create AppleDouble entries in the ZIP.
 ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP" "$SIGN_APP"
+# Re-identify the actual transferable app BEFORE signing. Finder launches of
+# this internal package can never select the production sandbox container.
+plutil -replace CFBundleIdentifier -string "$SMOKE_BUNDLE_ID" "$SIGN_APP/Contents/Info.plist"
 xattr -cr "$SIGN_APP"
 codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$SIGN_APP" \
   2>&1 | tee "$OUTPUT_DIR/logs/codesign.log"
@@ -199,34 +260,6 @@ case "$VERIFY_DIR" in
   *) echo "Unexpected verification directory: $VERIFY_DIR" >&2; exit 1 ;;
 esac
 
-SMOKE_DIR=""
-SMOKE_APP_LAUNCHED=false
-cleanup() {
-  # The smoke app is launched through LaunchServices, so it is stopped by
-  # name — but scoped to this run's unique extraction directory, so an
-  # Assignment App the person happens to have open is never touched.
-  if [[ "$SMOKE_APP_LAUNCHED" == "true" ]]; then
-    pkill -f "$VERIFY_DIR/Assignment App.app/Contents/MacOS" 2>/dev/null || true
-  fi
-  if [[ -n "$SMOKE_DIR" ]]; then
-    case "$SMOKE_DIR" in
-      "$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp/assignment-app-smoke-"*)
-        rm -rf "$SMOKE_DIR"
-        ;;
-      /private/tmp/assignment-app-smoke-*)
-        rm -rf "$SMOKE_DIR"
-        ;;
-      *) echo "Refusing to clean unexpected smoke directory: $SMOKE_DIR" >&2 ;;
-    esac
-  fi
-  case "$VERIFY_DIR" in
-    /private/tmp/assignment-app-catalyst-verify.*) rm -rf "$VERIFY_DIR" ;;
-  esac
-  case "$SIGN_ROOT" in
-    /private/tmp/assignment-app-catalyst-sign.*) rm -rf "$SIGN_ROOT" ;;
-  esac
-}
-trap cleanup EXIT
 
 ditto -x -k "$OUTPUT_ZIP" "$VERIFY_DIR"
 ARCHIVE_APP="$VERIFY_DIR/Assignment App.app"
@@ -264,12 +297,15 @@ capture_crash_report() {
 write_build_info() {
   {
     echo "Assignment App $VERSION Apple Debug package"
-    echo "created_utc=$RUN_STAMP"
+    echo "created_utc=$PACKAGE_CREATED_UTC"
+    echo "run_stamp=$RUN_STAMP"
     echo "scheme=AssignmentApp2"
     echo "configuration=Debug"
     echo "destination=$DESTINATION"
     echo "architecture=$ASSIGNMENT_CATALYST_ARCH"
-    echo "bundle_identifier=com.qianmuyan.assignmentapp"
+    echo "bundle_identifier=$SMOKE_BUNDLE_ID"
+    echo "runtime_database_path=$SMOKE_DATABASE"
+    echo "distribution=internal-testing-only; ad-hoc; not-notarized; not-a-production-release"
     echo "version=$VERSION"
     echo "derived_data=$DERIVED_DATA"
     echo "source_revision=$SOURCE_REVISION"
@@ -302,41 +338,17 @@ fail_launch() {
 }
 
 if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
-  if [[ "$LOCAL_RUNNABLE" == "1" ]]; then
-    SMOKE_DIR="/private/tmp/assignment-app-smoke-$RUN_STAMP-$$"
-  else
-    CONTAINER_TMP="$HOME/Library/Containers/com.qianmuyan.assignmentapp/Data/tmp"
-    SMOKE_DIR="$CONTAINER_TMP/assignment-app-smoke-$RUN_STAMP-$$"
-  fi
-  # Created up front: the launch itself appends, and a fresh log for every
-  # run keeps a failed previous attempt from being read as current evidence.
   : > "$OUTPUT_DIR/logs/catalyst-launch-smoke.log"
-
-  # Launch through LaunchServices, not by executing the binary directly.
-  #
-  # A directly-exec'd sandboxed Catalyst app dies inside
-  # `_libsecinit_appsandbox` (EXC_BREAKPOINT, `SYSCALL_SET_USERLAND_PROFILE`)
-  # on this macOS 27.0 beta: the userland sandbox profile is applied by
-  # LaunchServices before the process image is loaded, so exec'ing the binary
-  # from a shell skips that step and the process traps while bringing itself
-  # up. `open` performs the launch the way a person does, which is the
-  # behaviour worth smoking. App Sandbox itself is never disabled: the
-  # entitlement is still verified above and the app still runs confined.
-  open "$ARCHIVE_APP" >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log" 2>&1
+  [[ "$(plutil -extract CFBundleIdentifier raw -o - "$ARCHIVE_APP/Contents/Info.plist")" == "$SMOKE_BUNDLE_ID" ]]
+  [[ ! -e "$SMOKE_CONTAINER" ]]
+  # `open -n` addresses this exact app, creates a fresh process, and lets
+  # LaunchServices install the sandbox. No environment propagation is used.
+  open -n "$ARCHIVE_APP" --stdout "$OUTPUT_DIR/logs/catalyst-runtime-stdout.log" \
+    --stderr "$OUTPUT_DIR/logs/catalyst-runtime-stderr.log" \
+    >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log" 2>&1
   SMOKE_APP_LAUNCHED=true
-
-  # The app is exercised through its real, sandbox-confined database rather
-  # than an `ASSIGNMENT_DB_PATH` override. Environment overrides do not
-  # survive a LaunchServices launch on this OS reliably enough to gate on
-  # (`open --env` was observed applying once and then being dropped on
-  # repeated identical launches), so the smoke asks a different, stronger
-  # question instead: which database file does the launched process itself
-  # hold open, and is that database a valid v4 store? `lsof` answers the
-  # first half directly, and works whether the app is sandboxed (container
-  # Application Support) or not (user Application Support).
   SMOKE_STARTED_AT="$(date +%s)"
   SMOKE_PID=""
-  SMOKE_DATABASE=""
   SMOKE_READY=false
   for attempt in {1..100}; do
     if [[ -z "$SMOKE_PID" ]]; then
@@ -345,22 +357,21 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
         echo "attempt=$attempt pid=$SMOKE_PID" >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log"
       fi
     fi
-    if [[ -n "$SMOKE_PID" ]] && [[ -z "$SMOKE_DATABASE" ]]; then
-      # `awk '{print $NF}'` is not enough here: the path can contain spaces
-      # (".../Application Support/..."), so the whole NAME column — everything
-      # after lsof's first eight fixed columns — is kept instead.
-      SMOKE_DATABASE="$(lsof -p "$SMOKE_PID" 2>/dev/null \
-        | /usr/bin/grep 'assignments\.db$' | head -1 \
-        | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }' || true)"
-      if [[ -n "$SMOKE_DATABASE" ]]; then
-        echo "attempt=$attempt database=$SMOKE_DATABASE" >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log"
+    if [[ -n "$SMOKE_PID" ]]; then
+      lsof -a -p "$SMOKE_PID" -Fn > "$OUTPUT_DIR/logs/catalyst-open-files.log" 2>/dev/null
+      # Inspect path strings first; never point sqlite3 at a discovered user DB.
+      if grep -Fqx "n$SMOKE_DATABASE" "$OUTPUT_DIR/logs/catalyst-open-files.log"; then
+        if grep -F -e 'n'"$HOME/Library/Containers/com.qianmuyan.assignmentapp/" \
+          -e 'n'"$HOME/Library/Application Support/AssignmentApp2/" \
+          "$OUTPUT_DIR/logs/catalyst-open-files.log"; then
+          fail_launch "Smoke process unexpectedly opened the production container."
+        fi
+        if CANDIDATE_SCHEMA_VERSION="$(sqlite3 -readonly "$SMOKE_DATABASE" 'PRAGMA user_version;')" && \
+          [[ "$CANDIDATE_SCHEMA_VERSION" == "4" ]]; then
+          SMOKE_READY=true
+          break
+        fi
       fi
-    fi
-    if [[ -n "$SMOKE_DATABASE" ]] && \
-      CANDIDATE_SCHEMA_VERSION="$(sqlite3 "$SMOKE_DATABASE" 'PRAGMA user_version;' 2>/dev/null)" && \
-      [[ "$CANDIDATE_SCHEMA_VERSION" == "4" ]]; then
-      SMOKE_READY=true
-      break
     fi
     sleep 0.2
   done
@@ -369,19 +380,19 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   fi
   SMOKE_READY_SECONDS="$(( $(date +%s) - SMOKE_STARTED_AT ))"
 
-  SMOKE_SCHEMA_VERSION="$(sqlite3 "$SMOKE_DATABASE" 'PRAGMA user_version;')"
-  SMOKE_QUICK_CHECK="$(sqlite3 "$SMOKE_DATABASE" 'PRAGMA quick_check;')"
-  SMOKE_FOREIGN_KEY_ERRORS="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_SCHEMA_VERSION="$(sqlite3 -readonly "$SMOKE_DATABASE" 'PRAGMA user_version;')"
+  SMOKE_QUICK_CHECK="$(sqlite3 -readonly "$SMOKE_DATABASE" 'PRAGMA quick_check;')"
+  SMOKE_FOREIGN_KEY_ERRORS="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     'SELECT COUNT(*) FROM pragma_foreign_key_check;')"
-  SMOKE_TABLES="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_TABLES="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name);")"
-  SMOKE_COLUMNS="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_COLUMNS="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     "SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info('assignments') ORDER BY name);")"
-  SMOKE_INDEXES="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_INDEXES="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL ORDER BY name);")"
-  SMOKE_TRIGGERS="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_TRIGGERS="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name);")"
-  SMOKE_IDENTITY_ROWS="$(sqlite3 "$SMOKE_DATABASE" \
+  SMOKE_IDENTITY_ROWS="$(sqlite3 -readonly "$SMOKE_DATABASE" \
     "SELECT COUNT(*) FROM database_identity WHERE singleton = 1 AND length(instance_uuid) = 36 AND instance_uuid = lower(instance_uuid) AND substr(instance_uuid, 9, 1) = '-' AND substr(instance_uuid, 14, 1) = '-' AND substr(instance_uuid, 15, 1) = '4' AND substr(instance_uuid, 19, 1) = '-' AND substr(instance_uuid, 20, 1) IN ('8', '9', 'a', 'b') AND substr(instance_uuid, 24, 1) = '-' AND replace(instance_uuid, '-', '') NOT GLOB '*[^0-9a-f]*';")"
   EXPECTED_V4_TABLES="assignments,attachments,course_meetings,courses,database_identity,exams,projects,reminders,subtasks,tags,task_tags"
   EXPECTED_ASSIGNMENT_COLUMNS="all_day,completed_at,course_id,course_name,created_at,deleted_at,description,due_date,id,link,priority,progress_percent,project_id,source_file,source_name,source_type,source_url,status,timezone_id,title,updated_at,uuid"
@@ -389,10 +400,8 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   EXPECTED_V4_TRIGGERS="assignments_uuid_immutable,assignments_v3_contract_insert,assignments_v3_contract_update,attachments_uuid_immutable,course_meetings_uuid_immutable,courses_uuid_immutable,database_identity_immutable_delete,database_identity_immutable_update,exams_uuid_immutable,projects_uuid_immutable,reminders_uuid_immutable,subtasks_uuid_immutable,tags_uuid_immutable,task_tags_uuid_immutable"
   # Indexes are checked as a superset, not for equality: the contract says
   # which indexes a v4 store must carry, and a store that arrived at v4 by
-  # migrating an older schema legitimately keeps its legacy indexes (this
-  # machine's own container store, for instance, still carries the v3-era
-  # ix_assignments_id / _title / _course_name). Only a missing contract index
-  # is a defect.
+  # migrating an older schema legitimately keeps legacy indexes. Only a
+  # missing contract index is a defect.
   MISSING_CONTRACT_INDEXES=""
   IFS=',' read -r -a EXPECTED_INDEX_LIST <<< "$EXPECTED_V4_INDEXES"
   for expected_index in "${EXPECTED_INDEX_LIST[@]}"; do
@@ -420,13 +429,8 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
   {
     echo "smoke_pid=$SMOKE_PID"
     echo "runtime_database_path=$SMOKE_DATABASE"
-    # The database is the app's own sandboxed default, which lsof proves this
-    # process holds open. It pre-exists from earlier runs of the same app
-    # family, so this smoke proves the packaged app opens a valid v4 store,
-    # not that this launch created it from nothing: fresh-store creation is
-    # covered by the unit suites (SchemaV3RepositoryTests and the backup
-    # suites all build stores from scratch on temporary paths).
-    echo "database_provenance=app-opened (lsof-verified)"
+    echo "bundle_identifier=$SMOKE_BUNDLE_ID"
+    echo "database_provenance=fresh-per-run-container; app-opened (lsof-verified)"
     echo "user_version=$SMOKE_SCHEMA_VERSION"
     echo "quick_check=$SMOKE_QUICK_CHECK"
     echo "foreign_key_errors=$SMOKE_FOREIGN_KEY_ERRORS"
@@ -441,6 +445,17 @@ if [[ "$ASSIGNMENT_SKIP_LAUNCH_SMOKE" != "1" ]]; then
     echo "database_ready_seconds=$SMOKE_READY_SECONDS"
     echo "process_alive_after_schema_validation=true"
   } >> "$OUTPUT_DIR/logs/catalyst-launch-smoke.log"
+  stop_smoke
+  # Preserve only the isolated database after the process has released it.
+  cp "$SMOKE_DATABASE" "$OUTPUT_DIR/logs/isolated-assignments.db"
+  for sidecar in -wal -shm; do
+    if [[ -f "$SMOKE_DATABASE$sidecar" ]]; then
+      cp "$SMOKE_DATABASE$sidecar" "$OUTPUT_DIR/logs/isolated-assignments.db$sidecar"
+    fi
+  done
+  python3 "$SCRIPT_DIR/scripts/protected-data-fingerprint.py" \
+    "$OUTPUT_DIR/logs/protected-after.json" --compare "$OUTPUT_DIR/logs/protected-before.json" \
+    | tee "$OUTPUT_DIR/logs/protected-comparison.log"
   LAUNCH_SMOKE_RESULT="passed"
 fi
 
