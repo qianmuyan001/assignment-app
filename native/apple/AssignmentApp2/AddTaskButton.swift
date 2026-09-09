@@ -19,7 +19,7 @@ struct AddTaskButton: View {
                     }
                 }
                 .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-                .disabled(!isEnabled).help("Add task")
+                .disabled(!isEnabled).help("Add Task")
                 .accessibilityLabel("Add Task").accessibilityIdentifier("add-task")
                 .hoverEffect(.highlight)
             }
