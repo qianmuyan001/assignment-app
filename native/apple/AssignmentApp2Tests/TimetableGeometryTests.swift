@@ -10,6 +10,11 @@ struct TimetableGeometryTests {
                       effectiveStartDate: "2026-09-01", effectiveEndDate: nil, sortOrder: 0,
                       createdAt: .distantPast, updatedAt: .distantPast, deletedAt: nil)
     }
+    @Test func weekdayHeadersFollowTheAppLocale() {
+        #expect(TimetableGeometry.weekdayLabel(1, locale: Locale(identifier: "en_US")) == "Mon")
+        #expect(TimetableGeometry.weekdayLabel(1, locale: Locale(identifier: "zh_Hans")).contains("一"))
+        #expect(TimetableGeometry.weekdayLabel(7, locale: Locale(identifier: "zh_Hans")).contains("日"))
+    }
     @Test func positionAndHeightShareTheTickScale() throws {
         let grid = TimetableGeometry(meetings: [meeting(1, "08:30:00", "09:50:00")])
         let item = try #require(grid.placements.first)

@@ -12,6 +12,7 @@ struct TimetableGrid: View {
     let onEdit: (CourseMeeting) -> Void
     let onDelete: (CourseMeeting) -> Void
     @State private var horizontalOffset: CGFloat = 0
+    @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let axisWidth: CGFloat = 64
     private let topInset: CGFloat = 12
@@ -67,7 +68,7 @@ struct TimetableGrid: View {
                             GeometryReader { _ in
                                 HStack(spacing: 0) {
                                     ForEach(days, id: \.self) { day in
-                                        Text(LearningRules.weekdayTitle(day)).font(.headline)
+                                        Text(TimetableGeometry.weekdayLabel(day, locale: locale)).font(.headline)
                                             .frame(width: width(for: day, base: columnWidth), height: 44)
                                             .accessibilityAddTraits(.isHeader)
                                     }

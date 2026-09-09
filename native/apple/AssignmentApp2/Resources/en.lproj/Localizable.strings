@@ -441,3 +441,17 @@
 "Time" = "Time";
 
 "Dismiss" = "Dismiss";
+
+"Learning" = "Learning";
+
+"%@ weekly meeting" = "%@ weekly meeting";
+
+"%@ weekly meetings" = "%@ weekly meetings";
+
+"%@ overlapping pair on %@." = "%@ overlapping pair on %@.";
+
+"%@ overlapping pairs on %@." = "%@ overlapping pairs on %@.";
+
+"Open a meeting to adjust it. Nothing has been changed." = "Open a meeting to adjust it. Nothing has been changed.";
+
+"Review Conflicts" = "Review Conflicts";

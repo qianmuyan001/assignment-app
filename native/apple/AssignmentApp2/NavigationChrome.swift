@@ -190,7 +190,7 @@ struct AssignmentSidebar: View {
     @ViewBuilder
     private func sectionHeader(_ title: String) -> some View {
         if displayStyle == .expanded {
-            Text(title)
+            Text(L10n.tr(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)

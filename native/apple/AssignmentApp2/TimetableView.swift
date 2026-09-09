@@ -144,8 +144,8 @@ struct TimetableView: View {
 
     private var summaryText: String {
         let total = store.meetings.filter { $0.deletedAt == nil }.count
-        guard total > 0 else { return "No meetings yet" }
-        return total == 1 ? "1 weekly meeting" : "\(total) weekly meetings"
+        guard total > 0 else { return L10n.tr("No meetings yet") }
+        return L10n.tr(total == 1 ? "%@ weekly meeting" : "%@ weekly meetings", String(total))
     }
 
     // MARK: Content
@@ -208,6 +208,7 @@ private struct TimetableEmptyState: View {
 /// A collision notice. It never offers to fix anything by itself: the user
 /// opens an editor and decides.
 private struct OverlapBanner: View {
+    @Environment(\.locale) private var locale
     let pairs: [(CourseMeeting, CourseMeeting)]
     let onEdit: (CourseMeeting) -> Void
 
@@ -215,9 +216,9 @@ private struct OverlapBanner: View {
         let days = Set(pairs.flatMap { [$0.0.weekday, $0.1.weekday] })
         let dayTitles = days
             .sorted()
-            .map(LearningRules.shortWeekdayTitle)
+            .map { TimetableGeometry.weekdayLabel($0, locale: locale) }
             .joined(separator: ", ")
-        return "\(pairs.count) overlapping \(pairs.count == 1 ? "pair" : "pairs") on \(dayTitles)."
+        return L10n.tr(pairs.count == 1 ? "%@ overlapping pair on %@." : "%@ overlapping pairs on %@.", String(pairs.count), dayTitles)
     }
 
     var body: some View {
@@ -229,7 +230,7 @@ private struct OverlapBanner: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Overlapping classes")
                     .font(.subheadline.weight(.semibold))
-                Text(summary + " Nothing was changed — open a meeting to adjust it.")
+                Text(summary + " " + L10n.tr("Open a meeting to adjust it. Nothing has been changed."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -237,7 +238,7 @@ private struct OverlapBanner: View {
             Spacer(minLength: 8)
 
             if let first = pairs.first {
-                Button("Review") {
+                Button("Review Conflicts") {
                     onEdit(first.0)
                 }
                 .buttonStyle(.bordered)

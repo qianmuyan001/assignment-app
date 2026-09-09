@@ -441,3 +441,17 @@
 "Time" = "时间";
 
 "Dismiss" = "关闭提示";
+
+"Learning" = "学习";
+
+"%@ weekly meeting" = "每周 %@ 节课";
+
+"%@ weekly meetings" = "每周 %@ 节课";
+
+"%@ overlapping pair on %@." = "%@ 对课程时间冲突（%@）。";
+
+"%@ overlapping pairs on %@." = "%@ 对课程时间冲突（%@）。";
+
+"Open a meeting to adjust it. Nothing has been changed." = "打开课程安排以调整时间。目前未做任何更改。";
+
+"Review Conflicts" = "查看冲突";

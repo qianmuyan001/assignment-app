@@ -60,6 +60,12 @@ struct TimetableGeometry {
         guard parts.count == 3 else { return 0 }
         return parts[0] * 60 + parts[1] + parts[2] / 60
     }
+    static func weekdayLabel(_ day: Int, locale: Locale) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        return calendar.shortStandaloneWeekdaySymbols[day % 7]
+    }
+
     static func label(_ minute: Double) -> String {
         String(format: "%02d:%02d", Int(minute) / 60, Int(minute) % 60)
     }

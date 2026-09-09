@@ -274,6 +274,7 @@ struct ContentView: View {
             }
         }
         .listStyle(.inset)
+        .contentMargins(.bottom, 88, for: .scrollContent)
         .refreshable {
             await viewModel.refresh()
         }
