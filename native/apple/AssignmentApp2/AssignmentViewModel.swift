@@ -4,13 +4,34 @@ import Foundation
 
 @MainActor
 final class AssignmentViewModel: ObservableObject {
-    @Published private(set) var assignments: [Assignment] = []
-    @Published var selection: AssignmentView = .all
-    @Published var searchText = ""
-    @Published var statusFilter: AssignmentStatus?
-    @Published var courseFilter: String?
-    @Published var priorityFilter: AssignmentPriority?
-    @Published var sortOrder: AssignmentSortOrder = .dueDate
+    @Published private(set) var assignments: [Assignment] = [] { didSet { updateProjection(); updateCourses() } }
+    @Published var selection: AssignmentView = .all { didSet { updateProjection() } }
+    @Published var searchText = "" { didSet { updateProjection() } }
+    @Published var statusFilter: AssignmentStatus? { didSet { updateProjection() } }
+    @Published var courseFilter: String? { didSet { updateProjection() } }
+    @Published var priorityFilter: AssignmentPriority? { didSet { updateProjection() } }
+    @Published var sortOrder: AssignmentSortOrder = .dueDate {
+        didSet {
+            preferences.set(sortOrder.rawValue, forKey: "assignmentApp.taskSortOrder")
+            updateProjection()
+        }
+    }
+    @Published private(set) var visibleAssignments: [Assignment] = []
+    @Published private(set) var lastRefreshedAt: Date?
+    @Published private(set) var feedbackMessage: String?
+    private static let runtimePreferences: UserDefaults = {
+        #if DEBUG
+        if SQLiteAssignmentRepository.isRunningUnderXCTest {
+            return UserDefaults(suiteName: "com.qianmuyan.assignmentapp.tests." + UUID().uuidString.lowercased())!
+        }
+        #endif
+        return .standard
+    }()
+    private let preferences: UserDefaults
+    private var reloadTask: Task<Void, Never>?
+    private var mutationRevision = 0
+    private var reloadGeneration = 0
+    private let fetchOperation: (@Sendable () throws -> [Assignment])?
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
     @Published private(set) var hasLoadedAssignments = false
@@ -38,7 +59,9 @@ final class AssignmentViewModel: ObservableObject {
     private var notificationOperationTask: Task<Void, Never>?
     private var storeSubscription: AnyCancellable?
 
-    init(repository: AssignmentRepository? = nil) {
+    init(repository: AssignmentRepository? = nil, preferences: UserDefaults? = nil,
+         fetchOperation: (@Sendable () throws -> [Assignment])? = nil) {
+        self.preferences = preferences ?? Self.runtimePreferences
         // Every dependency is resolved into a local first, so the stored
         // properties — including the learning store that needs both
         // repositories — can be assigned exactly once on every path.
@@ -71,6 +94,9 @@ final class AssignmentViewModel: ObservableObject {
             }
         }
 
+        self.fetchOperation = fetchOperation ?? resolvedSQLite.map { sqlite in
+            { @Sendable in try sqlite.fetchAll() }
+        }
         self.repository = resolvedRepository
         sqliteRepository = resolvedSQLite
         organizationRepository = resolvedOrganization
@@ -95,6 +121,10 @@ final class AssignmentViewModel: ObservableObject {
                 self?.objectWillChange.send()
             }
 
+        // Initialization is a read, not a user preference change. Initializing
+        // the wrapper directly avoids triggering the persistence observer.
+        _sortOrder = Published(initialValue: AssignmentSortOrder(rawValue:
+            self.preferences.string(forKey: "assignmentApp.taskSortOrder") ?? "") ?? .dueDate)
         if resolvedRepository != nil {
             reload()
         }
@@ -133,8 +163,8 @@ final class AssignmentViewModel: ObservableObject {
         )
     }
 
-    var visibleAssignments: [Assignment] {
-        TaskRules.apply(
+    private func updateProjection() {
+        visibleAssignments = TaskRules.apply(
             to: assignments,
             view: selection,
             searchQuery: searchText,
@@ -145,9 +175,11 @@ final class AssignmentViewModel: ObservableObject {
         )
     }
 
-    var courses: [String] {
+    @Published private(set) var courses: [String] = []
+
+    private func updateCourses() {
         var seen: Set<String> = []
-        return assignments
+        courses = assignments
             .map(\.courseName)
             .filter { course in
                 let key = course
@@ -179,20 +211,70 @@ final class AssignmentViewModel: ObservableObject {
         )
     }
 
+    /// Coalesce callers and read the lock-protected SQLite repository off the
+    /// main actor. A write during the read invalidates its snapshot, not the UI.
     func reload() {
-        guard let repository else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            assignments = try repository.fetchAll()
-            hasLoadedAssignments = true
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+        guard reloadTask == nil, let repository else { return }
+        guard let fetchOperation else {
+            // Non-SQLite repositories (including lightweight test doubles).
+            do { assignments = try repository.fetchAll(); hasLoadedAssignments = true }
+            catch { errorMessage = error.localizedDescription }
+            return
         }
-        reloadOrganization()
-        reconcileNotifications()
+        isLoading = true
+        reloadGeneration += 1
+        let generation = reloadGeneration
+        reloadTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let revision = self?.mutationRevision else { return }
+                let result = await Task.detached(priority: .userInitiated) {
+                    Result { try fetchOperation() }
+                }.value
+                guard !Task.isCancelled, let self,
+                      self.reloadGeneration == generation else { return }
+                if revision != self.mutationRevision { continue }
+                switch result {
+                case .success(let snapshot):
+                    if self.assignments != snapshot { self.assignments = snapshot }
+                    else { self.updateProjection() } // Day boundaries may have changed.
+                    self.hasLoadedAssignments = true
+                    self.errorMessage = nil
+                    self.reloadOrganization()
+                    self.learningStore.reload()
+                    self.reconcileNotifications()
+                    self.lastRefreshedAt = Date()
+                case .failure(let error):
+                    self.errorMessage = error.localizedDescription
+                }
+                self.isLoading = false
+                self.reloadTask = nil
+                return
+            }
+        }
     }
+
+    func refresh() async {
+        reload()
+        await reloadTask?.value
+    }
+
+    func cancelReload() {
+        reloadGeneration += 1
+        reloadTask?.cancel()
+        reloadTask = nil
+        isLoading = false
+    }
+
+    func stopBackgroundWork() async {
+        let read = reloadTask
+        cancelReload()
+        await read?.value
+        notificationOperationTask?.cancel()
+        await notificationOperationTask?.value
+        notificationOperationTask = nil
+    }
+
+    func clearFeedback() { feedbackMessage = nil }
 
     func reloadOrganization() {
         guard let orgRepo = organizationRepository else { return }
@@ -218,8 +300,11 @@ final class AssignmentViewModel: ObservableObject {
         }
         do {
             let assignment = try repository.create(draft)
+            mutationRevision += 1
             assignments.append(assignment)
             errorMessage = nil
+            feedbackMessage = visibleAssignments.contains(where: { $0.id == assignment.id })
+                ? L10n.tr("Task added") : L10n.tr("Task saved. It is hidden by the current view or filters.")
             return assignment
         } catch {
             errorMessage = error.localizedDescription
@@ -293,22 +378,28 @@ final class AssignmentViewModel: ObservableObject {
     }
 
     func delete(_ assignment: Assignment) {
+        errorMessage = deleteTask(id: assignment.id)
+    }
+
+    /// Resolve the live target by persistent ID; never delete a stale row index.
+    @discardableResult
+    func deleteTask(id: Int64) -> String? {
         guard let repository else {
-            errorMessage = AssignmentRepositoryError
-                .readOnlyAfterMigrationFailure
-                .localizedDescription
-            return
+            return AssignmentRepositoryError.readOnlyAfterMigrationFailure.localizedDescription
+        }
+        guard let assignment = assignments.first(where: { $0.id == id }) else {
+            return L10n.tr("This task is no longer available.")
         }
         do {
-            try repository.delete(id: assignment.id)
-            assignments.removeAll { $0.id == assignment.id }
-            errorMessage = nil
+            try repository.delete(id: id)
+            mutationRevision += 1
+            assignments.removeAll { $0.id == id }
+            feedbackMessage = L10n.tr("Task deleted")
             replaceNotificationOperation {
                 await AssignmentNotificationScheduler.shared.cancelAll(for: assignment)
             }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+            return nil
+        } catch { return error.localizedDescription }
     }
 
     func setStatus(_ status: AssignmentStatus, for assignment: Assignment) {
@@ -404,6 +495,7 @@ final class AssignmentViewModel: ObservableObject {
     }
 
     private func replace(_ assignment: Assignment) {
+        mutationRevision += 1
         guard let index = assignments.firstIndex(where: { $0.id == assignment.id }) else {
             assignments.append(assignment)
             return

@@ -425,3 +425,19 @@
 "简体中文" = "简体中文";
 
 "This notification’s task is no longer available." = "This notification’s task is no longer available.";
+
+"Task added" = "Task added";
+
+"Task deleted" = "Task deleted";
+
+"Task saved. It is hidden by the current view or filters." = "Task saved. It is hidden by the current view or filters.";
+
+"Refreshing tasks…" = "Refreshing tasks…";
+
+"Updated %@" = "Updated %@";
+
+"%@ tasks" = "%@ tasks";
+
+"Time" = "Time";
+
+"Dismiss" = "Dismiss";

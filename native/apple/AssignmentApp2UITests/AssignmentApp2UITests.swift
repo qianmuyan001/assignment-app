@@ -24,8 +24,50 @@ final class AssignmentApp2UITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
-        let quickAddExists = app.buttons["Quick Add"].waitForExistence(timeout: 5)
-        XCTAssertTrue(quickAddExists || app.buttons["New Task"].exists)
+        XCTAssertTrue(app.buttons["add-task"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testTaskCreationFixedHeadingAndAnchoredDeletion() throws {
+        let app = isolatedApplication()
+        app.launch()
+        let heading = app.staticTexts["fixed-task-title"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 10))
+        for title in ["Z first", "A second"] {
+            app.buttons["add-task"].tap()
+            let titleField = app.textFields["task-editor-title"]
+            XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.segmentedControls.buttons["Done"].exists)
+            titleField.tap(); titleField.typeText(title)
+            let course = app.textFields["task-editor-course"]
+            course.tap(); course.typeText("Course")
+            app.buttons["Save"].tap()
+            XCTAssertTrue(app.buttons["task-title-1"].waitForExistence(timeout: 5))
+        }
+        let first = app.buttons["task-title-1"]
+        let second = app.buttons["task-title-2"]
+        XCTAssertTrue(second.waitForExistence(timeout: 5))
+        XCTAssertLessThan(first.frame.minY, second.frame.minY)
+        let headingFrame = heading.frame
+        first.swipeDown()
+        XCTAssertEqual(heading.frame.minY, headingFrame.minY, accuracy: 1)
+        app.buttons["reload-tasks"].tap()
+        XCTAssertTrue(app.staticTexts["refresh-completed"].waitForExistence(timeout: 5))
+        XCTAssertLessThan(first.frame.minY, second.frame.minY)
+        second.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        let confirm = app.buttons["confirm-delete-task"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        capture("task-delete-anchored", app: app)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(second.exists)
+        second.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(first.exists)
+        XCTAssertFalse(second.waitForExistence(timeout: 1))
+        capture("task-list-after-delete", app: app)
     }
 
     @MainActor

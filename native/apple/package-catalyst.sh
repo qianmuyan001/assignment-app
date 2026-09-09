@@ -183,6 +183,7 @@ xcodebuild \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA" \
   CLANG_ENABLE_CODE_COVERAGE=NO \
+  ENABLE_DEBUG_DYLIB=NO \
   CODE_SIGNING_ALLOWED=NO \
   "OTHER_SWIFT_FLAGS=\$(inherited) -Xfrontend -disable-sandbox" \
   clean build 2>&1 | tee "$OUTPUT_DIR/logs/catalyst-build.log"

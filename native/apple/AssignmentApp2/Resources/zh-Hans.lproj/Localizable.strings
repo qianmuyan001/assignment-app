@@ -425,3 +425,19 @@
 "简体中文" = "简体中文";
 
 "This notification’s task is no longer available." = "此通知对应的任务已不存在。";
+
+"Task added" = "任务已添加";
+
+"Task deleted" = "任务已删除";
+
+"Task saved. It is hidden by the current view or filters." = "任务已保存；当前页面或筛选条件未显示它。";
+
+"Refreshing tasks…" = "正在刷新任务…";
+
+"Updated %@" = "更新于 %@";
+
+"%@ tasks" = "%@ 项任务";
+
+"Time" = "时间";
+
+"Dismiss" = "关闭提示";

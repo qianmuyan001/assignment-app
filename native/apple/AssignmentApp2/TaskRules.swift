@@ -182,10 +182,9 @@ enum TaskRules {
             break
         }
 
-        let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
-        if titleOrder != .orderedSame {
-            return titleOrder == .orderedAscending
-        }
+        // Text edits must not move a task. Persisted creation time and ID also
+        // make equal deadlines and undated tasks stable across reloads.
+        if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
         return lhs.id < rhs.id
     }
 }

@@ -46,26 +46,10 @@ struct TimetableView: View {
     @State private var scope: TimetableScope = .week
     @State private var editorState: MeetingEditorState?
     @State private var pendingDeletion: CourseMeeting?
-
-    /// Below this width a seven-column grid stops being readable, so the page
-    /// falls back to a list grouped by weekday.
-    private static let gridWidthThreshold: CGFloat = 720
-
-    private var overlapPairs: [(CourseMeeting, CourseMeeting)] {
-        LearningScenePlanner.overlappingPairs(store.meetings)
-    }
+    @State private var overlapPairs: [(CourseMeeting, CourseMeeting)] = []
 
     private var todayWeekday: Int {
         LearningScenePlanner.isoWeekday(of: Date())
-    }
-
-    private var visibleDays: [(weekday: Int, meetings: [CourseMeeting])] {
-        switch scope {
-        case .week:
-            return LearningScenePlanner.week(store.meetings)
-        case .today:
-            return [(todayWeekday, LearningScenePlanner.meetings(store.meetings, on: todayWeekday))]
-        }
     }
 
     var body: some View {
@@ -75,6 +59,7 @@ struct TimetableView: View {
             content
         }
         .navigationTitle(L10n.tr("Timetable"))
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
         .sheet(item: $editorState) { state in
             MeetingEditorView(
@@ -105,7 +90,8 @@ struct TimetableView: View {
         } message: {
             Text("The weekly class is removed from the timetable. Tasks are not affected.")
         }
-        .task { store.reload() }
+        .task { store.reload(); updateOverlaps() }
+        .onChange(of: store.meetings) { _, _ in updateOverlaps() }
     }
 
     // MARK: Chrome
@@ -167,95 +153,30 @@ struct TimetableView: View {
     @ViewBuilder
     private var content: some View {
         if !store.isAvailable {
-            LearningUnavailableView(
-                message: store.errorMessage ?? "The local task database could not be opened.",
-                onReload: { store.reload() }
-            )
+            LearningUnavailableView(message: store.errorMessage ?? "The local task database could not be opened.",
+                                    onReload: { store.reload() })
         } else if store.meetings.isEmpty {
-            TimetableEmptyState {
-                editorState = MeetingEditorState(meeting: nil)
-            }
-            .disabled(!isWriteEnabled)
+            TimetableEmptyState { editorState = MeetingEditorState(meeting: nil) }
+                .disabled(!isWriteEnabled)
         } else {
-            GeometryReader { proxy in
-                VStack(spacing: 0) {
-                    if !overlapPairs.isEmpty {
-                        OverlapBanner(pairs: overlapPairs) { meeting in
-                            editorState = MeetingEditorState(meeting: meeting)
-                        }
-                    }
-
-                    if scope == .today || proxy.size.width < Self.gridWidthThreshold {
-                        dayList
-                    } else {
-                        weekGrid
+            VStack(spacing: 0) {
+                if !overlapPairs.isEmpty {
+                    OverlapBanner(pairs: overlapPairs) { meeting in
+                        editorState = MeetingEditorState(meeting: meeting)
                     }
                 }
+                TimetableGrid(meetings: store.meetings,
+                              days: scope == .today ? [todayWeekday] : Array(1...7),
+                              courses: store.courses,
+                              courseName: store.courseName,
+                              onEdit: { editorState = MeetingEditorState(meeting: $0) },
+                              onDelete: { pendingDeletion = $0 })
             }
         }
     }
 
-    private var weekGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(minimum: 92), spacing: 10),
-                    count: 7
-                ),
-                spacing: 10
-            ) {
-                ForEach(visibleDays, id: \.weekday) { day in
-                    TimetableDayColumn(
-                        weekday: day.weekday,
-                        meetings: day.meetings,
-                        isToday: day.weekday == todayWeekday,
-                        courseName: { store.courseName($0) },
-                        onEdit: { editorState = MeetingEditorState(meeting: $0) },
-                        onDelete: { pendingDeletion = $0 }
-                    )
-                }
-            }
-            .padding(12)
-        }
-    }
-
-    private var dayList: some View {
-        List {
-            ForEach(visibleDays, id: \.weekday) { day in
-                Section {
-                    if day.meetings.isEmpty {
-                        Text("No classes")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(day.meetings) { meeting in
-                            MeetingRow(
-                                meeting: meeting,
-                                courseName: store.courseName(meeting.courseID),
-                                displayMode: displayMode
-                            )
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", systemImage: "trash", role: .destructive) {
-                                    pendingDeletion = meeting
-                                }
-                            }
-                            .onTapGesture {
-                                editorState = MeetingEditorState(meeting: meeting)
-                            }
-                        }
-                    }
-                } header: {
-                    HStack(spacing: 6) {
-                        Text(LearningRules.weekdayTitle(day.weekday))
-                        if day.weekday == todayWeekday {
-                            Text("Today")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
+    private func updateOverlaps() {
+        overlapPairs = LearningScenePlanner.overlappingPairs(store.meetings)
     }
 
     private var deletionPrompt: Binding<Bool> {
@@ -327,169 +248,6 @@ private struct OverlapBanner: View {
         .padding(.vertical, 8)
         .background(Color.orange.opacity(0.12))
         .accessibilityElement(children: .combine)
-    }
-}
-
-
-private struct TimetableDayColumn: View {
-    let weekday: Int
-    let meetings: [CourseMeeting]
-    let isToday: Bool
-    let courseName: (Int64) -> String
-    let onEdit: (CourseMeeting) -> Void
-    let onDelete: (CourseMeeting) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text(LearningRules.shortWeekdayTitle(weekday))
-                    .font(.headline)
-                if isToday {
-                    Text("Today")
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.18), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
-                }
-                Spacer(minLength: 0)
-            }
-
-            if meetings.isEmpty {
-                Text("No classes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
-            } else {
-                ForEach(meetings) { meeting in
-                    MeetingCard(
-                        meeting: meeting,
-                        courseName: courseName(meeting.courseID),
-                        displayMode: .simple,
-                        onEdit: { onEdit(meeting) },
-                        onDelete: { onDelete(meeting) }
-                    )
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isToday ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.07))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isToday ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(weekdayAccessibilityLabel)
-    }
-
-    private var weekdayAccessibilityLabel: String {
-        let title = LearningRules.weekdayTitle(weekday)
-        let suffix = isToday ? ", today" : ""
-        return "\(title)\(suffix), \(meetings.count) \(meetings.count == 1 ? "class" : "classes")"
-    }
-}
-
-
-private struct MeetingCard: View {
-    let meeting: CourseMeeting
-    let courseName: String
-    let displayMode: DisplayMode
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        Button(action: onEdit) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(MeetingFormatting.timeRange(meeting))
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                Text(courseName)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
-
-                if let location = meeting.location,
-                   !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(location)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if displayMode == .professional,
-                   let teacher = meeting.teacherOverride,
-                   !teacher.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(teacher)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if MeetingFormatting.usesForeignTimeZone(meeting) {
-                    Text(meeting.timezoneID)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.secondary.opacity(0.12))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            Button("Edit Meeting", systemImage: "pencil") { onEdit() }
-            Button("Delete Meeting", systemImage: "trash", role: .destructive) { onDelete() }
-        }
-        .accessibilityLabel(MeetingFormatting.accessibilityLabel(meeting, courseName: courseName))
-    }
-}
-
-
-private struct MeetingRow: View {
-    let meeting: CourseMeeting
-    let courseName: String
-    let displayMode: DisplayMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(MeetingFormatting.timeRange(meeting))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                Text(courseName)
-                    .font(.headline)
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 10) {
-                if let location = meeting.location,
-                   !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Label(location, systemImage: "mappin.and.ellipse")
-                }
-                if displayMode == .professional,
-                   let teacher = meeting.teacherOverride,
-                   !teacher.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Label(teacher, systemImage: "person")
-                }
-                if MeetingFormatting.usesForeignTimeZone(meeting) {
-                    Label(meeting.timezoneID, systemImage: "globe")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 3)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(MeetingFormatting.accessibilityLabel(meeting, courseName: courseName))
     }
 }
 

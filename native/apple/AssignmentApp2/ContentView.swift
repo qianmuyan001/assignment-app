@@ -25,6 +25,7 @@ struct ContentView: View {
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var editorPresentation: TaskEditorPresentation?
+    @StateObject private var deletionState = TaskDeletionState()
     @State private var activeAlert: ContentAlert?
     @State private var searchPresentation: SearchPresentationState = .closed
     @State private var didApplyUITestOverrides = false
@@ -56,6 +57,7 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onDisappear { viewModel.cancelReload() }
         .focusedSceneValue(\.assignmentCommandActions, commandActions)
         .sheet(item: $editorPresentation, onDismiss: presentDeferredError) { presentation in
             editor(for: presentation)
@@ -117,7 +119,7 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.errorMessage) { _, message in
             if message == nil { routeNotification(); return }
-            guard editorPresentation == nil, let message else { return }
+            guard editorPresentation == nil, !viewModel.isLoading, let message else { return }
             activeAlert = .error(message)
         }
         .onChange(of: scenePhase) { _, phase in
@@ -148,53 +150,75 @@ struct ContentView: View {
 
     private var assignmentContent: some View {
         VStack(spacing: 0) {
-            AssignmentFilterBar(
-                status: $viewModel.statusFilter,
-                course: $viewModel.courseFilter,
-                priority: $viewModel.priorityFilter,
-                sortOrder: $viewModel.sortOrder,
-                courses: viewModel.courses,
-                onClear: viewModel.clearFilters
-            )
-
-            Divider()
-
-            assignmentResults
-        }
-        .navigationTitle(
-            searchPresentation.isExpanded ? "" : viewModel.selection.localizedTitle
-        )
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                dismissSearchPreservingQuery()
+            if !searchPresentation.isExpanded {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(viewModel.selection.localizedTitle)
+                        .font(.largeTitle.bold()).foregroundStyle(Color.accentColor)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("fixed-task-title")
+                    Spacer(minLength: 12)
+                    Text("\(viewModel.visibleAssignments.count)")
+                        .font(.title3.monospacedDigit()).foregroundStyle(.secondary)
+                        .accessibilityLabel(L10n.tr("%@ tasks", String(viewModel.visibleAssignments.count)))
+                }
+                .padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 8)
             }
-        )
+            AssignmentFilterBar(
+                status: $viewModel.statusFilter, course: $viewModel.courseFilter,
+                priority: $viewModel.priorityFilter, sortOrder: $viewModel.sortOrder,
+                courses: viewModel.courses, onClear: viewModel.clearFilters
+            )
+            taskFeedback
+            Divider()
+            assignmentResults
+                .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
+                    AddTaskButton(isEnabled: viewModel.isWriteEnabled, action: { showNewTaskEditor() })
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                }
+        }
+        // The large heading is a sibling of the List. Only that List rubber-bands.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .simultaneousGesture(TapGesture().onEnded { dismissSearchPreservingQuery() })
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Button("Reload", systemImage: "arrow.clockwise") {
-                        viewModel.reload()
-                    }
-                    .help("Reload tasks")
+                Button { viewModel.reload() } label: {
+                    if viewModel.isLoading { ProgressView().accessibilityLabel("Refreshing tasks…") }
+                    else { Label("Reload", systemImage: "arrow.clockwise") }
                 }
-
-                Button(
-                    displayMode == .simple ? "Quick Add" : "New Task",
-                    systemImage: "plus"
-                ) {
-                    showNewTaskEditor()
-                }
-                .disabled(!viewModel.isWriteEnabled)
-                .help(displayMode == .simple ? "Quick add a task" : "Add a task")
-
-                SearchToolbar(
-                    query: $viewModel.searchText,
-                    presentation: $searchPresentation
-                )
+                .disabled(viewModel.isLoading).help("Reload tasks")
+                .accessibilityIdentifier("reload-tasks")
+                SearchToolbar(query: $viewModel.searchText, presentation: $searchPresentation)
             }
+        }
+    }
+
+    @ViewBuilder private var taskFeedback: some View {
+        if let message = viewModel.errorMessage, !viewModel.assignments.isEmpty {
+            HStack {
+                Label(message, systemImage: "exclamationmark.triangle").font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button("Try Again", systemImage: "arrow.clockwise") { viewModel.reload() }
+                    .disabled(viewModel.isLoading)
+            }.padding(.horizontal, 24).padding(.vertical, 8)
+        } else if let message = viewModel.feedbackMessage {
+            HStack {
+                Label(message, systemImage: "checkmark.circle").font(.callout)
+                Spacer()
+                Button("Dismiss", systemImage: "xmark", action: viewModel.clearFeedback)
+                    .labelStyle(.iconOnly)
+            }.padding(.horizontal, 24).padding(.vertical, 8)
+            .accessibilityIdentifier("task-save-feedback")
+        }
+        if viewModel.isLoading {
+            Text("Refreshing tasks…").font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24)
+        } else if let date = viewModel.lastRefreshedAt {
+            Text(L10n.tr("Updated %@", date.formatted(date: .omitted, time: .standard)))
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24)
+                .accessibilityIdentifier("refresh-completed")
         }
     }
 
@@ -251,7 +275,7 @@ struct ContentView: View {
         }
         .listStyle(.inset)
         .refreshable {
-            viewModel.reload()
+            await viewModel.refresh()
         }
     }
 
@@ -262,6 +286,9 @@ struct ContentView: View {
             onEdit: { showEditor(for: assignment) },
             onToggleCompletion: { viewModel.toggleCompletion(assignment) }
         )
+        .listRowInsets(EdgeInsets(top: 10, leading: 24, bottom: 10, trailing: 24))
+        .taskDeletePopover(state: deletionState, assignment: assignment, anchor: .row,
+                           onDelete: viewModel.deleteTask)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 Button {
                     viewModel.toggleCompletion(assignment)
@@ -277,7 +304,7 @@ struct ContentView: View {
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) {
-                    activeAlert = .delete(assignment)
+                    deletionState.request(id: assignment.id, anchor: .row)
                 }
 
                 Button("Edit", systemImage: "pencil") {
@@ -308,7 +335,7 @@ struct ContentView: View {
                 Divider()
 
                 Button("Delete Task", systemImage: "trash", role: .destructive) {
-                    activeAlert = .delete(assignment)
+                    deletionState.request(id: assignment.id, anchor: .row)
                 }
             }
     }
@@ -373,11 +400,7 @@ struct ContentView: View {
                 searchPresentation = .closed
             }
             .buttonStyle(.borderedProminent)
-        } else if viewModel.selection != .completed, viewModel.isWriteEnabled {
-            Button(displayMode == .simple ? "Quick Add" : "Add Task") {
-                showNewTaskEditor()
-            }
-            .buttonStyle(.borderedProminent)
+
         }
     }
 
@@ -522,9 +545,9 @@ struct ContentView: View {
                 return viewModel.errorMessage
             },
             onDelete: assignment == nil ? nil : { assignment in
-                viewModel.delete(assignment)
-                return viewModel.errorMessage
+                viewModel.deleteTask(id: assignment.id)
             },
+            deletionState: deletionState,
             organizationRepository: viewModel.organizationRepository,
             courses: viewModel.organizationCourses,
             projects: viewModel.organizationProjects,
@@ -584,15 +607,7 @@ struct ContentView: View {
                 dismissButton: .default(Text("OK"))
             )
 
-        case .delete(let assignment):
-            return Alert(
-                title: Text("Delete this task?"),
-                message: Text(L10n.tr("“%@” will be removed from the local database.", assignment.title)),
-                primaryButton: .destructive(Text("Delete")) {
-                    viewModel.delete(assignment)
-                },
-                secondaryButton: .cancel()
-            )
+
         }
     }
 }
@@ -614,14 +629,12 @@ private struct TaskEditorPresentation: Identifiable {
 
 private enum ContentAlert: Identifiable {
     case error(String)
-    case delete(Assignment)
 
     var id: String {
         switch self {
         case .error(let message):
             return "error-\(message)"
-        case .delete(let assignment):
-            return "delete-\(assignment.id)"
+
         }
     }
 }

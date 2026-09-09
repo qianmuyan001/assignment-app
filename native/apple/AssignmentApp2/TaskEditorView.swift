@@ -22,7 +22,7 @@ struct TaskEditorView: View {
     @State private var draft: AssignmentDraft
     @State private var hasDueDate: Bool
     @State private var validationMessage: String?
-    @State private var isShowingDeleteConfirmation = false
+    @ObservedObject var deletionState: TaskDeletionState
 
     // Professional-only organization selection.
     @State private var selectedCourseID: Int64?
@@ -48,6 +48,7 @@ struct TaskEditorView: View {
         displayMode: DisplayMode,
         onSave: @escaping (AssignmentDraft) -> String?,
         onDelete: ((Assignment) -> String?)? = nil,
+        deletionState: TaskDeletionState,
         organizationRepository: OrganizationRepository? = nil,
         courses: [Course] = [],
         projects: [AssignmentProject] = [],
@@ -61,6 +62,7 @@ struct TaskEditorView: View {
         self.displayMode = displayMode
         self.onSave = onSave
         self.onDelete = onDelete
+        self.deletionState = deletionState
         self.organizationRepository = organizationRepository
         self.courses = courses
         self.projects = projects
@@ -89,10 +91,12 @@ struct TaskEditorView: View {
             Form {
                 Section("Task") {
                     TextField("Title", text: $draft.title)
+                        .accessibilityIdentifier("task-editor-title")
                         .textInputAutocapitalization(.sentences)
                         .submitLabel(.next)
 
                     TextField("Course", text: $draft.courseName)
+                        .accessibilityIdentifier("task-editor-course")
                         .textInputAutocapitalization(.words)
                         .submitLabel(.next)
                 }
@@ -109,6 +113,7 @@ struct TaskEditorView: View {
                     }
                 }
 
+                if assignment != nil {
                 Section("Status") {
                     Picker("Status", selection: $draft.status) {
                         ForEach(AssignmentStatus.allCases) { status in
@@ -118,6 +123,7 @@ struct TaskEditorView: View {
                     .pickerStyle(.segmented)
                 }
 
+                }
                 if displayMode == .professional {
                     Section("Details") {
                         TextField(
@@ -273,11 +279,13 @@ struct TaskEditorView: View {
                     }
                 }
 
-                if assignment != nil, onDelete != nil {
+                if let assignment, let onDelete {
                     Section {
                         Button("Delete Task", systemImage: "trash", role: .destructive) {
-                            isShowingDeleteConfirmation = true
+                            deletionState.request(id: assignment.id, anchor: .editor)
                         }
+                        .taskDeletePopover(state: deletionState, assignment: assignment, anchor: .editor,
+                                           onDelete: { _ in onDelete(assignment) }, onSuccess: { dismiss() })
                     }
                 }
             }
@@ -325,22 +333,6 @@ struct TaskEditorView: View {
                 }
             } message: {
                 Text(validationMessage ?? "Review the task details and try again.")
-            }
-            .alert("Delete this task?", isPresented: $isShowingDeleteConfirmation) {
-                Button("Delete", role: .destructive) {
-                    deleteAssignment()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes the task from the local database.")
-            }
-            .alert("Organization Error", isPresented: Binding(
-                get: { childErrorMessage != nil },
-                set: { if !$0 { childErrorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(childErrorMessage ?? "")
             }
             .fileImporter(
                 isPresented: $isShowingImporter,
@@ -469,6 +461,7 @@ struct TaskEditorView: View {
     }
 
     private func save() {
+        if assignment == nil { draft.status = .todo }
         draft.courseID = selectedCourseID
         draft.projectID = selectedProjectID
         draft.tagIDs = Array(selectedTagIDs)
@@ -481,15 +474,6 @@ struct TaskEditorView: View {
             }
         } catch {
             validationMessage = error.localizedDescription
-        }
-    }
-
-    private func deleteAssignment() {
-        guard let assignment, let onDelete else { return }
-        if let message = onDelete(assignment) {
-            validationMessage = message
-        } else {
-            dismiss()
         }
     }
 

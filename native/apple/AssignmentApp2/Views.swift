@@ -221,80 +221,47 @@ struct AssignmentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let priority = projection.priority {
-                Capsule()
-                    .fill(priority.tint)
-                    .frame(width: 4)
-                    .accessibilityHidden(true)
+            Button(action: onToggleCompletion) {
+                Image(systemName: assignment.status == .done ? "checkmark.circle.fill" : "circle")
+                    .font(.title2).foregroundStyle(assignment.status == .done ? Color.accentColor : .secondary)
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help(assignment.status == .done ? "Restore task" : "Mark task done")
+            .accessibilityLabel(assignment.status == .done ? "Restore task" : "Mark task done")
+            .accessibilityIdentifier("task-complete-\(assignment.id)")
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Button(action: onEdit) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(projection.title)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(projection.title).font(.body.weight(.medium))
+                            .foregroundStyle(.primary).multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
-
+                            .strikethrough(assignment.status == .done)
                         ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 8) {
-                                courseLabel
-
-                                Spacer(minLength: 6)
-
-                                statusLabel
-                            }
-                            .fixedSize(horizontal: true, vertical: false)
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                courseLabel
-                                statusLabel
-                            }
+                            HStack(spacing: 12) { courseLabel; dueLabel }
+                            VStack(alignment: .leading, spacing: 4) { courseLabel; dueLabel }
                         }
-                        .font(.subheadline)
-
-                        Label {
-                            Text(dueText)
-                        } icon: {
-                            Image(systemName: projection.dueDate == nil ? "calendar.badge.minus" : "calendar")
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                        if displayMode == .professional {
-                            professionalDetails
-                        }
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        if assignment.status != .todo { statusLabel.font(.caption) }
                     }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-
+                .accessibilityIdentifier("task-title-\(assignment.id)")
+                if displayMode == .professional { professionalDetails }
                 if let validLink {
-                    Link(destination: validLink) {
-                        Label("Open source link", systemImage: "arrow.up.right.square")
-                            .font(.subheadline)
-                    }
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
+                    Link(destination: validLink) { Label("Open Source", systemImage: "arrow.up.right.square") }
+                        .font(.subheadline).frame(minHeight: 44)
                 }
             }
-
-            Button(action: onToggleCompletion) {
-                Image(systemName: assignment.status == .done
-                      ? "arrow.uturn.backward.circle"
-                      : "checkmark.circle")
-                    .font(.title3)
-            }
-            .buttonStyle(.borderless)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-            .help(assignment.status == .done ? "Restore task" : "Mark task done")
-            .accessibilityLabel(assignment.status == .done ? "Restore task" : "Mark task done")
         }
-        .padding(.vertical, 5)
+    }
+
+    private var dueLabel: some View {
+        Label(dueText, systemImage: projection.dueDate == nil ? "calendar.badge.minus" : "calendar")
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var courseLabel: some View {
@@ -328,7 +295,7 @@ struct AssignmentRow: View {
 
     private var dueText: String {
         guard let dueDate = projection.dueDate else {
-            return "No due date"
+            return L10n.tr("No due date")
         }
         return dueDate.formatted(date: .abbreviated, time: .shortened)
     }

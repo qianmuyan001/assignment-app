@@ -635,7 +635,7 @@ final class SQLiteAssignmentRepository: AssignmentRepository, @unchecked Sendabl
     }
 
     #if DEBUG
-    private static var isRunningUnderXCTest: Bool {
+    static var isRunningUnderXCTest: Bool {
         let environment = ProcessInfo.processInfo.environment
         if environment["XCTestConfigurationFilePath"] != nil
             || environment["XCTestBundlePath"] != nil
