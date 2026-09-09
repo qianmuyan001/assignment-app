@@ -1,10 +1,5 @@
 import SwiftUI
 
-private struct TimetableHorizontalOffset: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 struct TimetableGrid: View {
     let meetings: [CourseMeeting]
     let days: [Int]
@@ -52,15 +47,14 @@ struct TimetableGrid: View {
                                         dayColumn(day, width: width(for: day, base: columnWidth), geometry: geometry)
                                     }
                                 }
-                                .background {
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(key: TimetableHorizontalOffset.self,
-                                            value: proxy.frame(in: .named("timetable-horizontal")).minX)
-                                    }
-                                }
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                // Global coordinates stay consistent across Catalyst's nested
+                                // scroll views; a named scroll coordinate space can stay at zero.
+                                proxy.frame(in: .global).minX - viewport.frame(in: .global).minX - axisWidth
+                            } action: { offset in
+                                horizontalOffset = offset
                             }
-                            .coordinateSpace(name: "timetable-horizontal")
-                            .onPreferenceChange(TimetableHorizontalOffset.self) { horizontalOffset = $0 }
+                        }
                         }
                     } header: {
                         HStack(spacing: 0) {
