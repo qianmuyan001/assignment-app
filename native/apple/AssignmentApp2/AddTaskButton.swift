@@ -50,6 +50,23 @@ struct AddTaskButton: View {
     }
 
     var body: some View {
+        styledButton
+            .disabled(!isEnabled).help("Add Task")
+            .accessibilityLabel("Add Task").accessibilityIdentifier("add-task")
+    }
+
+    @ViewBuilder private var styledButton: some View {
+        if #available(iOS 26.0, macCatalyst 26.0, *),
+           policy.usesTranslucentMaterial, policy.animatesSelection {
+            // The system owns the touch highlight, glass lens and elastic lift.
+            // Do not counteract its press with a second scale/opacity animation.
+            button.buttonStyle(.glass).buttonBorderShape(.capsule)
+        } else {
+            button.buttonStyle(FloatingActionStyle(policy: policy))
+        }
+    }
+
+    private var button: some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "plus").font(.title3.weight(.semibold))
@@ -61,10 +78,6 @@ struct AddTaskButton: View {
             .foregroundStyle(policy.emphasizesEdges ? Color.primary : Color.accentColor)
             .contentShape(Capsule())
         }
-        .buttonStyle(FloatingActionStyle(policy: policy))
-        .disabled(!isEnabled).help("Add Task")
-        .accessibilityLabel("Add Task").accessibilityIdentifier("add-task")
-        .hoverEffect(.highlight)
     }
 }
 
@@ -73,16 +86,19 @@ private struct FloatingActionStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         surface(configuration.label)
-            .scaleEffect(configuration.isPressed && policy.animatesSelection ? 0.96 : 1)
-            .opacity(configuration.isPressed ? 0.78 : 1)
+            .overlay {
+                Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.18 : 0))
+                    .allowsHitTesting(false)
+            }
+            .scaleEffect(configuration.isPressed && policy.animatesSelection ? 1.06 : 1)
             .animation(policy.animatesSelection
-                       ? .spring(response: 0.3, dampingFraction: 0.78)
+                       ? .spring(response: 0.3, dampingFraction: 0.68)
                        : .linear(duration: 0.1), value: configuration.isPressed)
     }
 
     @ViewBuilder private func surface(_ label: Configuration.Label) -> some View {
         if #available(iOS 26.0, macCatalyst 26.0, *), policy.usesTranslucentMaterial {
-            label.glassEffect(.regular.tint(Color.accentColor.opacity(0.12)).interactive(), in: .capsule)
+            label.glassEffect(.regular.tint(Color.accentColor.opacity(0.12)), in: .capsule)
         } else {
             label.background {
                 if policy.usesTranslucentMaterial {

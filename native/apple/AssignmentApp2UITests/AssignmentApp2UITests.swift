@@ -266,6 +266,56 @@ final class AssignmentApp2UITests: XCTestCase {
     }
 #endif
 
+    /// Exercise the production width predicate without changing device settings.
+    /// A live search field catches accidental destruction of the detail stack.
+    @MainActor
+    func testResponsiveSidebarRetainsSearchAndSelection() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestResponsiveLayout",
+                                                  "-assignmentApp.uiTestSidebarExpanded"])
+        app.launch()
+        let today = app.buttons["sidebar-today"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10))
+        today.tap()
+        app.buttons["search-toggle"].tap()
+        let field = app.textFields["search-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("physics")
+        for _ in 0..<2 {
+            app.buttons["test-resize-layout"].tap()
+            let open = app.buttons["compact-sidebar-open"]
+            XCTAssertTrue(open.waitForExistence(timeout: 5))
+            XCTAssertEqual(field.value as? String, "physics")
+            open.tap()
+            let close = app.buttons["compact-sidebar-close"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            close.tap()
+            XCTAssertTrue(waitForDisappearance(of: close, timeout: 5))
+            app.buttons["test-resize-layout"].tap()
+            XCTAssertTrue(today.waitForExistence(timeout: 5))
+            XCTAssertEqual(field.value as? String, "physics")
+        }
+        capture("responsive-sidebar-search-retained", app: app)
+    }
+
+    @MainActor
+    func testGlassPressCanCancelAndActivateOnce() throws {
+        let app = isolatedApplication()
+        app.launch()
+        let add = app.buttons["add-task"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        let start = add.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let outside = start.withOffset(CGVector(dx: -150, dy: -100))
+        // Hold exposes the native pressed glass in the simulator recording;
+        // sliding away must cancel, rather than invoking the editor early.
+        start.press(forDuration: 1, thenDragTo: outside)
+        XCTAssertFalse(app.textFields["task-editor-title"].exists)
+        XCTAssertTrue(add.isHittable)
+        add.tap()
+        XCTAssertTrue(app.textFields["task-editor-title"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+    }
+
     @MainActor
     func testCompactOverlayEdgeDrag() throws {
         let app = isolatedApplication(arguments: ["-assignmentApp.uiTestCompactNavigation", "-assignmentApp.uiTestSidebarExpanded"])

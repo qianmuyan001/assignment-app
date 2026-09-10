@@ -560,6 +560,9 @@ struct AssignmentNavigationShell<Detail: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @StateObject private var drawer = SidebarPresentationMotion()
     @State private var dragOrigin: CGFloat?
+    #if DEBUG
+    @State private var testLayoutWidth: CGFloat?
+    #endif
     @AccessibilityFocusState private var closeIsFocused: Bool
 
     private var policy: NavigationChromeAccessibilityPolicy {
@@ -569,26 +572,49 @@ struct AssignmentNavigationShell<Detail: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            if usesOverlay(width: geometry.size.width) {
-                compactNavigation(width: geometry.size.width)
-            } else {
-                NavigationSplitView(columnVisibility: $columnVisibility) {
-                    sidebar.navigationSplitViewColumnWidth(
-                        min: displayStyle == .expanded ? 190 : 64,
-                        ideal: displayStyle.columnWidth,
-                        max: displayStyle == .expanded ? 300 : 76)
-                } detail: {
-                    NavigationStack { detail() }
+            let compact = usesOverlay(width: geometry.size.width)
+            // Keep one split view and one detail stack alive across resizing.
+            // Changing visibility lets the native column animate out exactly as
+            // it does when its sidebar button is used; an `if` here destroys it.
+            NavigationSplitView(columnVisibility: splitVisibility(compact: compact)) {
+                sidebar.navigationSplitViewColumnWidth(
+                    min: displayStyle == .expanded ? 190 : 64,
+                    ideal: displayStyle.columnWidth,
+                    max: displayStyle == .expanded ? 300 : 76)
+                    .accessibilityHidden(compact)
+            } detail: {
+                compactNavigation(width: geometry.size.width, overlayLayout: compact)
+            }
+            .navigationSplitViewStyle(.balanced)
+            .toolbar(removing: .sidebarToggle)
+            .overlay(alignment: .leading) {
+                // The system split view insets its detail on iPad. The edge
+                // affordance belongs to the window, not that inset content.
+                if compact {
+                    Color.clear.frame(width: 20).contentShape(Rectangle())
+                        .allowsHitTesting((drawer.position == 0 && drawer.target == 0) || dragOrigin != nil)
+                        .gesture(drag(width: drawer.openWidth), including: policy.animatesSelection ? .all : .none)
+                        .accessibilityHidden(true)
                 }
-                .navigationSplitViewStyle(.balanced)
-                .onAppear { drawer.finish(at: 0) }
+            }
+            .animation(policy.animatesSelection ? .spring(response: 0.3, dampingFraction: 0.78) : nil, value: compact)
+            .onChange(of: compact) { _, value in
+                if !value { settle(open: false) }
             }
         }
+        #if DEBUG
+        .frame(width: testLayoutWidth)
+        #endif
         .focusedSceneValue(\.dismissAssignmentSidebar, drawer.target > 0 ? { settle(open: false) } : nil)
         .onDisappear { drawer.stop() }
         .onChange(of: reduceMotion) { _, value in
             if value { drawer.finish(at: drawer.target) }
         }
+    }
+
+    private func splitVisibility(compact: Bool) -> Binding<NavigationSplitViewVisibility> {
+        Binding(get: { compact ? .detailOnly : columnVisibility },
+                set: { if !compact { columnVisibility = $0 } })
     }
 
     private func usesOverlay(width: CGFloat) -> Bool {
@@ -602,24 +628,46 @@ struct AssignmentNavigationShell<Detail: View>: View {
         AssignmentSidebar(selection: $selection, displayStyle: $displayStyle)
     }
 
-    private func compactNavigation(width: CGFloat) -> some View {
+    private func compactNavigation(width: CGFloat, overlayLayout: Bool) -> some View {
+        let sidebarButtonTitle: LocalizedStringKey = overlayLayout || columnVisibility == .detailOnly ? "Show Sidebar" : "Close Sidebar"
         let panelWidth = min(displayStyle == .expanded ? 288.0 : 88.0, max(0, width - 56))
         let visible = drawer.position != 0 || drawer.target > 0
         return ZStack(alignment: .leading) {
             NavigationStack {
                 detail()
+                    .toolbar(removing: .sidebarToggle)
+                    .background(SplitViewGesturePolicy(enabled: !overlayLayout, animates: policy.animatesSelection))
                     .accessibilityHidden(visible)
                     .toolbar {
+                        #if DEBUG
+                        if ProcessInfo.processInfo.arguments.contains("-assignmentApp.uiTestResponsiveLayout") {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    testLayoutWidth = testLayoutWidth == nil ? 620 : nil
+                                } label: {
+                                    Text(verbatim: "Resize Test Layout")
+                                }
+                                .accessibilityIdentifier("test-resize-layout")
+                            }
+                        }
+                        #endif
                         ToolbarItem(placement: .topBarLeading) {
                             Button {
-                                settle(open: drawer.target == 0)
-                            } label: { Image(systemName: "sidebar.left") }
-                            .help("Show Sidebar").accessibilityLabel("Show Sidebar")
-                            .accessibilityIdentifier("compact-sidebar-open")
+                                if overlayLayout {
+                                    settle(open: drawer.target == 0)
+                                } else {
+                                    withAnimation(policy.animatesSelection ? .spring(response: 0.3, dampingFraction: 0.78) : nil) {
+                                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                                    }
+                                }
+                            } label: {
+                                Label(sidebarButtonTitle, systemImage: "sidebar.left")
+                            }
+                            .help(sidebarButtonTitle)
+                            .accessibilityIdentifier(overlayLayout ? "compact-sidebar-open" : "regular-sidebar-toggle")
                         }
                     }
             }
-
             if visible {
                 // Only the background feathers. Navigation text is never masked.
                 LinearGradient(colors: [.black.opacity(0.16), .clear],
@@ -683,15 +731,11 @@ struct AssignmentNavigationShell<Detail: View>: View {
 
             }
 
-            if !visible {
-                Color.clear.frame(width: 20).contentShape(Rectangle())
-                    .gesture(drag(width: panelWidth), including: policy.animatesSelection ? .all : .none).accessibilityHidden(true)
-            }
         }
         .onAppear { drawer.openWidth = panelWidth }
         .onChange(of: panelWidth) { _, new in
             drawer.openWidth = new
-            drawer.finish(at: drawer.target > 0 ? new : 0)
+            drawer.settle(to: drawer.target > 0 ? new : 0, animated: policy.animatesSelection)
             dragOrigin = nil
         }
     }
@@ -770,5 +814,57 @@ private final class SidebarPresentationMotion: NSObject, ObservableObject {
         velocity = envelope * ((coefficient * frequency - decay * delta) * cosine
                               - (delta * frequency + decay * coefficient) * sine)
         if abs(position - target) < 0.1 && abs(velocity) < 0.5 { finish(at: target) }
+    }
+}
+
+/// The overlay owns the leading edge in compact layout. Disable only this
+/// split controller's competing system gesture, using UIKit's public API.
+private struct SplitViewGesturePolicy: UIViewRepresentable {
+    var enabled: Bool
+    var animates: Bool
+    func makeUIView(context: Context) -> Probe { Probe() }
+    func updateUIView(_ view: Probe, context: Context) {
+        view.enabled = enabled
+        view.animates = animates
+        view.apply()
+    }
+    final class Probe: UIView {
+        var enabled = true
+        var animates = true
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            apply()
+        }
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            apply()
+        }
+        func apply() {
+            // Parent controllers are installed after SwiftUI updates the leaf.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil else { return }
+                var responder: UIResponder? = self
+                while let current = responder {
+                    if let controller = current as? UIViewController,
+                       let split = controller.splitViewController {
+                        split.presentsWithGesture = self.enabled
+                        split.displayModeButtonVisibility = .never
+                        // SwiftUI's split host may restore its initial column
+                        // during iPad attachment. Enforce this shell's compact
+                        // policy on that same controller, never a global one.
+                        if !self.enabled && split.displayMode != .secondaryOnly {
+                            UIView.animate(withDuration: self.animates ? 0.3 : 0, delay: 0,
+                                           options: [.beginFromCurrentState, .allowUserInteraction]) {
+                                split.preferredDisplayMode = .secondaryOnly
+                                split.show(.secondary)
+                                split.view.layoutIfNeeded()
+                            }
+                        }
+                        return
+                    }
+                    responder = current.next
+                }
+            }
+        }
     }
 }
