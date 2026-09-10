@@ -1,3 +1,82 @@
+# 2026-09-10 追加：原生按钮反馈与窗口侧栏连续性
+
+本节为本轮开发交付；下方原视觉升级报告保留为历史记录。原报告的按压缩小规则已被用户最新“按下提亮、扩大、弹性回落”要求取代。
+
+## 基线与范围
+
+- 独立工作树：`/Users/qianmuyan/Documents/GitHub/assignment-app-apple-motion-refinement`。
+- 分支：`qianmuyan001/apple-motion-refinement`。
+- 基线：`c098c740338ba0a7b97edb6656c5de78e487d862`，来自干净的 Apple visual-polish-ui 分支；已核实包含 `9925878` 与 `AddTaskButton.swift`。遵照用户授权继续新版 Apple UI，没有切回旧 main。
+- 最终代码 SHA：`e952e86ba03833335dc155c7c475824f7b862fe8`。最终报告提交 SHA 与工作树状态记录在本工作树 `artifacts/apple-motion/delivery.json` 的 `final_commit` / `working_tree`；该收据在报告提交后写入，避免 Git 提交自引用。
+- 仅修改 `AddTaskButton.swift`、`NavigationChrome.swift`、Apple UI 测试和本报告。版本保持 2.1.2 build 2，Schema v4；未修改业务、数据库、迁移、Windows、Web、Backend、Shared。
+- 复用已安装 `swiftui-microinteractions` 与 `ecc:liquid-glass-design`，采用系统 SwiftUI/公开 UIKit，无新增依赖。没有可调用 XcodeBuildMCP，使用真实 Xcode。
+
+## 实现与理由
+
+1. **按钮**：iPadOS/Catalyst 26+ 使用系统 `.buttonStyle(.glass)` 和 Capsule，移除原本与系统相反的 `0.96` 缩小和 `0.78` 变暗。由系统负责玻璃高光、轻微膨胀和恢复，避免叠加第二套按压变换。模拟器录屏可见亮度与轮廓变化；这里的“亮”指系统材质高光，不把普通录屏表述为 HDR/EDR 峰值亮度测量。
+2. **回退与无障碍**：旧系统保留 regularMaterial；非原生玻璃路径按下放大至 1.06，response 0.3 / dampingFraction 0.68。Reduce Motion 路径只使用 0.1 秒高光反馈，不缩放。Reduce Transparency/Increase Contrast 沿用现有实体背景、前景和边界策略。
+3. **窗口侧栏**：不再用宽度分支销毁整个 NavigationSplitView/NavigationStack。相同分栏和详情实例跨宽度保留，通过原生栏位显隐和短弹簧响应宽度变化；搜索和选中页面不会因此重建。紧凑布局从首次布局就依据真实宽度计算，不先展示宽栏再补切状态。
+4. **手势冲突**：紧凑模式的左边缘入口属于窗口边界，避免被 iPad 分栏内缩边距移开；入口在一次拖动期间保留。只针对当前 split controller 使用公开 UIKit API 关闭竞争手势/重复系统开关，并在系统重新布局后维持 secondary-only 策略。动画允许输入与中途反向；没有全局 appearance、私有 filter 或延迟重试。侧栏内的水平拖动与原生纵向滚动同时识别。
+5. **稳定界面**：保留原 selection、Expanded/Compact、渐变 Material 羽化、Escape、搜索、Cmd-N/F、原新增流程。原 TaskActionViewport 的右/下安全区单一 24pt 间距和列表底部避让保持不变。
+
+## 开发验证
+
+环境：Xcode 27.0 beta `27A5228h`；显式 `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`；SDK 27.0；MacBook Air arm64、macOS 27.0 `26A5425a`。本次独占 iPad Pro 11-inch (M5) 模拟器，iPadOS 26.1 `23B86`，UUID `B65451B5-610B-4D21-B4DA-4CAFC492BC5C`。测试后删除本次创建的模拟器，不动用户模拟器。
+
+| 验证 | 发现 | 执行 | 通过 | 失败 | 跳过 |
+|---|---:|---:|---:|---:|---:|
+| iPad 全量单元测试 | 199 | 199 | 199 | 0 | 0 |
+| Catalyst 全量单元测试 | 199 | 199 | 199 | 0 | 0 |
+| iPad 全量 UI 冒烟 | 13 | 13 | 13 | 0 | 0 |
+| 最终受影响 UI 补测（子集，不是额外独立用例） | 3 | 3 | 3 | 0 | 0 |
+
+新增 2 个测试：`testGlassPressCanCancelAndActivateOnce`（按住后滑出取消、正常点击打开编辑器）；`testResponsiveSidebarRetainsSearchAndSelection`（真实 SwiftUI 宽度在常规与 620pt 间往返、搜索值保持、覆盖侧栏关闭、返回原页面）。其余原有 11 个 iPad UI 用例均保留，包括安全区、拖出/拖回、搜索、简易/专业、辅助显示和学习页面。
+
+最后一处改动仅将 DEBUG 测试工具按钮改为 `Text(verbatim:)`，避免开发工具标签被误识别为产品本地化键；此后用全新构建目录补跑上述 3 项受影响 UI、iPad 单元测试和 Catalyst Debug 构建。Release 不包含该 DEBUG 标签。
+
+- iPad Debug、Catalyst Debug、Catalyst Release：构建通过。部署目标维持 iPadOS 17 / macOS 14。
+- 安全区：iPad 横/竖屏实际 UI frame 测量均右侧 24pt、底部 24pt，差值 0；按钮点击区域不小于 44pt。
+- 中英文资源：442 / 442 键一致，所有实际引用键完整；Apple 版本检查通过。
+- 原始全量测试日志的 SQLite 生命周期检查通过；没有过滤、隐藏或吞掉警告。
+- `git diff --check`、Apple 源码冲突标记扫描通过。
+- 测试结果/运行环境摘要：`artifacts/apple-motion/logs/test-results.json`；原始 xcresult 保存在 `artifacts/apple-motion/tests/`；源码副本逐文件 SHA-256 校验保存在 `logs/frozen-source.json`。
+
+中间开发回归曾发现重复原生侧栏/竞争手势；旧增量目录还出现与当前源码诊断及行号不一致的执行。失败日志均保留在 `artifacts/apple-motion/logs/apple-motion-*.log`，不计为通过。最终使用新构建目录、逐文件相同的隔离源码副本完成以上通过结果，没有删除用例或用固定等待掩盖失败。
+
+## 实际窗口与影像
+
+已在真实 Catalyst 应用检查 520×800 窄窗口；同一窗口经系统标题栏双击放宽，再收回，页面与任务数据保持。检查了覆盖侧栏选择后保持、Escape 关闭、Cmd-F 打开搜索、Escape 恢复标题。模拟器录屏验证了原生玻璃按压与同一详情树上的宽度切换。测试宽度切换按钮仅 DEBUG + 显式测试参数可见，不进入正常产品流程。
+
+本工作树的 `artifacts/apple-motion/`：
+
+- 修改前实际 Catalyst：`before/catalyst-wide.png`（上一阶段基线产物的本轮隔离启动）。
+- 修改后实际 Catalyst：`after/catalyst-wide-final.png`、`after/catalyst-narrow.png`、`after/catalyst-sidebar-open.png`、`after/catalyst-resized-back.png`。
+- 实际模拟器按压前/中：`after/ipad-button-idle.png`、`after/ipad-button-pressed.png`。
+- 8 秒原生按压录屏：`after/native-glass-press.mp4`。
+- 同一详情页宽度切换/搜索保留录屏：`after/sidebar-resize-and-search.mp4`（DEBUG 宽度工具触发真实原生布局，不是静态 Mock）。
+- 全套本轮 iPad 截图与清单：`after/ipad-suite/manifest.json`；包括横/竖屏、安全区、深色及辅助显示测试。
+- 影像校验：`SHA256SUMS.txt`。
+
+可复现操作：打开下述隔离演示 app → 按住右下角新增按钮，滑出再松开应取消；普通点击应只打开一次编辑器 → 取消 → 双击系统标题栏放宽/收回 → 窄窗口点击侧栏按钮、选择 Today，侧栏保持 → Escape 关闭 → Cmd-F 输入查询，往返调整宽度，查询保持。
+
+## 数据隔离与内部应用
+
+交付运行 app：`/private/tmp/Assignment-Polish-delivery-c5d62d6c-4305-40db-b01e-f82819b7a876.app`。
+
+- 实际版本 2.1.2 build 2，arm64 Catalyst Debug，独立身份 `com.qianmuyan.assignmentapp.rcsmoke.c5d62d6c-4305-40db-b01e-f82819b7a876`；ad-hoc、App Sandbox、未公证，仅内部开发演示。
+- 源码 SHA、二进制 SHA-256、工具版本与测试记录：`artifacts/apple-motion/build-info.json`。
+- 只复制已构建应用，再更换一次性身份并重新严格签名；没有通过正式身份启动 GUI。真实 `lsof` 句柄确认 app 使用该随机容器的 assignments.db/WAL/SHM。该数据库由合成 fixture 生成，只读验证 Schema 4 / quick_check=ok。
+- 句柄/容器证据：`logs/runtime-isolation.json`、`delivery.json`。旧的本次演示进程已退出，只保留最终隔离应用供查看，没有在连接存活时删除临时数据库。
+- 本轮没有读取正式数据库/sidecar/附件或建立正式 SQLite 连接。遵守最新“不访问正式数据库”边界，没有为做指纹而额外读取这些文件；证据针对本轮 app/test 路径，不声称审计了其他进程的活动。
+
+## 未验收及未执行
+
+旧版 iPadOS 17–25 运行时回退、真机手指触感、VoiceOver 人工矩阵、真实系统 Reduce Motion/Transparency/Contrast 设置组合、连续手工拖动窗口的主观弹性手感仍未正式验收。辅助设置测试使用现有 DEBUG 策略注入，不冒充真实系统设置验收。没有测量或宣称帧率、GPU 能耗、真实 HDR 峰值或性能提升百分比。
+
+本轮为开发验证，未执行独立正式发布验收、push、合并 main、tag、Release、Developer ID 签名、公证上传或 TestFlight。
+
+---
+
 # Apple 视觉整理与开发验证
 
 日期：2026-09-10。本报告记录开发交付，不代表正式产品验收或发布。
