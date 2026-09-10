@@ -187,11 +187,11 @@ struct AssignmentFilterBar: View {
                 }
             }
             .controlSize(.regular)
-            .padding(.horizontal)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 8)
         }
         .scrollIndicators(.hidden)
-        .background(.bar)
+        .font(.subheadline)
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 #if canImport(UIKit)
 import UIKit
@@ -102,6 +103,13 @@ struct NavigationChromeAccessibilityPolicy: Equatable {
         reduceTransparency: Bool,
         increasedContrast: Bool
     ) {
+#if DEBUG
+        let options = Set(ProcessInfo.processInfo.arguments +
+                          (Bundle.main.object(forInfoDictionaryKey: "AssignmentVisualTestOptions") as? [String] ?? []))
+        let reduceMotion = reduceMotion || options.contains("visual-reduce-motion")
+        let reduceTransparency = reduceTransparency || options.contains("visual-reduce-transparency")
+        let increasedContrast = increasedContrast || options.contains("visual-increase-contrast")
+#endif
         animatesSelection = !reduceMotion
         usesTranslucentMaterial = !reduceTransparency && !increasedContrast
         emphasizesEdges = reduceTransparency || increasedContrast
@@ -135,8 +143,12 @@ struct AssignmentSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navigationItems
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { geometry in
+                ScrollView {
+                    navigationItems.frame(minHeight: geometry.size.height)
+                }
+                .scrollIndicators(.hidden)
+            }
 
             Divider()
                 .padding(.horizontal, displayStyle == .expanded ? 10 : 6)
@@ -531,5 +543,232 @@ private struct SearchFieldChrome: ViewModifier {
                         )
                 }
         }
+    }
+}
+
+/// Uses the existing selection and sidebar preference in both presentations.
+/// Only transient presentation belongs to this shell; destinations keep their
+/// own state and the native split view remains in charge at regular widths.
+struct AssignmentNavigationShell<Detail: View>: View {
+    @Binding var selection: AssignmentView
+    @Binding var displayStyle: SidebarDisplayStyle
+    @Binding var columnVisibility: NavigationSplitViewVisibility
+    @ViewBuilder let detail: () -> Detail
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    @StateObject private var drawer = SidebarPresentationMotion()
+    @State private var dragOrigin: CGFloat?
+    @AccessibilityFocusState private var closeIsFocused: Bool
+
+    private var policy: NavigationChromeAccessibilityPolicy {
+        .init(reduceMotion: reduceMotion, reduceTransparency: reduceTransparency,
+              increasedContrast: contrast == .increased)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            if usesOverlay(width: geometry.size.width) {
+                compactNavigation(width: geometry.size.width)
+            } else {
+                NavigationSplitView(columnVisibility: $columnVisibility) {
+                    sidebar.navigationSplitViewColumnWidth(
+                        min: displayStyle == .expanded ? 190 : 64,
+                        ideal: displayStyle.columnWidth,
+                        max: displayStyle == .expanded ? 300 : 76)
+                } detail: {
+                    NavigationStack { detail() }
+                }
+                .navigationSplitViewStyle(.balanced)
+                .onAppear { drawer.finish(at: 0) }
+            }
+        }
+        .focusedSceneValue(\.dismissAssignmentSidebar, drawer.target > 0 ? { settle(open: false) } : nil)
+        .onDisappear { drawer.stop() }
+        .onChange(of: reduceMotion) { _, value in
+            if value { drawer.finish(at: drawer.target) }
+        }
+    }
+
+    private func usesOverlay(width: CGFloat) -> Bool {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-assignmentApp.uiTestCompactNavigation") { return true }
+#endif
+        return sizeClass == .compact || width < 700
+    }
+
+    private var sidebar: some View {
+        AssignmentSidebar(selection: $selection, displayStyle: $displayStyle)
+    }
+
+    private func compactNavigation(width: CGFloat) -> some View {
+        let panelWidth = min(displayStyle == .expanded ? 288.0 : 88.0, max(0, width - 56))
+        let visible = drawer.position != 0 || drawer.target > 0
+        return ZStack(alignment: .leading) {
+            NavigationStack {
+                detail()
+                    .accessibilityHidden(visible)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                settle(open: drawer.target == 0)
+                            } label: { Image(systemName: "sidebar.left") }
+                            .help("Show Sidebar").accessibilityLabel("Show Sidebar")
+                            .accessibilityIdentifier("compact-sidebar-open")
+                        }
+                    }
+            }
+
+            if visible {
+                // Only the background feathers. Navigation text is never masked.
+                LinearGradient(colors: [.black.opacity(0.16), .clear],
+                               startPoint: .leading, endPoint: .trailing)
+                    .opacity(drawer.position / max(panelWidth, 1))
+                    .ignoresSafeArea().contentShape(Rectangle())
+                    .onTapGesture { settle(open: false) }
+                    .accessibilityElement().accessibilityLabel("Close Sidebar")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("compact-sidebar-dismiss")
+                    .accessibilityAction { settle(open: false) }
+                    .gesture(drag(width: panelWidth), including: policy.animatesSelection ? .all : .none)
+            }
+
+            if visible {
+                HStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        HStack {
+                            if displayStyle == .expanded {
+                                Text("Assignments").font(.headline)
+                                Spacer(minLength: 8)
+                            }
+                            Button { settle(open: false) } label: {
+                                Image(systemName: "xmark").font(.body.weight(.semibold))
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain).help("Close Sidebar")
+                            .accessibilityLabel("Close Sidebar")
+                            .accessibilityIdentifier("compact-sidebar-close")
+                            .accessibilityFocused($closeIsFocused)
+                            .keyboardShortcut(.cancelAction)
+                        }
+                        .padding(.horizontal, 16).padding(.top, 8)
+                        sidebar
+                    }
+                    .frame(width: panelWidth)
+                    .background {
+                        if policy.usesTranslucentMaterial {
+                            Rectangle().fill(.regularMaterial).ignoresSafeArea()
+                        } else {
+                            Color(uiColor: .systemBackground).ignoresSafeArea()
+                        }
+                    }
+                    .overlay(alignment: .trailing) {
+                        if policy.emphasizesEdges {
+                            Rectangle().fill(Color.primary.opacity(0.4)).frame(width: 1)
+                        }
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("compact-sidebar-panel")
+                    // Simultaneous recognition leaves vertical sidebar scrolling native.
+                    .simultaneousGesture(drag(width: panelWidth), including: policy.animatesSelection ? .all : .none)
+
+                    if policy.usesTranslucentMaterial {
+                        Rectangle().fill(.regularMaterial)
+                            .mask(LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing))
+                            .frame(width: 48).allowsHitTesting(false).accessibilityHidden(true)
+                    }
+                }
+                .offset(x: drawer.position - panelWidth)
+
+            }
+
+            if !visible {
+                Color.clear.frame(width: 20).contentShape(Rectangle())
+                    .gesture(drag(width: panelWidth), including: policy.animatesSelection ? .all : .none).accessibilityHidden(true)
+            }
+        }
+        .onAppear { drawer.openWidth = panelWidth }
+        .onChange(of: panelWidth) { _, new in
+            drawer.openWidth = new
+            drawer.finish(at: drawer.target > 0 ? new : 0)
+            dragOrigin = nil
+        }
+    }
+
+    private func settle(open: Bool) {
+        // Current rendered position is retained when reversing a running spring.
+        drawer.settle(to: open ? drawer.openWidth : 0, animated: policy.animatesSelection)
+        closeIsFocused = open
+    }
+
+    private func drag(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) || dragOrigin != nil else { return }
+                drawer.openWidth = width
+                if dragOrigin == nil {
+                    drawer.stop()
+                    dragOrigin = drawer.position
+                }
+                drawer.position = min(width, max(0, (dragOrigin ?? 0) + value.translation.width))
+            }
+            .onEnded { value in
+                guard let origin = dragOrigin else { return }
+                dragOrigin = nil
+                let projected = origin + value.predictedEndTranslation.width
+                drawer.settle(to: projected > width / 2 ? width : 0, animated: policy.animatesSelection)
+            }
+    }
+}
+
+/// Finite, display-synchronised spring. Unlike a target-only offset, position is
+/// the rendered value: taking over mid-flight cannot jump to the previous goal.
+/// No display link runs while idle, offscreen, or with Reduce Motion enabled.
+@MainActor
+private final class SidebarPresentationMotion: NSObject, ObservableObject {
+    @Published var position: CGFloat = 0
+    @Published private(set) var target: CGFloat = 0
+    var openWidth: CGFloat = 288
+    private var velocity: CGFloat = 0
+    private var lastTime: CFTimeInterval = 0
+    private var displayLink: CADisplayLink?
+
+    func settle(to value: CGFloat, animated: Bool) {
+        target = value
+        guard animated else { finish(at: value); return }
+        guard displayLink == nil else { return }
+        lastTime = CACurrentMediaTime()
+        let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        displayLink = link
+        link.add(to: .main, forMode: .common)
+    }
+
+    func stop() {
+        displayLink?.invalidate(); displayLink = nil
+        velocity = 0
+    }
+
+    func finish(at value: CGFloat) {
+        stop(); target = value; position = value
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        let dt = min(link.timestamp - lastTime, 1.0 / 30)
+        lastTime = link.timestamp
+        guard dt > 0 else { return }
+        // Exact damped oscillator integration, response 0.3 / damping 0.78.
+        let omega = 2 * CGFloat.pi / 0.3
+        let damping: CGFloat = 0.78
+        let decay = damping * omega
+        let frequency = omega * sqrt(1 - damping * damping)
+        let delta = position - target
+        let sine = sin(frequency * dt), cosine = cos(frequency * dt)
+        let envelope = exp(-decay * dt)
+        let coefficient = (velocity + decay * delta) / frequency
+        position = target + envelope * (delta * cosine + coefficient * sine)
+        velocity = envelope * ((coefficient * frequency - decay * delta) * cosine
+                              - (delta * frequency + decay * coefficient) * sine)
+        if abs(position - target) < 0.1 && abs(velocity) < 0.5 { finish(at: target) }
     }
 }

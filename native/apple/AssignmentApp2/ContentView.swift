@@ -35,28 +35,17 @@ struct ContentView: View {
     private var didCompleteOnboarding = false
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            AssignmentSidebar(
-                selection: $viewModel.selection,
-                displayStyle: sidebarDisplayStyleBinding
-            )
-            .navigationSplitViewColumnWidth(
-                min: sidebarDisplayStyle == .expanded ? 190 : 64,
-                ideal: sidebarDisplayStyle.columnWidth,
-                max: sidebarDisplayStyle == .expanded ? 300 : 76
-            )
-        } detail: {
-            NavigationStack {
-                if viewModel.selection == .settings {
-                    settingsContent
-                } else if viewModel.selection.isDedicatedPage {
-                    dedicatedContent
-                } else {
-                    assignmentContent
-                }
+        AssignmentNavigationShell(selection: $viewModel.selection,
+                                  displayStyle: sidebarDisplayStyleBinding,
+                                  columnVisibility: $columnVisibility) {
+            if viewModel.selection == .settings {
+                settingsContent
+            } else if viewModel.selection.isDedicatedPage {
+                dedicatedContent
+            } else {
+                assignmentContent
             }
         }
-        .navigationSplitViewStyle(.balanced)
         .onDisappear { viewModel.cancelReload() }
         .focusedSceneValue(\.assignmentCommandActions, commandActions)
         .sheet(item: $editorPresentation, onDismiss: presentDeferredError) { presentation in
@@ -169,12 +158,10 @@ struct ContentView: View {
                 courses: viewModel.courses, onClear: viewModel.clearFilters
             )
             taskFeedback
-            Divider()
-            assignmentResults
-                .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
-                    AddTaskButton(isEnabled: viewModel.isWriteEnabled, action: { showNewTaskEditor() })
-                        .padding(.horizontal, 20).padding(.vertical, 12)
-                }
+            TaskActionViewport(isEnabled: viewModel.isWriteEnabled,
+                               action: { showNewTaskEditor() }) {
+                assignmentResults
+            }
         }
         // The large heading is a sibling of the List. Only that List rubber-bands.
         .navigationTitle("")
@@ -274,7 +261,7 @@ struct ContentView: View {
             }
         }
         .listStyle(.inset)
-        .contentMargins(.bottom, 88, for: .scrollContent)
+        .contentMargins(.bottom, 8, for: .scrollContent)
         .refreshable {
             await viewModel.refresh()
         }

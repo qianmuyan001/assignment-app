@@ -36,7 +36,16 @@ private struct AssignmentCommandActionsKey: FocusedValueKey {
 }
 
 
+private struct DismissAssignmentSidebarKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
+    var dismissAssignmentSidebar: (() -> Void)? {
+        get { self[DismissAssignmentSidebarKey.self] }
+        set { self[DismissAssignmentSidebarKey.self] = newValue }
+    }
+
     var assignmentCommandActions: AssignmentCommandActions? {
         get { self[AssignmentCommandActionsKey.self] }
         set { self[AssignmentCommandActionsKey.self] = newValue }
@@ -104,22 +113,14 @@ private struct AssignmentRootView: View {
 
 
 private struct UITestDynamicTypeModifier: ViewModifier {
-    @ViewBuilder
     func body(content: Content) -> some View {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains(
-            "-assignmentApp.uiTestDynamicTypeAccessibility5"
-        ) {
-            content.dynamicTypeSize(.accessibility5)
-        } else {
-            content
-        }
-        #else
+#if DEBUG
+        content.modifier(VisualPolishTestEnvironment())
+#else
         content
-        #endif
+#endif
     }
 }
-
 
 private struct AssignmentCommands: Commands {
     @FocusedValue(\.assignmentCommandActions)

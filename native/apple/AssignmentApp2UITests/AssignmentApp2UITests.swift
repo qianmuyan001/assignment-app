@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import UIKit
 
 
 final class AssignmentApp2UITests: XCTestCase {
@@ -178,6 +179,131 @@ final class AssignmentApp2UITests: XCTestCase {
             "Show Sidebar Labels"
         )
         capture("ipad-compact-accessibility-xxxl", app: app)
+    }
+
+    @MainActor
+    func testFloatingActionSafeAreaMargins() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestMeasureChrome"])
+        app.launch()
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            let button = app.buttons["add-task"]
+            let viewport = app.otherElements["task-action-safe-area"]
+            XCTAssertTrue(button.waitForExistence(timeout: 10))
+            XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+            let aligned = NSPredicate { _, _ in
+                abs((viewport.frame.maxX - button.frame.maxX) -
+                    (viewport.frame.maxY - button.frame.maxY)) <= 1
+            }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: aligned, object: nil)], timeout: 5), .completed)
+            let right = viewport.frame.maxX - button.frame.maxX
+            let bottom = viewport.frame.maxY - button.frame.maxY
+            let logicalWidth = try XCTUnwrap(Double(viewport.value as? String ?? ""))
+            let scale = logicalWidth / viewport.frame.width
+            XCTAssertGreaterThanOrEqual(button.frame.width * scale, 44)
+            XCTAssertGreaterThanOrEqual(button.frame.height * scale, 44)
+            XCTAssertEqual(right * scale, 24, accuracy: 1)
+            XCTAssertEqual(bottom * scale, 24, accuracy: 1)
+            let closeup = button.screenshot()
+            let attachment = XCTAttachment(screenshot: closeup)
+            attachment.name = "visual-add-button-closeup"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if let directory = Self.screenshotDirectory {
+                try closeup.pngRepresentation.write(to: directory.appendingPathComponent("visual-add-button-closeup.png"))
+            }
+            XCTAssertTrue(app.windows.firstMatch.frame.contains(viewport.frame))
+            print("VISUAL_SAFE_AREA orientation=\(orientation.rawValue) window=\(app.windows.firstMatch.frame) viewport=\(viewport.frame) button=\(button.frame) trailing=\(right) bottom=\(bottom)")
+            capture(orientation == .portrait ? "visual-ipad-portrait" : "visual-ipad-landscape", app: app)
+        }
+    }
+
+    @MainActor
+    func testCompactOverlaySelectionCloseAndSearch() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestCompactNavigation", "-assignmentApp.uiTestSidebarExpanded"])
+        app.launch()
+        let open = app.buttons["compact-sidebar-open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let close = app.buttons["compact-sidebar-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        app.buttons["sidebar-today"].tap()
+        XCTAssertTrue(close.exists, "Selecting a destination must keep the drawer open")
+        XCTAssertTrue(app.buttons["sidebar-today"].isSelected)
+        capture("visual-compact-sidebar-open", app: app)
+        close.tap()
+        capture("visual-compact-sidebar-closed", app: app)
+        XCTAssertTrue(waitForDisappearance(of: close, timeout: 5))
+        XCTAssertTrue(app.staticTexts["fixed-task-title"].exists)
+        open.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertTrue(waitForDisappearance(of: close, timeout: 5))
+        app.buttons["search-toggle"].tap()
+        let search = app.textFields["search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        app.buttons["search-close"].tap()
+        XCTAssertTrue(waitForDisappearance(of: search, timeout: 5))
+        XCTAssertTrue(app.staticTexts["fixed-task-title"].exists)
+    }
+
+#if targetEnvironment(macCatalyst)
+    /// The installed iPad runtime accepts XCTest's key request but does not
+    /// deliver Escape to the app. Desktop keyboard coverage runs on Catalyst.
+    @MainActor
+    func testCompactOverlayEscapeKeyboard() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestCompactNavigation"])
+        app.launch()
+        XCTAssertTrue(app.buttons["compact-sidebar-open"].waitForExistence(timeout: 10))
+        app.buttons["compact-sidebar-open"].tap()
+        let close = app.buttons["compact-sidebar-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(waitForDisappearance(of: close, timeout: 5))
+        XCTAssertTrue(app.buttons["compact-sidebar-open"].isHittable)
+        capture("visual-catalyst-escape-closed", app: app)
+    }
+#endif
+
+    @MainActor
+    func testCompactOverlayEdgeDrag() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestCompactNavigation", "-assignmentApp.uiTestSidebarExpanded"])
+        app.launch()
+        XCTAssertTrue(app.buttons["compact-sidebar-open"].waitForExistence(timeout: 10))
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.3))
+            .press(forDuration: 0, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.3)))
+        let close = app.buttons["compact-sidebar-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.3))
+            .press(forDuration: 0, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.3)))
+        XCTAssertTrue(waitForDisappearance(of: close, timeout: 5))
+    }
+
+    @MainActor
+    func testVisualAccessibilityVariantsAndDisplayModes() throws {
+        let app = isolatedApplication(arguments: ["-assignmentApp.uiTestSidebarExpanded", "visual-reduce-transparency", "visual-reduce-motion", "visual-increase-contrast", "visual-dark"])
+        app.launch()
+        XCTAssertTrue(app.buttons["add-task"].waitForExistence(timeout: 10))
+        capture("visual-dark-opaque-contrast", app: app)
+        app.buttons["sidebar-settings"].tap()
+        let professional = app.segmentedControls.buttons["Professional"]
+        XCTAssertTrue(professional.waitForExistence(timeout: 5))
+        professional.tap()
+        app.buttons["sidebar-all"].tap()
+        app.buttons["add-task"].tap()
+        XCTAssertTrue(app.textFields["task-editor-title"].waitForExistence(timeout: 5))
+        capture("visual-professional-editor", app: app)
+        app.buttons["Cancel"].tap()
+        app.buttons["sidebar-settings"].tap()
+        app.segmentedControls.buttons["Simple"].tap()
+        app.buttons["sidebar-all"].tap()
+        app.buttons["add-task"].tap()
+        XCTAssertTrue(app.textFields["task-editor-title"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.segmentedControls.buttons["Done"].exists)
+        capture("visual-simple-editor", app: app)
+        app.buttons["Cancel"].tap()
     }
 
     /// Real smoke test of the Phase 3A pages: a meeting and an exam are created
