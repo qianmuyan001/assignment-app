@@ -227,9 +227,14 @@ final class AssignmentViewModel: ObservableObject {
         reloadTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let revision = self?.mutationRevision else { return }
-                let result = await Task.detached(priority: .userInitiated) {
-                    Result { try fetchOperation() }
-                }.value
+                // SQLite performs synchronous I/O and may wait on a lock. Keep
+                // that work off Swift's cooperative pool so a suspended caller
+                // can still resume when other reads occupy its worker threads.
+                let result: Result<[Assignment], Error> = await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        continuation.resume(returning: Result { try fetchOperation() })
+                    }
+                }
                 guard !Task.isCancelled, let self,
                       self.reloadGeneration == generation else { return }
                 if revision != self.mutationRevision { continue }
