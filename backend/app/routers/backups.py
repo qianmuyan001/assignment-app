@@ -45,15 +45,18 @@ async def preflight_backup(request: Request) -> dict:
             "application/zip", "application/octet-stream"):
         raise HTTPException(415, "Upload a ZIP backup using application/zip")
     store.prepare()
-    with tempfile.NamedTemporaryFile(prefix="upload-", suffix=".zip", dir=store.root) as handle:
-        size = 0
-        async for chunk in request.stream():
-            size += len(chunk)
-            if size > MAX_ARCHIVE_BYTES:
-                raise HTTPException(413, "Backup exceeds the 512 MiB limit")
-            handle.write(chunk)
-        handle.flush()
-        return await run_in_threadpool(store.preflight, Path(handle.name))
+    with tempfile.TemporaryDirectory(prefix="upload-", dir=store.root) as upload_root:
+        upload_path = Path(upload_root) / "backup.zip"
+        # Close the writer before verification reopens the archive. Windows does
+        # not permit that reopen while a delete-on-close temporary file is open.
+        with upload_path.open("wb") as handle:
+            size = 0
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_ARCHIVE_BYTES:
+                    raise HTTPException(413, "Backup exceeds the 512 MiB limit")
+                handle.write(chunk)
+        return await run_in_threadpool(store.preflight, upload_path)
 
 
 @router.post("/restore")

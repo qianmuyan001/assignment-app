@@ -58,6 +58,7 @@ class BackupApiTests(unittest.TestCase):
                                      headers={"Content-Type": "application/zip"})
         self.assertEqual(inspected.status_code, 200, inspected.text)
         self.assertEqual(inspected.json()["summary"]["counts"]["assignments"], 1)
+        self.assertEqual(list(self.store.root.glob("upload-*")), [])
         return inspected.json()
 
     def test_http_backup_preflight_confirm_and_restore_roundtrip(self):
@@ -82,10 +83,14 @@ class BackupApiTests(unittest.TestCase):
         self.assertTrue((self.store.root / f"preflight-{preview['token']}").exists())
 
     def test_corrupt_upload_rejected_and_store_preserved(self):
-        response = self.client.post("/backups/preflight", content=b"broken archive",
-                                    headers={"Content-Type": "application/zip"})
-        self.assertEqual(response.status_code, 422)
-        self.assertIn("validation", response.json()["detail"].lower())
+        for content, expected, detail in ((b"broken archive", 422, "validation"),
+                                          (b"x" * 17, 413, "limit")):
+            with self.subTest(status=expected), patch.object(backups, "MAX_ARCHIVE_BYTES", 16):
+                response = self.client.post("/backups/preflight", content=content,
+                                            headers={"Content-Type": "application/zip"})
+                self.assertEqual(response.status_code, expected)
+                self.assertIn(detail, response.json()["detail"].lower())
+                self.assertEqual(list(self.store.root.glob("upload-*")), [])
         with closing(sqlite3.connect(self.path)) as connection:
             self.assertEqual(connection.execute("SELECT title FROM assignments").fetchone()[0], "Keep this task")
 
