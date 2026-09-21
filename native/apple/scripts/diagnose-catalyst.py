@@ -12,9 +12,11 @@ args = ["xcodebuild", "-project", "native/apple/AssignmentApp2.xcodeproj",
         "-destination", "platform=macOS,arch=arm64,variant=Mac Catalyst",
         "-derivedDataPath", str(root / "derived-data"),
         "-resultBundlePath", str(root / "unit.xcresult"),
-        "CODE_SIGNING_ALLOWED=NO", "test"]
-if os.environ["DIAGNOSTIC_SCOPE"] == "without-read-gate":
-    args += ["-skip-testing:AssignmentApp2Tests/TaskRefreshTests"]
+        "CODE_SIGNING_ALLOWED=NO", "test", "-test-iterations", "10",
+        "-test-repetition-relaunch-enabled", "YES"]
+if os.environ["DIAGNOSTIC_SCOPE"] == "read-gate-only":
+    args += ["-only-testing:AssignmentApp2Tests/TaskRefreshTests"]
+print("CPU_COUNT=" + str(os.cpu_count()), flush=True)
 print("DIAGNOSTIC_SCOPE=" + os.environ["DIAGNOSTIC_SCOPE"], flush=True)
 print(" ".join(args), flush=True)
 with (root / "unit.log").open("w") as output:

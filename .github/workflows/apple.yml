@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scope: [all, without-read-gate]
+        scope: [all, read-gate-only]
     steps:
       - uses: actions/checkout@v4
       - name: Run original Catalyst tests with bounded stack capture
