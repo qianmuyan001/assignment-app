@@ -1,186 +1,26 @@
-name: Apple iPad and Catalyst
-
+name: Catalyst deadlock diagnosis (not release evidence)
 on:
   push:
-  pull_request:
-  workflow_dispatch:
-  workflow_call:
-
+    branches: [qianmuyan001/apple-catalyst-diagnostics-20260921]
 permissions:
   contents: read
-
-concurrency:
-  group: apple-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  shared-version-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check platform version contracts
-        run: python3 scripts/check_version_sync.py
-  build-test-package:
-    # The project is authored by Xcode 27 (objectVersion 110). GitHub's
-    # macos-26 image currently selects Xcode 26.x, so use the dedicated
-    # arm64 Xcode 27 preview image until that toolchain becomes GA.
+  diagnose:
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [all, without-read-gate]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Record Apple toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "DEVELOPER_DIR=$(xcode-select -p)" >> "$GITHUB_ENV"
-          echo "ASSIGNMENT_DERIVED_DATA=$RUNNER_TEMP/assignment-app-derived-data" >> "$GITHUB_ENV"
-          xcodebuild -version
-          xcrun swift --version
-          xcodebuild -showsdks
-
-      - name: Check Apple version metadata
-        run: python3 native/apple/scripts/check-apple-version.py
-
-      - name: Create a disposable iPad simulator
-        id: simulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 native/apple/scripts/ipad-simulator.py create \
-            --state "$RUNNER_TEMP/ipad-simulator.json" 2>&1 | tee "$RUNNER_TEMP/ipad-simulator.log"
-
-      - name: Run iPad unit tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -project native/apple/AssignmentApp2.xcodeproj \
-            -scheme AssignmentApp2 \
-            -configuration Debug \
-            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device_id }}" \
-            -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/ipad-unit.xcresult" \
-            -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/ipad-unit.log"
-
-      - name: Run iPad UI smoke tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 native/apple/scripts/ipad-simulator.py ready \
-            --state "$RUNNER_TEMP/ipad-simulator.json"
-          xcodebuild \
-            -project native/apple/AssignmentApp2.xcodeproj \
-            -scheme AssignmentApp2UISmoke \
-            -configuration Debug \
-            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device_id }}" \
-            -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/ipad-ui.xcresult" \
-            -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/ipad-ui.log"
-
-      - name: Run Mac Catalyst unit tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -project native/apple/AssignmentApp2.xcodeproj \
-            -scheme AssignmentApp2 \
-            -configuration Debug \
-            -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
-            -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/catalyst-unit.xcresult" \
-            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/catalyst-unit.log"
-
-      - name: Build Mac Catalyst Release
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -project native/apple/AssignmentApp2.xcodeproj \
-            -scheme AssignmentApp2 \
-            -configuration Release \
-            -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
-            -derivedDataPath "$ASSIGNMENT_DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/catalyst-release.log"
-
-      - name: Package and launch-smoke Mac Catalyst
-        shell: bash
+      - name: Run original Catalyst tests with bounded stack capture
         env:
-          ASSIGNMENT_REQUIRE_CLEAN_TREE: "1"
-          ASSIGNMENT_CONFIGURATION: Release
-          ASSIGNMENT_RUN_STAMP: ci-${{ github.run_id }}-${{ github.run_attempt }}
-          ASSIGNMENT_IPAD_TESTS: passed
-          ASSIGNMENT_IPAD_UI_TESTS: passed
-          ASSIGNMENT_CATALYST_TESTS: passed
-        run: ./native/apple/package-catalyst.sh
-
-      - name: Reject SQLite lifecycle diagnostics in raw logs
-        shell: bash
-        env:
-          APPLE_PACKAGE_LOGS: artifacts/apple/release-ci-${{ github.run_id }}-${{ github.run_attempt }}/logs
-        run: |
-          set -euo pipefail
-          python3 native/apple/scripts/check-sqlite-diagnostics.py \
-            "$RUNNER_TEMP/ipad-unit.log" \
-            "$RUNNER_TEMP/ipad-ui.log" \
-            "$RUNNER_TEMP/catalyst-unit.log" \
-            "$APPLE_PACKAGE_LOGS/catalyst-runtime-stdout.log" \
-            "$APPLE_PACKAGE_LOGS/catalyst-runtime-stderr.log" \
-            2>&1 | tee "$RUNNER_TEMP/sqlite-diagnostics-gate.log"
-
-      - name: Shut down and delete the owned simulator
+          DIAGNOSTIC_SCOPE: ${{ matrix.scope }}
+        run: python3 native/apple/scripts/diagnose-catalyst.py
+      - uses: actions/upload-artifact@v4
         if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 native/apple/scripts/ipad-simulator.py delete \
-            --state "$RUNNER_TEMP/ipad-simulator.json" 2>&1 | tee "$RUNNER_TEMP/ipad-simulator-cleanup.log"
-
-      - name: Bundle Mac with Web
-        shell: bash
-        run: |
-          set -euo pipefail
-          package="artifacts/apple/release-ci-${{ github.run_id }}-${{ github.run_attempt }}"
-          python3 scripts/package_distribution.py --platform macos \
-            --native "$package/Assignment App.app" \
-            --build-info "$package/build-info.txt"
-
-      - name: Upload Mac with Web
-        uses: actions/upload-artifact@v4
         with:
-          name: assignment-app-macos-with-web-${{ github.sha }}
-          if-no-files-found: error
-          retention-days: 30
-          path: artifacts/distributions/*
-
-      - name: Upload Apple package and test evidence
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: assignment-app-apple-${{ github.sha }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            artifacts/apple/release-*
-            ${{ runner.temp }}/ipad-unit.xcresult
-            ${{ runner.temp }}/ipad-ui.xcresult
-            ${{ runner.temp }}/catalyst-unit.xcresult
-            ${{ runner.temp }}/*.log
-            ${{ runner.temp }}/ipad-simulator.json
-
-      - name: Upload Apple failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: assignment-app-apple-diagnostics-${{ github.sha }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            artifacts/apple/release-*/logs/**
-            ${{ runner.temp }}/ipad-unit.xcresult
-            ${{ runner.temp }}/ipad-ui.xcresult
-            ${{ runner.temp }}/catalyst-unit.xcresult
-            ${{ runner.temp }}/*.log
-            ${{ runner.temp }}/ipad-simulator.json
+          name: catalyst-diagnostic-${{ matrix.scope }}-${{ github.sha }}
+          path: ${{ runner.temp }}/catalyst-diagnostic/**
+          retention-days: 7
