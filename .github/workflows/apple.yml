@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scope: [all, read-gate-only]
+        scope: [all]
     steps:
       - uses: actions/checkout@v4
       - name: Run original Catalyst tests with bounded stack capture
@@ -20,7 +20,10 @@ jobs:
         run: python3 native/apple/scripts/diagnose-catalyst.py
       - uses: actions/upload-artifact@v4
         if: always()
+        timeout-minutes: 2
         with:
           name: catalyst-diagnostic-${{ matrix.scope }}-${{ github.sha }}
-          path: ${{ runner.temp }}/catalyst-diagnostic/**
+          path: |
+            ${{ runner.temp }}/catalyst-diagnostic/*.log
+            ${{ runner.temp }}/catalyst-diagnostic/*.txt
           retention-days: 7

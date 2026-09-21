@@ -33,6 +33,9 @@ with (root / "unit.log").open("w") as output:
                 pid = fields[0]
                 subprocess.run(["sample", pid, "3", "-file", str(root / ("sample-" + pid + ".txt"))],
                                check=False, timeout=20)
+                sample = root / ("sample-" + pid + ".txt")
+                if sample.exists():
+                    print("DIAGNOSTIC_THREAD_SAMPLE\n" + sample.read_text()[:26000], flush=True)
         os.killpg(process.pid, signal.SIGTERM)
         try:
             process.wait(timeout=15)
@@ -43,7 +46,5 @@ with (root / "unit.log").open("w") as output:
         result = 124
 log = (root / "unit.log").read_text(errors="replace")
 print(log[-40000:])
-# Avoid uploading build products: only logs, stack captures, and the xcresult.
-import shutil
-shutil.rmtree(root / "derived-data")
+# The artifact allowlist only includes top-level text evidence.
 sys.exit(result)
