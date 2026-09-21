@@ -5,9 +5,11 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from shared.schema_v3 import canonical_name, new_v3_uuid
+from shared.schema_v4 import SchemaV4Error
 
 from .. import models, repositories, schemas
 from ..database import get_db
+from ..services.reminder_schedule import refresh_relative_reminders
 from ..services.task_state import (
     TaskStateConflict,
     canonical_utc_now,
@@ -233,6 +235,11 @@ def update_assignment(
         requested_progress=requested_progress,
     )
     _validate_deadline_state(assignment)
+    if {"due_date", "timezone_id"}.intersection(updates):
+        try:
+            refresh_relative_reminders(db, assignment)
+        except SchemaV4Error as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     db.refresh(assignment)
     return assignment

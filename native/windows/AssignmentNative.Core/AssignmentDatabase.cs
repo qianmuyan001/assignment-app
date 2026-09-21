@@ -325,7 +325,8 @@ public sealed class AssignmentDatabase
         IEnumerable<AssignmentCandidate> candidates,
         string fallbackCourse,
         string sourceName,
-        string sourceUrl)
+        string sourceUrl,
+        string sourceType = "secure_web")
     {
         ArgumentNullException.ThrowIfNull(candidates);
         using var migrationGate = DatabaseMigrationLock.Acquire(DatabasePath);
@@ -339,6 +340,7 @@ public sealed class AssignmentDatabase
             var dueDate = CandidateDueDate(candidate.DueDate, candidate.DueTime);
             var resolvedSource = Clean(candidate.SourceName) ?? Clean(sourceName);
             var resolvedUrl = Clean(candidate.SourceUrl) ?? Clean(sourceUrl);
+            var resolvedSourceType = Clean(sourceType) ?? "import";
             var priority = Clean(candidate.Priority) is { } candidatePriority
                 ? TaskPriorities.Normalize(candidatePriority)
                 : TaskPriorities.Medium;
@@ -376,7 +378,7 @@ public sealed class AssignmentDatabase
                     progress_percent, all_day, timezone_id, deleted_at
                 ) VALUES (
                     $uuid, $course, $title, $due, $description, $url, 'not_started', $priority,
-                    $source, 'secure_web', NULL, $url,
+                    $source, $sourceType, NULL, $url,
                     $now, $now, $courseId, NULL, NULL, 0, 0, NULL, NULL
                 )
                 """;
@@ -390,6 +392,7 @@ public sealed class AssignmentDatabase
             insert.Parameters.AddWithValue("$url", (object?)resolvedUrl ?? DBNull.Value);
             insert.Parameters.AddWithValue("$priority", priority);
             insert.Parameters.AddWithValue("$source", (object?)resolvedSource ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$sourceType", resolvedSourceType);
             insert.Parameters.AddWithValue("$now", timestamp);
             insert.Parameters.AddWithValue("$courseId", courseId);
             insert.ExecuteNonQuery();

@@ -15,6 +15,7 @@
       <div class="scanline"></div>
     </div>
 
+    <a href="#view-tasks" class="skip-link">Skip to content</a>
     <main class="page">
       <header class="page-header glass-panel">
         <div class="brand-area">
@@ -56,7 +57,17 @@
         </div>
       </header>
 
-      <section class="app-workspace">
+      <nav class="workspace-nav" aria-label="Main navigation">
+        <button type="button" data-view="tasks" aria-current="page">Tasks</button>
+        <button type="button" data-view="today">Today</button>
+        <button type="button" data-view="calendar">Calendar</button>
+        <button type="button" data-view="timetable">Timetable</button>
+        <button type="button" data-view="exams">Exams</button>
+        <button type="button" data-view="settings">Settings</button>
+      </nav>
+      <p id="workspace-notice" class="workspace-notice" role="status" hidden></p>
+      <section class="app-workspace" id="view-tasks" tabindex="-1" aria-label="Tasks">
+
         <section class="section flow-panel glass-panel">
           <div class="list-header">
             <div>
@@ -68,6 +79,13 @@
             </button>
           </div>
 
+          <div class="scope-filters" role="group" aria-label="Task period">
+            <button type="button" data-scope="all" aria-pressed="true">All</button>
+            <button type="button" data-scope="today" aria-pressed="false">Today</button>
+            <button type="button" data-scope="week" aria-pressed="false">This week</button>
+            <button type="button" data-scope="overdue" aria-pressed="false">Overdue</button>
+            <button type="button" data-scope="completed" aria-pressed="false">Completed</button>
+          </div>
           <div class="filters">
             <label>
               Status
@@ -110,7 +128,7 @@
 
           <div class="flow-stage" aria-label="3D assignment shelf">
             <div class="orbit-line" aria-hidden="true"></div>
-            <div id="cover-flow" class="cover-flow" tabindex="0" aria-live="polite"></div>
+            <div id="cover-flow" class="cover-flow" tabindex="0" role="listbox" aria-label="Tasks" aria-live="polite"></div>
             <p id="flow-empty" class="empty-message flow-empty" hidden>No assignments yet.</p>
           </div>
         </section>
@@ -123,6 +141,7 @@
           <div id="selected-detail" class="selected-detail"></div>
         </aside>
       </section>
+      <section id="view-learning" class="learning-view" tabindex="-1" hidden aria-live="polite"></section>
     </main>
 
     <dialog id="assignment-dialog" class="add-dialog glass-panel" aria-labelledby="add-dialog-title">
@@ -156,10 +175,14 @@
 
         <label>
           Due Date
-          <input id="due-date" name="due_date" type="datetime-local" required />
+          <input id="due-date" name="due_date" type="datetime-local" />
         </label>
 
-        <label>
+        <label data-pro>
+          Time zone
+          <input id="task-timezone" name="timezone_id" type="text" placeholder="Asia/Shanghai" />
+        </label>
+        <label data-pro>
           Priority
           <select id="priority" name="priority">
             <option value="low">low</option>
@@ -168,7 +191,7 @@
           </select>
         </label>
 
-        <label>
+        <label data-pro>
           Source Name
           <input id="source-name" name="source_name" type="text" />
         </label>
@@ -178,19 +201,19 @@
           <textarea id="description" name="description" rows="3"></textarea>
         </label>
 
-        <label class="full-width">
+        <label class="full-width" data-pro>
           Source URL
           <input id="source-url" name="source_url" type="url" />
         </label>
 
-        <label>
+        <label data-pro>
           Project
           <select id="project-picker" name="project_id">
             <option value="">— no project —</option>
           </select>
         </label>
 
-        <fieldset class="tag-fieldset">
+        <fieldset class="tag-fieldset" data-pro>
           <legend>Tags</legend>
           <div id="tag-checkboxes" class="tag-options"></div>
         </fieldset>
@@ -250,6 +273,9 @@
       </section>
     </dialog>
 
+    <script src="/static/learning-core.js"></script>
+    <script src="/static/locales.js"></script>
     <script src="/static/script.js"></script>
+    <script src="/static/learning.js"></script>
   </body>
 </html>

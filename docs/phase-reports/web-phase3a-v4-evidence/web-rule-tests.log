@@ -1,0 +1,29 @@
+✔ all scope retains tasks without deadlines and completed tasks (3.827042ms)
+✔ today uses requested display timezone and includes completed tasks (70.81975ms)
+✔ week is ISO Monday through Sunday, not the next seven days (3.235667ms)
+✔ overdue includes earlier today but excludes completed and undated tasks (1.833167ms)
+✔ completed accepts the existing done and shared completed mappings (0.283833ms)
+✔ deadline conversion respects the declared IANA timezone (0.242709ms)
+✔ DST repeated time resolves to the first occurrence (0.382666ms)
+✔ DST missing wall time has no instant (0.367875ms)
+✔ non-hour offsets resolve correctly (0.200292ms)
+✔ invalid or absent wall values have no deadline (0.535916ms)
+✔ day keys use the supplied zone at midnight boundaries (0.195125ms)
+✔ both languages, all themes and both modes survive preference normalization (5.133958ms)
+✔ invalid stored preferences fall back to supported values (0.078375ms)
+✔ completed tasks remain in shared Today and Week views (0.605375ms)
+✔ reminders fire once per trigger and only when enabled and actionable (0.104667ms)
+✔ server cancellation suppresses reminders even with a stale local task list (0.08175ms)
+✔ server-resolved due instant takes precedence over browser-local fallback (0.302375ms)
+✔ explicitly unresolved server deadline never falls back to a guessed instant (0.067792ms)
+✔ overdue todo tasks display actual zero progress (0.06725ms)
+✔ progress uses persisted percentages instead of inferring from status (0.064208ms)
+✔ progress display clamps invalid ranges and handles absent values (0.058ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 213.646458

@@ -1,0 +1,291 @@
+{
+  "source_sha": "692c2be9316c0a2167542bb20f239e82a2400049",
+  "browser": "Chromium 151.0.7922.34",
+  "screens": [
+    {
+      "file": "empty-settings.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-tasks.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-today.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-calendar.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-timetable.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-exams.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-settings.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-en-settings-dark.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "en",
+      "theme": "dark"
+    },
+    {
+      "file": "desktop-zh-tasks.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-today.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-calendar.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-timetable.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-exams.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-settings.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "desktop-zh-about.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-tasks.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-today.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-calendar.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-timetable.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-exams.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-settings.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    },
+    {
+      "file": "narrow-zh-settings-dark.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "dark"
+    },
+    {
+      "file": "narrow-zh-simple-tasks.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "language": "zh-CN",
+      "theme": "light"
+    }
+  ],
+  "temporary_database": "/var/folders/lf/58zg8mp53nz2fv6pwyt7sk5m0000gn/T/assignment-web-phase3a-browser-OpWLz4/assignments.db",
+  "real_user_database_accessed": false,
+  "checks": [
+    {
+      "name": "Fresh empty views render without script errors",
+      "passed": true
+    },
+    {
+      "name": "Course and professional task created through visible forms",
+      "passed": true
+    },
+    {
+      "name": "Task form validation keeps an actionable error inside its dialog",
+      "passed": true
+    },
+    {
+      "name": "Attachment upload and download preserve exact payload bytes",
+      "passed": true
+    },
+    {
+      "name": "Task deletion asks for confirmation and cancellation preserves its data",
+      "passed": true
+    },
+    {
+      "name": "All Today Week Overdue Completed filters select real task records",
+      "passed": true
+    },
+    {
+      "name": "Timetable form saves overlap warnings and supports edit delete restore",
+      "passed": true
+    },
+    {
+      "name": "Exams edit status and idempotent review task survive exam deletion",
+      "passed": true
+    },
+    {
+      "name": "Calendar and Today show real tasks exams courses and quick add",
+      "passed": true
+    },
+    {
+      "name": "Fixed and relative reminders save separately and react to deadline edits",
+      "passed": true
+    },
+    {
+      "name": "Simple mode editing preserves professional fields and language theme persist",
+      "passed": true
+    },
+    {
+      "name": "Open-page reminder actually delivers once and records delivery time",
+      "passed": true
+    },
+    {
+      "name": "Backup center downloads inspects confirms and restores data with attachments",
+      "passed": true
+    },
+    {
+      "name": "Network error and loading states allow retry",
+      "passed": true
+    },
+    {
+      "name": "Desktop English screenshots cover all six views without overflow",
+      "passed": true
+    },
+    {
+      "name": "Chinese translation persists after reload on all six views",
+      "passed": true
+    },
+    {
+      "name": "Narrow layouts and reduced motion retain visible usable controls",
+      "passed": true
+    },
+    {
+      "name": "No uncaught browser script errors",
+      "passed": true
+    }
+  ],
+  "failed": 0,
+  "passed": 18
+}

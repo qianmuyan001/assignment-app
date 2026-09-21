@@ -18,7 +18,8 @@ from backend.app.database import (
 )
 from backend.app.models import Assignment
 from backend.app.schemas import AssignmentCreate
-from shared.schema_v3 import DATABASE_VERSION, new_v3_uuid
+from shared.schema_v3 import new_v3_uuid
+from shared.schema_v4 import DATABASE_VERSION, validate_v4_schema
 from shared.task_rules import (
     STATUS_FROM_DATABASE,
     STATUS_TO_DATABASE,
@@ -381,11 +382,13 @@ class MigrationAndCompatibilityContractTests(unittest.TestCase):
 
         self.assertTrue(result.migrated)
         self.assertEqual((result.from_version, result.to_version), (1, DATABASE_VERSION))
-        self.assertEqual(result.strategy, "v1-v2-rebuild+v2-v3-additive")
+        self.assertEqual(result.strategy, "v1-v2-rebuild+v2-v3-additive+v3-v4-additive")
         self.assertIsNotNone(result.backup_path)
         self.assertTrue(result.backup_path.is_file())
 
         with closing(sqlite3.connect(self.database_path)) as connection, connection:
+            connection.execute("PRAGMA foreign_keys=ON")
+            validate_v4_schema(connection)
             connection.row_factory = sqlite3.Row
             self.assertEqual(
                 connection.execute("PRAGMA user_version").fetchone()[0],
@@ -423,7 +426,7 @@ class MigrationAndCompatibilityContractTests(unittest.TestCase):
 
         result = migrate_database(self.database_path)
 
-        self.assertEqual(result.strategy, "v1-v2-additive+v2-v3-additive")
+        self.assertEqual(result.strategy, "v1-v2-additive+v2-v3-additive+v3-v4-additive")
         with closing(sqlite3.connect(self.database_path)) as connection, connection:
             after_ids = [
                 row[0]

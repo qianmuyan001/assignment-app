@@ -17,7 +17,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from shared.schema_v3 import validate_v3_schema
+from shared.schema_v4 import validate_v4_schema
 
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -286,12 +286,12 @@ class BackendApiTests(unittest.TestCase):
         )
         self.assertEqual(blank_status, 422)
 
-    def test_04_schema_is_v3_and_database_is_disposable(self) -> None:
+    def test_04_schema_is_v4_and_database_is_disposable(self) -> None:
         self.assertNotEqual(_TEST_DATABASE.resolve(), _REAL_DATABASE.resolve())
 
         with closing(sqlite3.connect(_TEST_DATABASE)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(connection.execute("PRAGMA quick_check").fetchone()[0], "ok")
             columns = connection.execute(
                 "SELECT name FROM pragma_table_info('assignments') ORDER BY cid"
@@ -299,9 +299,24 @@ class BackendApiTests(unittest.TestCase):
             identity = connection.execute(
                 "SELECT instance_uuid FROM database_identity WHERE singleton = 1"
             ).fetchone()
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
         self.assertEqual(len(columns), 22)
         self.assertIsNotNone(identity)
+
+    def test_04_stable_errors_and_app_info(self) -> None:
+        status, payload = self.request("GET", "/exams/999999")
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"]["code"], "http_404")
+        self.assertEqual(payload["detail"], payload["error"]["message"])
+        status, payload = self.request("POST", "/course-meetings", json_body={"weekday": 8})
+        self.assertEqual(status, 422)
+        self.assertEqual(payload["error"]["code"], "validation_error")
+        self.assertTrue(payload["detail"])
+        status, info = self.request("GET", "/app-info")
+        self.assertEqual(status, 200)
+        self.assertEqual(info["version"], (_REPOSITORY_ROOT / "VERSION").read_text().strip())
+        self.assertEqual(info["schema_version"], 4)
+        self.assertEqual(info["reminder_delivery"], "while_app_open")
 
     def test_05_task_organization_metadata_crud_and_progress(self) -> None:
         course_status, course = self.request(
@@ -424,7 +439,7 @@ class BackendApiTests(unittest.TestCase):
                 "SELECT relative_path, deleted_at FROM attachments WHERE id = ?",
                 (attachment["id"],),
             ).fetchone()
-            validate_v3_schema(connection)
+            validate_v4_schema(connection)
         self.assertEqual(stored[0], f"attachments/{attachment['uuid']}")
         self.assertIsNotNone(stored[1])
 

@@ -85,7 +85,7 @@
   <data name="LocalDataHelp.Text" xml:space="preserve"><value>任务数据保存在本机的 SQLite 数据库中。版本迁移会在更改现有数据库前创建可恢复的备份。</value></data>
   <data name="PrivacyTitle.Text" xml:space="preserve"><value>隐私</value></data>
   <data name="PrivacyPasswords.Text" xml:space="preserve"><value>• 密码保存在 Windows 凭据管理器中</value></data>
-  <data name="PrivacyContent.Text" xml:space="preserve"><value>• 课程内容保留在此电脑上</value></data>
+  <data name="PrivacyContent.Text" xml:space="preserve"><value>• 除非使用云端解析，否则文字仅保留在此电脑上</value></data>
   <data name="PrivacyBrowser.Text" xml:space="preserve"><value>• 本地模型无法控制登录浏览器</value></data>
   <data name="TaskEditorDialog.Title" xml:space="preserve"><value>作业</value></data>
   <data name="TaskEditorDialog.PrimaryButtonText" xml:space="preserve"><value>保存</value></data>
@@ -341,4 +341,67 @@
   <data name="SaveTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存标签</value></data>
   <data name="NewTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新建标签</value></data>
   <data name="DeleteTagButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>删除标签</value></data>
+  <data name="NaturalLanguageImportButton.Content" xml:space="preserve"><value>导入文本</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>将文字整理为作业候选项</value></data>
+  <data name="NaturalLanguageImportButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>从文字导入作业</value></data>
+  <data name="NaturalLanguageCandidateTitle.Header" xml:space="preserve"><value>标题</value></data>
+  <data name="NaturalLanguageCandidateCourse.Header" xml:space="preserve"><value>课程</value></data>
+  <data name="NaturalLanguageCandidatePriority.Header" xml:space="preserve"><value>优先级</value></data>
+  <data name="NaturalLanguagePriorityDefault.Content" xml:space="preserve"><value>普通</value></data>
+  <data name="NaturalLanguagePriorityLow.Content" xml:space="preserve"><value>低</value></data>
+  <data name="NaturalLanguagePriorityMedium.Content" xml:space="preserve"><value>中</value></data>
+  <data name="NaturalLanguagePriorityHigh.Content" xml:space="preserve"><value>高</value></data>
+  <data name="NaturalLanguageCandidateDate.Header" xml:space="preserve"><value>截止日期</value></data>
+  <data name="NaturalLanguageCandidateDate.PlaceholderText" xml:space="preserve"><value>YYYY-MM-DD</value></data>
+  <data name="NaturalLanguageCandidateTime.Header" xml:space="preserve"><value>时间</value></data>
+  <data name="NaturalLanguageCandidateTime.PlaceholderText" xml:space="preserve"><value>HH:MM</value></data>
+  <data name="NaturalLanguageImportTitle" xml:space="preserve"><value>从文字导入作业</value></data>
+  <data name="NaturalLanguageInputHelp" xml:space="preserve"><value>粘贴一句或多句文字，程序会使用“设置”中选择的解析器。完成候选项检查并确认前，不会保存任何内容。</value></data>
+  <data name="NaturalLanguageInputPlaceholder" xml:space="preserve"><value>例如：高数第五章习题下周三前提交。周五开小组会，记得准备演示文稿。</value></data>
+  <data name="NaturalLanguageInputName" xml:space="preserve"><value>需要解析为作业的文字</value></data>
+  <data name="ParseText" xml:space="preserve"><value>解析文字</value></data>
+  <data name="NaturalLanguageInputRequired" xml:space="preserve"><value>请先输入需要解析的文字。</value></data>
+  <data name="NaturalLanguageNoCandidates" xml:space="preserve"><value>没有识别到作业候选项，请修改文字或手动添加。</value></data>
+  <data name="NaturalLanguageReviewHelp" xml:space="preserve"><value>选择需要导入的候选项，并在保存前修正不确定的字段。</value></data>
+  <data name="NaturalLanguageSourceName" xml:space="preserve"><value>文字导入</value></data>
+  <data name="NaturalLanguageSelectCandidate" xml:space="preserve"><value>请至少选择一个候选项。</value></data>
+  <data name="NaturalLanguageTitleRequired" xml:space="preserve"><value>每个选中的候选项都必须填写标题。</value></data>
+  <data name="NaturalLanguageInvalidDate" xml:space="preserve"><value>截止日期必须使用 YYYY-MM-DD 格式。</value></data>
+  <data name="NaturalLanguageInvalidTime" xml:space="preserve"><value>截止时间必须使用 24 小时制 HH:MM 格式。</value></data>
+  <data name="ScheduleApiTitle.Text" xml:space="preserve"><value>日程文字解析</value></data>
+  <data name="ScheduleParserModeBox.Header" xml:space="preserve"><value>解析模式</value></data>
+  <data name="ScheduleParserModeAuto.Content" xml:space="preserve"><value>自动（推荐）</value></data>
+  <data name="ScheduleParserModeCloudApi.Content" xml:space="preserve"><value>云端 API</value></data>
+  <data name="ScheduleParserModeOffline.Content" xml:space="preserve"><value>离线规则</value></data>
+  <data name="ScheduleApiBaseUrlBox.Header" xml:space="preserve"><value>Responses API 基础地址</value></data>
+  <data name="ScheduleApiBaseUrlBox.PlaceholderText" xml:space="preserve"><value>https://api.openai.com/v1</value></data>
+  <data name="ScheduleApiModelBox.Header" xml:space="preserve"><value>模型</value></data>
+  <data name="ScheduleApiKeyBox.Header" xml:space="preserve"><value>API 密钥</value></data>
+  <data name="ScheduleApiKeyBox.PlaceholderText" xml:space="preserve"><value>留空则保留已保存的密钥</value></data>
+  <data name="SaveScheduleApiButton.Content" xml:space="preserve"><value>保存设置</value></data>
+  <data name="CheckScheduleApiButton.Content" xml:space="preserve"><value>检查连接</value></data>
+  <data name="RemoveScheduleApiKeyButton.Content" xml:space="preserve"><value>移除密钥</value></data>
+  <data name="ScheduleApiStatusText.Text" xml:space="preserve"><value>尚未保存 API 密钥</value></data>
+  <data name="ScheduleApiHelp.Text" xml:space="preserve"><value>自动模式会优先使用已配置的云端 API，否则回退到离线规则。只有使用云端 API 时才会发送输入文字；远程地址必须使用 HTTPS。</value></data>
+  <data name="ScheduleApiKeyRequired" xml:space="preserve"><value>请输入 API 密钥，或先将密钥保存到 Windows 凭据管理器。</value></data>
+  <data name="ScheduleApiSettingsSavedNoKey" xml:space="preserve"><value>设置已保存，当前未保存 API 密钥。</value></data>
+  <data name="ScheduleApiSettingsSavedKeyPresent" xml:space="preserve"><value>设置和 API 密钥已保存。</value></data>
+  <data name="ScheduleApiCredentialSaveError" xml:space="preserve"><value>无法将 API 密钥保存到 Windows 凭据管理器。</value></data>
+  <data name="ScheduleApiChecking" xml:space="preserve"><value>正在检查 API 连接…</value></data>
+  <data name="ScheduleApiReady" xml:space="preserve"><value>API 连接成功。</value></data>
+  <data name="ScheduleApiKeyRemoved" xml:space="preserve"><value>已移除保存的 API 密钥。</value></data>
+  <data name="ScheduleApiKeyMissing" xml:space="preserve"><value>尚未保存 API 密钥。</value></data>
+  <data name="ScheduleApiKeySaved" xml:space="preserve"><value>API 密钥已保存在 Windows 凭据管理器中。</value></data>
+  <data name="ScheduleApiFallbackNotConfigured" xml:space="preserve"><value>尚未配置云端 API 密钥，本次已使用离线规则解析。</value></data>
+  <data name="ScheduleApiFallbackFailed" xml:space="preserve"><value>云端 API 不可用或返回了无效数据，本次已使用离线规则解析。</value></data>
+  <data name="ScheduleApiErrorNotConfigured" xml:space="preserve"><value>尚未配置云端解析器。请添加 API 密钥，或选择“自动”或“离线规则”。</value></data>
+  <data name="ScheduleApiErrorInvalidConfiguration" xml:space="preserve"><value>请检查 API 基础地址和模型；远程 API 地址必须使用 HTTPS。</value></data>
+  <data name="ScheduleApiErrorNetwork" xml:space="preserve"><value>无法连接日程解析 API，请检查网络后重试。</value></data>
+  <data name="ScheduleApiErrorUnauthorized" xml:space="preserve"><value>日程解析 API 拒绝了密钥，请检查保存的 API 密钥。</value></data>
+  <data name="ScheduleApiErrorRateLimited" xml:space="preserve"><value>已达到日程解析 API 的速率限制，请稍后重试。</value></data>
+  <data name="ScheduleApiErrorRejected" xml:space="preserve"><value>日程解析 API 拒绝了请求，请检查地址和模型。</value></data>
+  <data name="ScheduleApiErrorServer" xml:space="preserve"><value>日程解析 API 出现服务端错误，请稍后重试。</value></data>
+  <data name="ScheduleApiErrorInvalidResponse" xml:space="preserve"><value>日程解析 API 返回的数据未通过安全校验。</value></data>
+  <data name="ScheduleApiErrorUnexpected" xml:space="preserve"><value>解析日程文字时出现了意外错误。</value></data>
+  <data name="NaturalLanguageApiSourceName" xml:space="preserve"><value>AI 文字导入</value></data>
 </root>

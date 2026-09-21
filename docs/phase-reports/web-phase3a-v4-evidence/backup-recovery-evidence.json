@@ -1,0 +1,28 @@
+{
+  "database": "/var/folders/lf/58zg8mp53nz2fv6pwyt7sk5m0000gn/T/assignment-web-phase3a-browser-OpWLz4/assignments.db",
+  "archive": "/var/folders/lf/58zg8mp53nz2fv6pwyt7sk5m0000gn/T/assignment-web-phase3a-browser-OpWLz4/browser-backup.zip",
+  "schema_version": 4,
+  "failure_message": "Restore failed and was rolled back: injected failure after attachment directory swap and before SQLite commit",
+  "before_failure_fingerprint": "6e6db0a3ec818085810602f4f466f954f2afeec08817ac59f9dde33b0f1d19f9",
+  "after_failure_fingerprint": "6e6db0a3ec818085810602f4f466f954f2afeec08817ac59f9dde33b0f1d19f9",
+  "attachments_before_failure": {
+    "c47bc427-81b0-4814-9742-cf26d78fa475": "71bf2aea742590675c3b6b79ea23ef9521091554b1633a80f66cced39413e23d"
+  },
+  "attachments_after_failure": {
+    "c47bc427-81b0-4814-9742-cf26d78fa475": "71bf2aea742590675c3b6b79ea23ef9521091554b1633a80f66cced39413e23d"
+  },
+  "rollback_exact": true,
+  "expected_restored_fingerprint": "076b4f72deeac7cbb5926b2b937c7558acc12507d3e8ec94515c09afce0a7c15",
+  "restored_fingerprint": "076b4f72deeac7cbb5926b2b937c7558acc12507d3e8ec94515c09afce0a7c15",
+  "restore_roundtrip": {
+    "restored": true,
+    "schema_version": 4
+  },
+  "integrity_check": [
+    [
+      "ok"
+    ]
+  ],
+  "foreign_key_errors": [],
+  "real_user_database_accessed": false
+}

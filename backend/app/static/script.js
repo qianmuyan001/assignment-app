@@ -108,6 +108,7 @@ const dom = {
 };
 
 const state = {
+  scope: "all",
   all: [],
   visible: [],
   selectedId: null,
@@ -271,6 +272,7 @@ function layoutCards(now) {
     if (far !== entry.isFar) {
       entry.isFar = far;
       entry.element.classList.toggle("is-far", far);
+      entry.element.setAttribute("aria-hidden", String(far));
     }
 
     if (far && entry.leaveAt === null) {
@@ -346,6 +348,8 @@ function createCardElement(assignment) {
   const card = document.createElement("article");
   card.className = "flow-card";
   card.dataset.assignmentId = String(assignment.id);
+  card.id = `assignment-card-${assignment.id}`;
+  card.setAttribute("role", "option");
 
   const disc = document.createElement("div");
   disc.className = "disc-core";
@@ -386,11 +390,11 @@ function updateCardContent(entry, assignment) {
   const status = normalizeStatus(assignment.status);
   const priority = normalizePriority(assignment.priority);
 
-  setText(refs.course, assignment.course_name || "No course");
-  setText(refs.title, assignment.title || "Untitled assignment");
-  setText(refs.due, describeDueDate(assignment) || "No due date");
-  setText(refs.statusChip, status);
-  setText(refs.priorityChip, priority);
+  setText(refs.course, assignment.course_name || tr("No course"));
+  setText(refs.title, assignment.title || tr("Untitled assignment"));
+  setText(refs.due, describeDueDate(assignment) || tr("No due date"));
+  setText(refs.statusChip, tr(status));
+  setText(refs.priorityChip, tr(priority));
   setText(refs.progressChip, `${progress}%`);
 
   const fill = (progress / 100).toFixed(3);
@@ -406,6 +410,7 @@ function updateCardContent(entry, assignment) {
     classes.push("is-past-due");
   }
 
+  entry.element.setAttribute("aria-selected", String(assignment.id === state.selectedId));
   if (assignment.id === state.selectedId) {
     classes.push("is-selected");
   }
@@ -477,8 +482,8 @@ function syncCards() {
   if (state.visible.length === 0) {
     dom.flowEmpty.textContent =
       state.all.length === 0
-        ? "No assignments yet."
-        : "No assignments match the current filters.";
+        ? tr("No assignments yet.")
+        : tr("No assignments match the current filters.");
   }
 
   requestFrame();
@@ -543,6 +548,8 @@ function moveSelection(delta) {
 }
 
 function updateFlowControls() {
+  if (state.selectedId !== null) dom.coverFlow.setAttribute("aria-activedescendant", `assignment-card-${state.selectedId}`);
+  else dom.coverFlow.removeAttribute("aria-activedescendant");
   const count = state.visible.length;
   dom.previousCard.disabled = count <= 1 || state.selectedIndex === 0;
   dom.nextCard.disabled = count <= 1 || state.selectedIndex === count - 1;
@@ -865,13 +872,13 @@ function buildDetailView() {
 
   const statusLabel = document.createElement("label");
   statusLabel.className = "status-control";
-  statusLabel.textContent = "Status";
+  statusLabel.textContent = tr('Status');
   const statusSelect = document.createElement("select");
 
   STATUS_OPTIONS.forEach((status) => {
     const option = document.createElement("option");
     option.value = status;
-    option.textContent = status;
+    option.textContent = tr(status);
     statusSelect.appendChild(option);
   });
 
@@ -880,12 +887,12 @@ function buildDetailView() {
   const editButton = document.createElement("button");
   editButton.className = "secondary-button";
   editButton.type = "button";
-  editButton.textContent = "Edit";
+  editButton.textContent = tr('Edit');
 
   const deleteButton = document.createElement("button");
   deleteButton.className = "delete-button";
   deleteButton.type = "button";
-  deleteButton.textContent = "Delete";
+  deleteButton.textContent = tr('Delete');
 
   actions.append(statusLabel, editButton, deleteButton);
 
@@ -909,6 +916,7 @@ function buildDetailView() {
     updated: createDetailRow("Updated"),
   };
 
+  [rows.source, rows.sourceName, rows.created, rows.updated].forEach(row => row.element.dataset.pro = "");
   Object.values(rows).forEach((row) => extra.appendChild(row.element));
   extraInner.appendChild(extra);
   extraWrap.appendChild(extraInner);
@@ -1000,12 +1008,12 @@ function renderDetail() {
   const progress = getProgress(assignment);
   const status = normalizeStatus(assignment.status);
 
-  setText(view.course, assignment.course_name || "No course");
-  setText(view.title, assignment.title || "Untitled assignment");
-  setText(view.due, formatDate(assignment.due_date) || "No due date");
-  setText(view.statusChip, status);
-  setText(view.priorityChip, normalizePriority(assignment.priority));
-  setText(view.progressChip, `${progress}% progress`);
+  setText(view.course, assignment.course_name || tr("No course"));
+  setText(view.title, assignment.title || tr("Untitled assignment"));
+  setText(view.due, formatTaskDeadline(assignment) || tr("No due date"));
+  setText(view.statusChip, tr(status));
+  setText(view.priorityChip, tr(normalizePriority(assignment.priority)));
+  setText(view.progressChip, `${progress}% ${preferences.language === "zh-CN" ? "进度" : "progress"}`);
 
   const fill = (progress / 100).toFixed(3);
 
@@ -1019,15 +1027,18 @@ function renderDetail() {
   }
 
   view.expandButton.textContent = state.detailExpanded
-    ? "Hide Full Details"
-    : "Show Full Details";
+    ? tr("Hide Full Details")
+    : tr("Show Full Details");
+  view.expandButton.setAttribute("aria-expanded", String(state.detailExpanded));
+  view.extraWrap.inert = !state.detailExpanded;
+  view.extraWrap.setAttribute("aria-hidden", String(!state.detailExpanded));
   view.extraWrap.classList.toggle("is-open", state.detailExpanded);
 
-  setDetailRow(view.rows.due, formatDate(assignment.due_date) || "None");
-  setDetailRow(view.rows.description, assignment.description || "None");
-  setDetailRow(view.rows.sourceName, assignment.source_name || "None");
-  setDetailRow(view.rows.created, formatDate(assignment.created_at) || "None");
-  setDetailRow(view.rows.updated, formatDate(assignment.updated_at) || "None");
+  setDetailRow(view.rows.due, formatTaskDeadline(assignment) || tr("None"));
+  setDetailRow(view.rows.description, assignment.description || tr("None"));
+  setDetailRow(view.rows.sourceName, assignment.source_name || tr("None"));
+  setDetailRow(view.rows.created, formatDate(assignment.created_at) || tr("None"));
+  setDetailRow(view.rows.updated, formatDate(assignment.updated_at) || tr("None"));
   setSourceRow(view.rows.source, assignment.source_url);
 
   if (assignment && assignment.id !== state.lastOrgAssignmentId) {
@@ -1046,7 +1057,7 @@ function toggleDetail() {
 function createDetailRow(label) {
   const element = document.createElement("p");
   const strong = document.createElement("strong");
-  strong.textContent = `${label}: `;
+  strong.textContent = `${tr(label)}: `;
   const value = document.createElement("span");
   element.append(strong, value);
   return { element, value };
@@ -1062,7 +1073,7 @@ function setSourceRow(row, sourceUrl) {
   const safe = safeHttpUrl(sourceUrl);
 
   if (!safe) {
-    row.value.replaceChildren(document.createTextNode(sourceUrl ? String(sourceUrl) : "None"));
+    row.value.replaceChildren(document.createTextNode(sourceUrl ? String(sourceUrl) : tr("None")));
     return;
   }
 
@@ -1082,9 +1093,9 @@ function renderEditForm(assignment) {
   heading.className = "section-heading";
   const eyebrow = document.createElement("p");
   eyebrow.className = "eyebrow";
-  eyebrow.textContent = "Modify";
+  eyebrow.textContent = tr('Modify');
   const title = document.createElement("h2");
-  title.textContent = "Edit Assignment";
+  title.textContent = tr('Edit Assignment');
   heading.append(eyebrow, title);
 
   const form = document.createElement("form");
@@ -1093,14 +1104,18 @@ function renderEditForm(assignment) {
   const fields = [
     createInputField("Course Name", "course_name", "text", assignment.course_name || "", true),
     createInputField("Title", "title", "text", assignment.title || "", true),
-    createInputField("Due Date", "due_date", "datetime-local", toDateTimeLocal(assignment.due_date), true),
+    createInputField("Due Date", "due_date", "datetime-local", toDateTimeLocal(assignment.due_date), false),
+    createInputField("Time zone", "timezone_id", "text", assignment.timezone_id || "", false),
     createSelectField("Priority", "priority", PRIORITY_OPTIONS, normalizePriority(assignment.priority)),
     createTextAreaField("Description", "description", assignment.description || ""),
     createInputField("Source URL", "source_url", "url", assignment.source_url || "", false),
     createInputField("Source Name", "source_name", "text", assignment.source_name || "", false),
   ];
 
-  fields.forEach((field) => form.appendChild(field));
+  fields.forEach((field) => {
+    if (["priority", "timezone_id", "source_url", "source_name"].includes(field.querySelector("input,select,textarea").name)) field.dataset.pro = "";
+    form.appendChild(field);
+  });
 
   // Organization pickers (Phase 2).
   state.editCourseId = matchedCourseId(assignment);
@@ -1119,6 +1134,7 @@ function renderEditForm(assignment) {
     state.editProjectId ? String(state.editProjectId) : "",
   );
   form.appendChild(coursePicker.label);
+  projectPicker.label.dataset.pro = "";
   form.appendChild(projectPicker.label);
 
   coursePicker.select.addEventListener("change", (event) => {
@@ -1129,6 +1145,7 @@ function renderEditForm(assignment) {
       editProjectOptions(),
       state.editProjectId ? String(state.editProjectId) : "",
     );
+    refreshed.label.dataset.pro = "";
     projectPicker.label.replaceWith(refreshed.label);
     attachProjectChange(refreshed.select);
   });
@@ -1136,16 +1153,19 @@ function renderEditForm(assignment) {
 
   const tagWrap = document.createElement("fieldset");
   tagWrap.className = "tag-fieldset";
+  tagWrap.dataset.pro = "";
   const tagLegend = document.createElement("legend");
-  tagLegend.textContent = "Tags";
+  tagLegend.textContent = tr('Tags');
   const tagBox = document.createElement("div");
   tagBox.className = "tag-options";
   tagBox.id = "edit-tag-checkboxes";
+  tagBox.dataset.loading = "true";
   tagWrap.append(tagLegend, tagBox);
   form.appendChild(tagWrap);
   populateTagCheckboxesInto(tagBox);
   apiRequest(`/assignments/${assignment.id}/tags`)
     .then((links) => {
+      delete tagBox.dataset.loading;
       const ids = new Set(links.map((link) => link.tag_id));
       tagBox
         .querySelectorAll('input[name="tag_ids"]')
@@ -1153,19 +1173,20 @@ function renderEditForm(assignment) {
           el.checked = ids.has(Number(el.value));
         });
     })
-    .catch(() => {});
+    .catch(error => { tagBox.dataset.loadFailed = "true"; showError(error.message); });
 
   const buttons = document.createElement("div");
   buttons.className = "card-buttons full-width";
 
   const save = document.createElement("button");
   save.type = "submit";
-  save.textContent = "Save";
+  save.className = "primary-button";
+  save.textContent = tr('Save');
 
   const cancel = document.createElement("button");
   cancel.className = "secondary-button";
   cancel.type = "button";
-  cancel.textContent = "Cancel";
+  cancel.textContent = tr('Cancel');
   cancel.addEventListener("click", renderDetail);
 
   buttons.append(save, cancel);
@@ -1181,7 +1202,7 @@ function renderEditForm(assignment) {
 
 function createInputField(labelText, name, type, value, required) {
   const label = document.createElement("label");
-  label.textContent = labelText;
+  label.textContent = tr(labelText);
 
   const input = document.createElement("input");
   input.name = name;
@@ -1195,7 +1216,7 @@ function createInputField(labelText, name, type, value, required) {
 
 function createSelectField(labelText, name, options, value) {
   const label = document.createElement("label");
-  label.textContent = labelText;
+  label.textContent = tr(labelText);
 
   const select = document.createElement("select");
   select.name = name;
@@ -1203,7 +1224,7 @@ function createSelectField(labelText, name, options, value) {
   options.forEach((option) => {
     const element = document.createElement("option");
     element.value = option;
-    element.textContent = option;
+    element.textContent = tr(option);
     select.appendChild(element);
   });
 
@@ -1215,7 +1236,7 @@ function createSelectField(labelText, name, options, value) {
 function createTextAreaField(labelText, name, value) {
   const label = document.createElement("label");
   label.className = "full-width";
-  label.textContent = labelText;
+  label.textContent = tr(labelText);
 
   const textarea = document.createElement("textarea");
   textarea.name = name;
@@ -1234,13 +1255,15 @@ async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
 
   if (!response.ok) {
-    let message = "Something went wrong. Please try again.";
+    let message = tr("Something went wrong. Please try again.");
 
     try {
       const errorData = await response.json();
 
       if (typeof errorData.detail === "string") {
         message = errorData.detail;
+      } else if (errorData.detail && typeof errorData.detail.message === "string") {
+        message = errorData.detail.message;
       } else if (Array.isArray(errorData.detail)) {
         message = errorData.detail
           .map((item) => item.msg || "Invalid value")
@@ -1267,6 +1290,9 @@ async function loadAssignments() {
 
   state.inFlightLoads += 1;
   dom.refresh.classList.add("is-refreshing");
+  dom.coverFlow.setAttribute("aria-busy", "true");
+  dom.flowEmpty.textContent = tr("Loading…");
+  if (!state.all.length) dom.flowEmpty.hidden = false;
   hideError();
 
   try {
@@ -1277,10 +1303,12 @@ async function loadAssignments() {
     }
 
     state.all = Array.isArray(assignments) ? assignments : [];
+    state.lastOrgAssignmentId = null;
     updateCourseFilter();
     updateSummaryCounts();
     applyFilters();
     await loadOrganization();
+    window.dispatchEvent(new CustomEvent("assignments-loaded"));
   } catch (error) {
     if (generation === state.loadGeneration) {
       showError(error.message);
@@ -1290,6 +1318,7 @@ async function loadAssignments() {
 
     if (state.inFlightLoads === 0) {
       dom.refresh.classList.remove("is-refreshing");
+      dom.coverFlow.setAttribute("aria-busy", "false");
     }
   }
 }
@@ -1309,7 +1338,7 @@ function applyFilters() {
       const searchMatches =
         searchText === "" || matchesSearch(assignment, searchText);
 
-      return statusMatches && courseMatches && searchMatches;
+      return statusMatches && courseMatches && searchMatches && LearningCore.matchesScope(assignment, state.scope);
     })
     .sort(compareByDueDate);
 
@@ -1320,8 +1349,8 @@ function applyFilters() {
 }
 
 function compareByDueDate(first, second) {
-  const firstTime = getDueTime(first.due_date);
-  const secondTime = getDueTime(second.due_date);
+  const firstTime = LearningCore.dueInstant(first)?.getTime() ?? null;
+  const secondTime = LearningCore.dueInstant(second)?.getTime() ?? null;
 
   if (firstTime === null && secondTime === null) {
     return 0;
@@ -1359,7 +1388,7 @@ function updateCourseFilter() {
     .filter(Boolean)
     .sort((first, second) => first.localeCompare(second));
 
-  dom.courseFilter.replaceChildren(createOption("all", "all courses"));
+  dom.courseFilter.replaceChildren(createOption("all", tr("all courses")));
   courseNames.forEach((courseName) => {
     dom.courseFilter.appendChild(createOption(courseName, courseName));
   });
@@ -1376,13 +1405,17 @@ function createOption(value, label) {
 
 async function createAssignment(event) {
   event.preventDefault();
+  const submit = dom.form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
   hideError();
 
   const formData = new FormData(dom.form);
   const payload = {
     course_name: String(formData.get("course_name") || "").trim(),
     title: String(formData.get("title") || "").trim(),
-    due_date: String(formData.get("due_date") || ""),
+    due_date: emptyToNull(formData.get("due_date")),
+    timezone_id: emptyToNull(formData.get("timezone_id")),
     priority: String(formData.get("priority") || "medium"),
     description: emptyToNull(formData.get("description")),
     source_url: emptyToNull(formData.get("source_url")),
@@ -1395,6 +1428,7 @@ async function createAssignment(event) {
   if (projectId) payload.project_id = projectId;
 
   const tagIds = selectedTagIds();
+  const tagFailures = [];
 
   try {
     const created = await apiRequest("/assignments", {
@@ -1409,7 +1443,7 @@ async function createAssignment(event) {
           method: "POST",
         });
       } catch (tagError) {
-        showError(`Linked tag failed: ${tagError.message}`);
+        tagFailures.push(tagError.message);
       }
     }
 
@@ -1419,8 +1453,11 @@ async function createAssignment(event) {
     resetOrgForm();
     closeDialog();
     await loadAssignments();
+    if (tagFailures.length) showError(tagFailures.join("\n"));
   } catch (error) {
     showError(error.message);
+  } finally {
+    submit.disabled = false;
   }
 }
 
@@ -1448,12 +1485,13 @@ async function changeStatus(assignment, nextStatus) {
     await loadAssignments();
   } catch (error) {
     assignment.status = previousStatus;
-    showError(error.message);
     await loadAssignments();
+    showError(error.message);
   }
 }
 
 async function deleteAssignment(assignment) {
+  if (!window.confirm(tr("Delete this task?"))) return;
   hideError();
 
   const removedIndex = state.visible.findIndex((item) => item.id === assignment.id);
@@ -1469,13 +1507,15 @@ async function deleteAssignment(assignment) {
   updateSummaryCounts();
   applyFilters();
 
+  let failure = null;
   try {
     await apiRequest(`/assignments/${assignment.id}`, { method: "DELETE" });
   } catch (error) {
-    showError(error.message);
+    failure = error;
   }
 
   await loadAssignments();
+  if (failure) showError(failure.message);
 }
 
 async function saveAssignment(assignment, form) {
@@ -1485,13 +1525,17 @@ async function saveAssignment(assignment, form) {
     return;
   }
 
+  const submit = form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
   const formData = new FormData(form);
   const courseIdRaw = form.querySelector('select[name="course_id"]')?.value || "";
   const projectIdRaw = form.querySelector('select[name="project_id"]')?.value || "";
   const edited = {
     course_name: String(formData.get("course_name") || "").trim(),
     title: String(formData.get("title") || "").trim(),
-    due_date: String(formData.get("due_date") || ""),
+    due_date: emptyToNull(formData.get("due_date")),
+    timezone_id: emptyToNull(formData.get("timezone_id")),
     priority: String(formData.get("priority") || "medium"),
     description: emptyToNull(formData.get("description")),
     source_url: emptyToNull(formData.get("source_url")),
@@ -1503,7 +1547,8 @@ async function saveAssignment(assignment, form) {
   const original = {
     course_name: assignment.course_name,
     title: assignment.title,
-    due_date: toDateTimeLocal(assignment.due_date),
+    due_date: toDateTimeLocal(assignment.due_date) || null,
+    timezone_id: assignment.timezone_id || null,
     priority: normalizePriority(assignment.priority),
     description: assignment.description || null,
     source_url: assignment.source_url || null,
@@ -1520,6 +1565,7 @@ async function saveAssignment(assignment, form) {
     }
   });
 
+  try {
   const tagChanges = await computeTagChanges(assignment, form);
   if (
     Object.keys(changes).length === 0 &&
@@ -1530,7 +1576,6 @@ async function saveAssignment(assignment, form) {
     return;
   }
 
-  try {
     state.selectedId = assignment.id;
     state.detailExpanded = true;
     if (Object.keys(changes).length > 0) {
@@ -1553,6 +1598,8 @@ async function saveAssignment(assignment, form) {
     await loadAssignments();
   } catch (error) {
     showError(error.message);
+  } finally {
+    submit.disabled = false;
   }
 }
 
@@ -1561,42 +1608,10 @@ async function saveAssignment(assignment, form) {
 // ---------------------------------------------------------------------------
 
 function updateSummaryCounts() {
-  const today = startOfDay(new Date());
-  const weekEnd = new Date(today);
-  weekEnd.setDate(today.getDate() + 7);
-
-  const summary = { total: 0, open: 0, today: 0, week: 0 };
-
-  state.all.forEach((assignment) => {
-    const status = normalizeStatus(assignment.status);
-    const isComplete = status === "done";
-    const dueTime = getDueTime(assignment.due_date);
-
-    summary.total += 1;
-
-    if (!isComplete) {
-      summary.open += 1;
-    }
-
-    if (dueTime === null) {
-      return;
-    }
-
-    const dueDay = startOfDay(new Date(dueTime));
-
-    if (dueDay.getTime() === today.getTime()) {
-      summary.today += 1;
-    }
-
-    if (!isComplete && dueDay >= today && dueDay <= weekEnd) {
-      summary.week += 1;
-    }
-  });
-
-  setCount(dom.counts.total, summary.total);
-  setCount(dom.counts.open, summary.open);
-  setCount(dom.counts.today, summary.today);
-  setCount(dom.counts.week, summary.week);
+  setCount(dom.counts.total, state.all.length);
+  setCount(dom.counts.open, state.all.filter(task => normalizeStatus(task.status) !== "done").length);
+  setCount(dom.counts.today, state.all.filter(task => LearningCore.matchesScope(task, "today")).length);
+  setCount(dom.counts.week, state.all.filter(task => LearningCore.matchesScope(task, "week")).length);
 }
 
 /* A digit that swaps instantly reads as a rendering glitch; a short dip in
@@ -1645,54 +1660,24 @@ function normalizePriority(value) {
 }
 
 function getProgress(assignment) {
-  const status = normalizeStatus(assignment.status);
-
-  if (status === "done") {
-    return 100;
-  }
-
-  if (status === "in_progress") {
-    return 64;
-  }
-
-  const dueTime = getDueTime(assignment.due_date);
-
-  if (dueTime === null) {
-    return 24;
-  }
-
-  const hoursLeft = (dueTime - Date.now()) / 3600000;
-
-  if (hoursLeft < 0) {
-    return 82;
-  }
-
-  if (hoursLeft <= 24) {
-    return 58;
-  }
-
-  if (hoursLeft <= 72) {
-    return 42;
-  }
-
-  return 22;
+  return LearningCore.progressPercent(assignment);
 }
 
 function isPastDue(assignment) {
-  const dueTime = getDueTime(assignment.due_date);
+  const dueTime = LearningCore.dueInstant(assignment)?.getTime() ?? null;
 
   if (dueTime === null) {
     return false;
   }
 
   return (
-    startOfDay(new Date(dueTime)) < startOfDay(new Date()) &&
+    dueTime < Date.now() &&
     normalizeStatus(assignment.status) !== "done"
   );
 }
 
 function describeDueDate(assignment) {
-  const dueTime = getDueTime(assignment.due_date);
+  const dueTime = LearningCore.dueInstant(assignment)?.getTime() ?? null;
 
   if (dueTime === null) {
     return "";
@@ -1703,18 +1688,18 @@ function describeDueDate(assignment) {
   const dayDifference = Math.round((dueDay - today) / 86400000);
 
   if (dayDifference === 0) {
-    return "Due today";
+    return tr("Due today");
   }
 
   if (dayDifference > 0) {
-    return `Due in ${dayDifference} ${dayDifference === 1 ? "day" : "days"}`;
+    return preferences.language === "zh-CN" ? `${dayDifference} 天后到期` : `Due in ${dayDifference} ${dayDifference === 1 ? "day" : "days"}`;
   }
 
   if (normalizeStatus(assignment.status) !== "done") {
-    return "Past due";
+    return tr("Past due");
   }
 
-  return formatDate(assignment.due_date);
+  return formatTaskDeadline(assignment);
 }
 
 /* The API serialises naive local wall times as "YYYY-MM-DD HH:MM". Passing that
@@ -1752,18 +1737,23 @@ function getDueTime(value) {
   return date ? date.getTime() : null;
 }
 
+function formatTaskDeadline(assignment) {
+  const date = LearningCore.dueInstant(assignment);
+  const zone = assignment.timezone_id || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return date ? `${date.toLocaleString(localeName(), {timeZone: zone})} · ${zone}` : tr("No due date");
+}
+
 function formatDate(value) {
   const date = parseDate(value);
-  return date ? date.toLocaleString() : "";
+  return date ? date.toLocaleString(localeName()) : "";
 }
 
 function toDateTimeLocal(value) {
+  if (!value) return "";
+  const wall = String(value).replace(" ", "T");
+  if (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(wall) && !/[zZ]$|[+-]\d\d:\d\d$/.test(wall)) return wall.slice(0,16);
   const date = parseDate(value);
-
-  if (!date) {
-    return "";
-  }
-
+  if (!date) return "";
   const pad = (part) => String(part).padStart(2, "0");
 
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -1811,7 +1801,7 @@ function createChip(text) {
 function createEmptyMessage(text) {
   const message = document.createElement("p");
   message.className = "empty-message";
-  message.textContent = text;
+  message.textContent = tr(text);
   return message;
 }
 
@@ -1826,6 +1816,7 @@ function openDialog() {
     dom.dialog.setAttribute("open", "");
   }
 
+  if (!document.querySelector("#task-timezone").value) document.querySelector("#task-timezone").value = Intl.DateTimeFormat().resolvedOptions().timeZone;
   document.querySelector("#course-name")?.focus();
 }
 
@@ -1839,11 +1830,20 @@ function closeDialog() {
 }
 
 function showError(message) {
+  const dialog = [...document.querySelectorAll("dialog[open]")].at(-1);
+  if (dialog) {
+    let notice = dialog.querySelector(".dialog-error");
+    if (!notice) { notice = document.createElement("p"); notice.className = "dialog-error error-message visible"; notice.setAttribute("role", "alert"); dialog.querySelector(".dialog-header").after(notice); }
+    notice.textContent = message;
+    notice.tabIndex = -1;
+    notice.focus();
+  }
   dom.errorMessage.textContent = message;
   dom.errorMessage.classList.add("visible");
 }
 
 function hideError() {
+  document.querySelectorAll(".dialog-error").forEach(el => el.remove());
   dom.errorMessage.classList.remove("visible");
 }
 
@@ -1852,6 +1852,8 @@ function hideError() {
 // ---------------------------------------------------------------------------
 
 function clearFilters() {
+  state.scope = "all";
+  document.querySelectorAll("[data-scope]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.scope === "all")));
   dom.statusFilter.value = "all";
   dom.courseFilter.value = "all";
   dom.searchBox.value = "";
@@ -1893,7 +1895,6 @@ function bindControls() {
 bindControls();
 bindCarousel();
 renderDetail();
-loadAssignments();
 initOrg();
 
 // ---------------------------------------------------------------------------
@@ -1955,7 +1956,7 @@ function populateTagCheckboxesInto(container) {
 
 function createOrgSelectField(labelText, name, options, selectedValue) {
   const label = document.createElement("label");
-  label.textContent = labelText;
+  label.textContent = tr(labelText);
   const select = document.createElement("select");
   select.name = name;
   options.forEach((opt) => {
@@ -2000,7 +2001,7 @@ async function loadOrganization() {
 function populateCoursePicker() {
   if (!dom.coursePicker) return;
   const previous = dom.coursePicker.value;
-  dom.coursePicker.replaceChildren(createOption("", "— type a new course —"));
+  dom.coursePicker.replaceChildren(createOption("", tr("— type a new course —")));
   state.courses.forEach((course) => {
     dom.coursePicker.appendChild(createOption(String(course.id), course.name));
   });
@@ -2014,7 +2015,7 @@ function populateCoursePicker() {
 function populateProjectPicker() {
   if (!dom.projectPicker) return;
   const previous = dom.projectPicker.value;
-  dom.projectPicker.replaceChildren(createOption("", "— no project —"));
+  dom.projectPicker.replaceChildren(createOption("", tr("— no project —")));
   state.projects
     .filter((p) => !state.draftCourseId || p.course_id === state.draftCourseId)
     .forEach((project) => {
@@ -2051,7 +2052,7 @@ function buildOrgSections() {
     block.className = `org-block org-block-${kind}`;
     const heading = document.createElement("h3");
     heading.className = "org-block-title";
-    heading.textContent = label;
+    heading.textContent = tr(label);
     const list = document.createElement("ul");
     list.className = "org-list";
     list.dataset.orgKind = kind;
@@ -2107,9 +2108,13 @@ function toUtcIso(localDateTime) {
 
 async function renderSubtasks(view, assignment) {
   const { list, form } = view.orgSubtasks;
+  list.dataset.assignmentId = String(assignment.id);
+  list.replaceChildren(createEmptyMessage("Loading…"));
   try {
     const subtasks = await apiRequest(`/assignments/${assignment.id}/subtasks`);
+    if (list.dataset.assignmentId !== String(assignment.id)) return;
     list.replaceChildren();
+    if (!subtasks.length) list.appendChild(createEmptyMessage("No subtasks yet."));
     (subtasks || []).forEach((sub) => {
       list.appendChild(createSubtaskRow(sub, assignment, view));
     });
@@ -2121,12 +2126,13 @@ async function renderSubtasks(view, assignment) {
   const input = document.createElement("input");
   input.type = "text";
   input.name = "title";
-  input.placeholder = "Add subtask";
+  input.placeholder = tr("Add subtask");
+  input.setAttribute("aria-label", tr("Add subtask"));
   input.required = true;
   const addButton = document.createElement("button");
   addButton.type = "submit";
   addButton.className = "primary-button";
-  addButton.textContent = "Add";
+  addButton.textContent = tr('Add');
   form.append(input, addButton);
   form.onsubmit = async (event) => {
     event.preventDefault();
@@ -2152,6 +2158,7 @@ function createSubtaskRow(sub, assignment, view) {
   checkbox.type = "checkbox";
   const done = normalizeStatus(sub.status) === "done";
   checkbox.checked = done;
+  checkbox.setAttribute("aria-label", `${tr("Completed")}: ${sub.title}`);
   checkbox.addEventListener("change", async () => {
     try {
       await apiRequest(`/assignments/${assignment.id}/subtasks/${sub.id}`, {
@@ -2171,9 +2178,10 @@ function createSubtaskRow(sub, assignment, view) {
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "delete-button org-row-btn";
-  deleteButton.setAttribute("aria-label", "Delete subtask");
+  deleteButton.setAttribute("aria-label", tr("Delete subtask"));
   deleteButton.textContent = "✕";
   deleteButton.addEventListener("click", async () => {
+      if (!window.confirm(tr("Delete this item?"))) return;
     try {
       await apiRequest(`/assignments/${assignment.id}/subtasks/${sub.id}`, {
         method: "DELETE",
@@ -2189,9 +2197,13 @@ function createSubtaskRow(sub, assignment, view) {
 
 async function renderAttachments(view, assignment) {
   const { list, form } = view.orgAttachments;
+  list.dataset.assignmentId = String(assignment.id);
+  list.replaceChildren(createEmptyMessage("Loading…"));
   try {
     const items = await apiRequest(`/assignments/${assignment.id}/attachments`);
+    if (list.dataset.assignmentId !== String(assignment.id)) return;
     list.replaceChildren();
+    if (!items.length) list.appendChild(createEmptyMessage("No attachments yet."));
     (items || []).forEach((attachment) => {
       const li = document.createElement("li");
       li.className = "org-row";
@@ -2202,7 +2214,7 @@ async function renderAttachments(view, assignment) {
       sha.className = "org-row-sub";
       sha.textContent = attachment.payload_available
         ? `${attachment.sha256.slice(0, 12)}…`
-        : "Local file missing";
+        : tr("Local file missing");
       const actions = document.createElement("span");
       actions.className = "org-row-actions";
       if (attachment.payload_available) {
@@ -2211,21 +2223,22 @@ async function renderAttachments(view, assignment) {
         openLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file`;
         openLink.target = "_blank";
         openLink.rel = "noopener";
-        openLink.textContent = "Open";
-        openLink.setAttribute("aria-label", `Open ${attachment.file_name}`);
+        openLink.textContent = tr('Open');
+        openLink.setAttribute("aria-label", `${tr("Open")} ${attachment.file_name}`);
         const exportLink = document.createElement("a");
         exportLink.className = "secondary-button org-row-btn";
         exportLink.href = `/assignments/${assignment.id}/attachments/${attachment.id}/file?download=true`;
-        exportLink.textContent = "Export";
-        exportLink.setAttribute("aria-label", `Export ${attachment.file_name}`);
+        exportLink.textContent = tr('Export');
+        exportLink.setAttribute("aria-label", `${tr("Export")} ${attachment.file_name}`);
         actions.append(openLink, exportLink);
       }
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.className = "delete-button org-row-btn";
-      deleteButton.setAttribute("aria-label", "Delete attachment");
+      deleteButton.setAttribute("aria-label", tr("Delete attachment"));
       deleteButton.textContent = "✕";
       deleteButton.addEventListener("click", async () => {
+      if (!window.confirm(tr("Delete this item?"))) return;
         try {
           await apiRequest(
             `/assignments/${assignment.id}/attachments/${attachment.id}`,
@@ -2248,10 +2261,12 @@ async function renderAttachments(view, assignment) {
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.name = "file";
+  fileInput.setAttribute("aria-label", tr("Attachments"));
+  fileInput.required = true;
   const addButton = document.createElement("button");
   addButton.type = "submit";
   addButton.className = "primary-button";
-  addButton.textContent = "Attach";
+  addButton.textContent = tr('Attach');
   form.append(fileInput, addButton);
   form.onsubmit = async (event) => {
     event.preventDefault();
@@ -2275,91 +2290,7 @@ async function renderAttachments(view, assignment) {
 }
 
 async function renderReminders(view, assignment) {
-  const { list, form } = view.orgReminders;
-  try {
-    const items = await apiRequest(`/assignments/${assignment.id}/reminders`);
-    list.replaceChildren();
-    (items || []).forEach((reminder) => {
-      const li = document.createElement("li");
-      li.className = "org-row";
-      const span = document.createElement("span");
-      span.className = "org-row-title";
-      span.textContent = formatDate(reminder.trigger_at_utc);
-      const sub = document.createElement("span");
-      sub.className = "org-row-sub";
-      sub.textContent = [
-        reminder.repeat_rule ? `repeat ${reminder.repeat_rule}` : null,
-        reminder.is_enabled ? "on" : "off",
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "secondary-button org-row-btn";
-      toggle.textContent = reminder.is_enabled ? "Disable" : "Enable";
-      toggle.addEventListener("click", async () => {
-        try {
-          await apiRequest(
-            `/assignments/${assignment.id}/reminders/${reminder.id}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_enabled: !reminder.is_enabled }),
-            },
-          );
-          await renderReminders(view, assignment);
-        } catch (error) {
-          showError(error.message);
-        }
-      });
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "delete-button org-row-btn";
-      deleteButton.setAttribute("aria-label", "Delete reminder");
-      deleteButton.textContent = "✕";
-      deleteButton.addEventListener("click", async () => {
-        try {
-          await apiRequest(
-            `/assignments/${assignment.id}/reminders/${reminder.id}`,
-            { method: "DELETE" },
-          );
-          await renderReminders(view, assignment);
-        } catch (error) {
-          showError(error.message);
-        }
-      });
-      li.append(span, sub, toggle, deleteButton);
-      list.appendChild(li);
-    });
-  } catch (error) {
-    list.replaceChildren(createEmptyMessage(error.message));
-  }
-
-  form.replaceChildren();
-  const dateTime = document.createElement("input");
-  dateTime.type = "datetime-local";
-  dateTime.name = "trigger_at_utc";
-  dateTime.required = true;
-  const addButton = document.createElement("button");
-  addButton.type = "submit";
-  addButton.className = "primary-button";
-  addButton.textContent = "Add";
-  form.append(dateTime, addButton);
-  form.onsubmit = async (event) => {
-    event.preventDefault();
-    const utc = toUtcIso(dateTime.value);
-    if (!utc) return;
-    try {
-      await apiRequest(`/assignments/${assignment.id}/reminders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trigger_at_utc: utc, lead_minutes: 0, is_enabled: true }),
-      });
-      await renderReminders(view, assignment);
-    } catch (error) {
-      showError(error.message);
-    }
-  };
+  return renderV4Reminders(view, assignment);
 }
 
 // ---------------------------------------------------------------------------
@@ -2392,13 +2323,13 @@ function createOrgRow({ title, subtitle, swatch, onRename, onDelete }) {
   const editButton = document.createElement("button");
   editButton.type = "button";
   editButton.className = "secondary-button org-row-btn";
-  editButton.textContent = "Rename";
+  editButton.textContent = tr('Rename');
   editButton.addEventListener("click", () => startRename(li, titleSpan, onRename));
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "delete-button org-row-btn";
-  deleteButton.textContent = "Delete";
-  deleteButton.addEventListener("click", onDelete);
+  deleteButton.textContent = tr('Delete');
+  deleteButton.addEventListener("click", () => { if (window.confirm(tr("Delete this item?"))) onDelete(); });
   actions.append(editButton, deleteButton);
   li.append(main, actions);
   return li;
@@ -2502,8 +2433,9 @@ function renderOrgManager() {
     );
   });
 
+  [[dom.orgCourseList,state.courses,"No courses yet."], [dom.orgProjectList,state.projects,"No projects yet."], [dom.orgTagList,state.tags,"No tags yet."]].forEach(([list,items,message]) => { if (!items.length) list.appendChild(createEmptyMessage(message)); });
   if (dom.orgProjectCourseSelect) {
-    dom.orgProjectCourseSelect.replaceChildren(createOption("", "— no course —"));
+    dom.orgProjectCourseSelect.replaceChildren(createOption("", tr("— no course —")));
     state.courses.forEach((course) => {
       dom.orgProjectCourseSelect.appendChild(
         createOption(String(course.id), course.name),
@@ -2519,6 +2451,7 @@ function openOrgDialog() {
     dom.orgDialog.setAttribute("open", "");
   }
   renderOrgManager();
+  document.querySelector("#org-course-name").focus();
 }
 
 function closeOrgDialog() {
@@ -2538,12 +2471,13 @@ async function computeTagChanges(assignment, form) {
         )
       : [],
   );
+  if (!box || box.dataset.loadFailed || box.dataset.loading) throw new Error(tr("Something went wrong. Please try again."));
   let current = new Set();
   try {
     const links = await apiRequest(`/assignments/${assignment.id}/tags`);
     current = new Set(links.map((link) => link.tag_id));
-  } catch {
-    // If tag links cannot be read, treat as no diff to avoid clobbering.
+  } catch (error) {
+    throw new Error(error.message);
   }
   const add = [...selected].filter((id) => !current.has(id));
   const remove = [...current].filter((id) => !selected.has(id));
@@ -2565,11 +2499,20 @@ function initOrg() {
 
   if (dom.orgDialog) {
     dom.orgDialog.querySelectorAll(".org-tab").forEach((tab) => {
+      tab.setAttribute("aria-selected", String(tab.classList.contains("is-active")));
+      tab.tabIndex = tab.classList.contains("is-active") ? 0 : -1;
+      tab.addEventListener("keydown", event => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = [...dom.orgDialog.querySelectorAll(".org-tab")], index = tabs.indexOf(tab);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
+        tabs[next].click(); tabs[next].focus();
+      });
       tab.addEventListener("click", () => {
         const target = tab.dataset.orgTab;
         dom.orgDialog
           .querySelectorAll(".org-tab")
-          .forEach((t) => t.classList.toggle("is-active", t === tab));
+          .forEach((t) => { t.classList.toggle("is-active", t === tab); t.setAttribute("aria-selected", String(t === tab)); t.tabIndex = t === tab ? 0 : -1; });
         dom.orgDialog
           .querySelectorAll(".org-panel")
           .forEach((panel) => {
