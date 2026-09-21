@@ -747,7 +747,10 @@ struct AssignmentNavigationShell<Detail: View>: View {
     }
 
     private func drag(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8)
+        // The panel moves with the finger. Measuring in its local space feeds
+        // that movement back into translation and can make a closing drag
+        // settle open again. Keep both edge and panel drags in a fixed space.
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .onChanged { value in
                 guard abs(value.translation.width) > abs(value.translation.height) || dragOrigin != nil else { return }
                 drawer.openWidth = width
