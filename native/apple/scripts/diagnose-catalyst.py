@@ -12,8 +12,7 @@ args = ["xcodebuild", "-project", "native/apple/AssignmentApp2.xcodeproj",
         "-destination", "platform=macOS,arch=arm64,variant=Mac Catalyst",
         "-derivedDataPath", str(root / "derived-data"),
         "-resultBundlePath", str(root / "unit.xcresult"),
-        "CODE_SIGNING_ALLOWED=NO", "test", "-test-iterations", "10",
-        "-test-repetition-relaunch-enabled", "YES"]
+        "CODE_SIGNING_ALLOWED=NO", "test"]
 if os.environ["DIAGNOSTIC_SCOPE"] == "read-gate-only":
     args += ["-only-testing:AssignmentApp2Tests/TaskRefreshTests"]
 print("CPU_COUNT=" + str(os.cpu_count()), flush=True)
@@ -31,8 +30,11 @@ with (root / "unit.log").open("w") as output:
             fields = line.strip().split(maxsplit=1)
             if len(fields) == 2 and "Assignment App.app/" in fields[1] and "Contents/MacOS/Assignment App" in fields[1]:
                 pid = fields[0]
-                subprocess.run(["sample", pid, "3", "-file", str(root / ("sample-" + pid + ".txt"))],
-                               check=False, timeout=20)
+                try:
+                    subprocess.run(["sample", pid, "3", "-file", str(root / ("sample-" + pid + ".txt"))],
+                                   check=False, timeout=20)
+                except subprocess.TimeoutExpired:
+                    print("DIAGNOSTIC_SAMPLE_TIMEOUT pid=" + pid, flush=True)
                 sample = root / ("sample-" + pid + ".txt")
                 if sample.exists():
                     print("DIAGNOSTIC_THREAD_SAMPLE\n" + sample.read_text()[:26000], flush=True)
