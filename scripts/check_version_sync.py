@@ -38,11 +38,24 @@ def main() -> None:
     apple_versions = set(
         re.findall(r"MARKETING_VERSION = ([^;]+);", project)
     )
-    if apple_versions != {version}:
+    apple_version = read("native/apple/VERSION").strip()
+    if re.fullmatch(r"\d+\.\d+\.\d+", apple_version) is None:
+        fail("Invalid independent Apple version")
+    if apple_versions != {apple_version}:
         fail(
-            "Apple MARKETING_VERSION values do not match VERSION: "
+            "Apple MARKETING_VERSION values do not match native/apple/VERSION: "
             + ", ".join(sorted(apple_versions))
         )
+
+    apple_build = read("native/apple/BUILD_NUMBER").strip()
+    if re.fullmatch(r"[1-9]\d*", apple_build) is None:
+        fail("Invalid Apple BUILD_NUMBER")
+    apple_builds = set(re.findall(r"CURRENT_PROJECT_VERSION = ([^;]+);", project))
+    if apple_builds != {apple_build}:
+        fail("Apple target builds do not match native/apple/BUILD_NUMBER")
+    heading = rf"^## {re.escape(apple_version)} \(build {apple_build}\)(?:\s|$)"
+    if re.search(heading, read("native/apple/CHANGELOG.md"), re.MULTILINE) is None:
+        fail("Apple CHANGELOG has no section for its VERSION and BUILD_NUMBER")
 
     windows_project = ET.parse(
         ROOT / "native/windows/AssignmentNative.Windows.csproj"
@@ -75,7 +88,7 @@ def main() -> None:
 
     print(
         "version-sync: OK "
-        f"(root, README, CHANGELOG, Apple, Windows = {version})"
+        f"(root, README, CHANGELOG, Windows = {version}; Apple = {apple_version})"
     )
 
 

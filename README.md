@@ -9,9 +9,15 @@ Python CustomTkinter client is archived under `legacy/desktop_gui/`.
 Current source version: **2.1.0**. See [CHANGELOG.md](CHANGELOG.md) for source
 history. Versions follow [Semantic Versioning](https://semver.org/).
 
+The root version identifies the Windows/Web baseline. Apple advances independently
+from [native/apple/VERSION](native/apple/VERSION), currently 2.1.2/build 2.
+All platform metadata remains checked; shared Schema and business rules are a
+separate compatibility contract. See [version ownership](docs/adr/ADR-platform-release-versions.md).
+
 ## Windows and Mac packages, both with Web
 
-`main` is the single maintained branch. Platform implementations stay in
+`main` is the integration branch; platform work uses independent feature branches
+and worktrees. Platform implementations stay in
 `native/windows/` and `native/apple/`; both distribution packages include the
 same FastAPI/Web application and shared rules from that exact commit.
 
@@ -24,7 +30,7 @@ Download the `assignment-app-windows-with-web-<SHA>` or
 `assignment-app-macos-with-web-<SHA>` artifact from the matching successful
 [GitHub Actions run](https://github.com/qianmuyan001/assignment-app/actions).
 Each contains a platform ZIP, checksum, source manifest and native build evidence.
-These are internal test packages: the Mac package is ad-hoc-signed Debug;
+These are internal test packages: the Mac package is ad-hoc-signed Release;
 Windows is self-contained Release and its signing state is recorded in the package.
 They are not a new signed/public release.
 

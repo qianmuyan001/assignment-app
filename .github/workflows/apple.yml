@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Shared version contract (requires separate platform-version coordination)
+      - name: Check platform version contracts
         run: python3 scripts/check_version_sync.py
   build-test-package:
     # The project is authored by Xcode 27 (objectVersion 110). GitHub's
@@ -142,11 +142,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          packages=(artifacts/apple/debug-*)
-          test "${#packages[@]}" -eq 1
+          package="artifacts/apple/release-ci-${{ github.run_id }}-${{ github.run_attempt }}"
           python3 scripts/package_distribution.py --platform macos \
-            --native "${packages[0]}/Assignment App.app" \
-            --build-info "${packages[0]}/build-info.txt"
+            --native "$package/Assignment App.app" \
+            --build-info "$package/build-info.txt"
 
       - name: Upload Mac with Web
         uses: actions/upload-artifact@v4

@@ -1,10 +1,11 @@
 # Assignment App Apple 2.1.2 development preparation
 
 Apple version is now defined in `native/apple/VERSION` (2.1.2), build 2,
-and validated by `scripts/check-apple-version.py`. The unchanged root version
-contract still requires platform-version coordination; its proposed patch is
-in `docs/release/patches/platform-version-contract.patch`. No other platform
-version or shared schema was changed.
+and validated by `scripts/check-apple-version.py`. The shared gate now validates
+Apple against its own metadata while retaining the existing Windows/Web contract;
+see [version ownership](../../docs/adr/ADR-platform-release-versions.md).
+No other platform version or shared schema was changed. The historical proposed
+patch is superseded; do not reapply it.
 
 This is development and release preparation, not an accepted or published
 version. See [development evidence](../../docs/phase-reports/apple-2.1.2-development.md),

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -48,7 +49,19 @@ def package(platform: str, native: Path, build_info: Path, output: Path) -> Path
             raise ValueError("Windows publish directory has no AssignmentNative.exe.")
     elif sys.platform != "darwin" or not (native / "Contents/MacOS/Assignment App").is_file():
         raise ValueError("Package the built Catalyst .app on macOS.")
-    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    web_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    version = web_version
+    if platform == "macos":
+        version = (ROOT / "native/apple/VERSION").read_text(encoding="utf-8").strip()
+        build = (ROOT / "native/apple/BUILD_NUMBER").read_text(encoding="utf-8").strip()
+        if metadata.get("version") != version or metadata.get("build_number") != build:
+            raise ValueError("Apple build evidence must match native/apple/VERSION and BUILD_NUMBER.")
+        with (native / "Contents/Info.plist").open("rb") as plist:
+            bundle_info = plistlib.load(plist)
+        if bundle_info.get("CFBundleShortVersionString") != version:
+            raise ValueError("Apple bundle version does not match native/apple/VERSION.")
+        if bundle_info.get("CFBundleVersion") != build:
+            raise ValueError("Apple bundle build does not match native/apple/BUILD_NUMBER.")
     target = "Windows-x64" if platform == "windows" else "Mac-Catalyst-arm64"
     name = f"Assignment-App-{version}-{target}-with-Web-{revision[:8]}"
     output.mkdir(parents=True, exist_ok=True)
@@ -72,6 +85,7 @@ def package(platform: str, native: Path, build_info: Path, output: Path) -> Path
         native_entry = "Native/AssignmentNative.exe" if platform == "windows" else "Native/Assignment App.app"
         (bundle / "README.txt").write_text(
             f"Assignment App {version} — {target}\n\n"
+            f"Web version: {web_version}\n\n"
             f"桌面版 / Desktop: {native_entry}\n"
             f"网页版 / Web: Web/{launcher}\n\n"
             "网页版需先安装 Python 3.12 或更新版本，首次启动需联网安装依赖。\n"
@@ -92,7 +106,8 @@ def package(platform: str, native: Path, build_info: Path, output: Path) -> Path
             for path in sorted(bundle.rglob("*")) if path.is_file() and not path.is_symlink()
         }
         (bundle / "manifest.json").write_text(json.dumps({
-            "source_revision": revision, "version": version, "platform": platform,
+            "source_revision": revision, "version": version, "web_version": web_version,
+            "platform": platform,
             "web_included": True, "python_bundled": False, "sha256": hashes,
         }, indent=2) + "\n", encoding="utf-8")
         # ditto preserves the Apple bundle's symlinks and executable metadata.

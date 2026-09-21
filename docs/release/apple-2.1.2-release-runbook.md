@@ -12,9 +12,9 @@ python3 native/apple/scripts/check-apple-version.py
 python3 scripts/check_version_sync.py
 ```
 
-Apple 的 VERSION、BUILD_NUMBER、全部 target 配置、包内版本和 About 使用同一元数据；About 打包 Apple CHANGELOG。根 VERSION/README/CHANGELOG、Windows/Web 版本未改动。现有共享检查仍强制 Apple 与根版本相同，因此当前会真实失败。`patches/platform-version-contract.patch` 是待协调补丁，尚未应用：保留根/Windows 原校验，为 Apple 读取自己的 VERSION。主干集成前需所有者批准策略并应用、运行共享检查；不得删检查或忽略失败。
+Apple 的 VERSION、BUILD_NUMBER、全部 target 配置、包内版本和 About 使用同一元数据；About 打包 Apple CHANGELOG。2026-09-21 整合候选按用户的三端独立版本规划实现了 [平台版本规则](../adr/ADR-platform-release-versions.md)：保留根/Windows 原校验，Apple 按自己的 VERSION、BUILD_NUMBER 和 CHANGELOG 校验。历史 `patches/platform-version-contract.patch` 已被实际检查及回归测试取代，不要再应用。Schema 与共享业务规则检查继续保留；不得删检查或忽略失败。
 
-Apple CI 分为独立的共享版本门禁与 Apple 自测 job，版本协调失败不会掩盖 Apple 测试结果，但 workflow 整体不会被声称绿色。每周内部 workflow 复用完整 Apple job，周一 UTC 02:00，仅上传 Actions 内部产物；没有发布或 Apple 上传步骤。当前未 push，线上 CI 待运行。
+Apple CI 分为独立的平台版本门禁与 Apple 自测 job，版本失败不会掩盖 Apple 测试结果，但 workflow 整体不会被声称绿色。每周内部 workflow 复用完整 Apple job，周一 UTC 02:00，仅上传 Actions 内部产物；没有发布或 Apple 上传步骤。定时 workflow 需集成到默认分支后才能生效；线上结果按候选 SHA 记录，不能沿用旧提交的绿色状态。
 
 ## 2. 开发内部包（已允许的流程）
 
@@ -107,4 +107,4 @@ python3 native/apple/scripts/upgrade-rehearsal.py launch \
 - 热修复：从实际发布 SHA 独立分支，最小修复，递增 Apple build/版本需先确认平台策略，执行受影响测试及必要全量回归，重新冻结验收。发布操作另行授权。
 - 回滚：先停止分发并备份数据。只有旧客户端明确支持现有 Schema 和字段语义时才允许降级打开；否则恢复到该旧版支持的、已验证且由用户授权的升级前备份。新 Schema 绝不直接交给旧客户端写入；恢复将丢失备份之后的变更，必须先说明并获得同意。
 
-当前已知外部条件：共享版本策略待协调、线上 CI 待 push 后运行、Developer ID/账号缺失、Team Spirit 授权素材缺失、正式桌面/通知/安装矩阵未执行、Alpha/Beta 未执行。现有图标继续保留，没有临摹或生成品牌标志。
+发布前仍需：候选 SHA 的完整线上 CI、可用的 Developer ID/账号、正式桌面/通知/安装矩阵及 Alpha/Beta。旧记录中的账号缺失需由实际签名环境重新确认。Team Spirit 授权素材仍需跟踪，缺失时保留现有图标，不临摹或生成品牌标志。版本门禁的本地通过不代表上述项目通过。

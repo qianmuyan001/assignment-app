@@ -6,6 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/). Release dates us
 
 ## [Unreleased]
 
+### Changed
+
+- Integrate Apple 2.1.2 and subsequent native UI work with the shared main baseline.
+- Validate Apple release versions independently while retaining Windows/Web
+  metadata and shared data-contract checks. Mac-with-Web bundles now identify
+  both component versions and use the matching Release build output.
+
 ### Added
 
 - Consolidated all remote updates and committed Apple/Web follow-up work into

@@ -1,14 +1,21 @@
 # Windows / Mac packages with Web
 
-`main` is the single development and integration branch. The platform split is
-in the native implementations and downloadable packages, not long-lived branches.
+`main` is the integration branch; platforms develop in independent feature
+branches and worktrees, then integrate shared changes without replacing one
+another's work. Bundles always use one clean, traceable source revision.
 
 ## What is included
 
 - Windows x64: the complete self-contained WinUI Release publish directory.
-- Mac (Apple Silicon): the sandboxed, ad-hoc-signed Catalyst Debug `.app`.
+- Mac (Apple Silicon): the sandboxed, ad-hoc-signed Catalyst Release `.app`.
 - Both: the same committed Web/backend/shared sources, platform Web launcher,
   dependency list, native build evidence, file manifest and archive SHA-256.
+
+Archive names and `manifest.version` use the native platform's version; Apple
+reads `native/apple/VERSION`, while Windows continues to read root `VERSION`.
+`manifest.web_version` and the bundle README record the Web version separately.
+Apple native build evidence and the real bundle Info.plist must match its
+VERSION/BUILD_NUMBER. These checks do not claim independent acceptance.
 
 Web runs independently in the default browser; Python 3.12+ must be installed.
 The first launch installs Python dependencies over the internet. Leave the
@@ -49,10 +56,10 @@ python scripts/package_distribution.py --platform windows --native artifacts/win
 Mac (installed Xcode toolchain):
 
 ```bash
-ASSIGNMENT_REQUIRE_CLEAN_TREE=1 ./native/apple/package-catalyst.sh
+ASSIGNMENT_REQUIRE_CLEAN_TREE=1 ASSIGNMENT_CONFIGURATION=Release ./native/apple/package-catalyst.sh
 python3 scripts/package_distribution.py --platform macos \
-  --native 'artifacts/apple/debug-<run>/Assignment App.app' \
-  --build-info artifacts/apple/debug-<run>/build-info.txt
+  --native 'artifacts/apple/release-<run>/Assignment App.app' \
+  --build-info artifacts/apple/release-<run>/build-info.txt
 ```
 
 Both produce ZIPs and checksums in `artifacts/distributions/`. The Windows build
@@ -61,7 +68,7 @@ packager test and must never be presented as a working Windows application.
 
 ## Acceptance boundaries
 
-The Mac package is an internal Debug build, not Developer ID signed/notarized.
+The Mac package is an internal Release build, not Developer ID signed/notarized.
 Windows CI validates Core tests and WinUI build/publish; its service session
 cannot prove interactive desktop behavior or cold-start notification activation.
 Consult the included `native-build-info.txt` for the exact source revision,
